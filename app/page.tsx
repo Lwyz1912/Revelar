@@ -7,7 +7,7 @@ type Palette = "essencia" | "terracota" | "rose" | "mono" | "lune";
 type Currency = "BRL" | "EUR";
 type ViewMode = "list" | "cards";
 type ClientType = "person" | "company";
-type WorkStatus = "planning" | "scheduled" | "editing" | "delivery" | "completed";
+type WorkStatus = "planning" | "scheduled" | "editing" | "delivery" | "completed" | "archived" | "cancelled";
 type WorkCategory = "Casamento" | "Pré-wedding" | "Ensaio pessoal" | "Família" | "Aniversário" | "Editorial para loja" | "Evento" | "Estúdio";
 
 type Client = {
@@ -39,7 +39,17 @@ type NewClientData = {
   avatar?: string;
 };
 
-type WorkStage = { id: string; label: string; done: boolean };
+type WorkStage = {
+  id: string;
+  label: string;
+  done: boolean;
+  dueDate?: string;
+  responsible?: string;
+  notes?: string;
+  checklist?: Array<{ id: string; label: string; done: boolean }>;
+  attachments?: string[];
+  custom?: boolean;
+};
 
 type Work = {
   id: number;
@@ -161,7 +171,33 @@ const initialClients: Client[] = [
   },
 ];
 
-const defaultStages = ["Orçamento", "Contrato", "Pagamento", "Preparação", "Sessão", "Seleção", "Edição", "Entrega"];
+const defaultStages = ["Orçamento", "Contrato", "Pagamento dos 50%", "Preparação", "Sessão", "Seleção", "Edição", "Pagamento completo", "Entrega"];
+
+function stageChecklist(label: string, id: string) {
+  const items: Record<string, string[]> = {
+    Orçamento: ["Definir pacote", "Enviar orçamento ao cliente"],
+    Contrato: ["Revisar dados", "Receber assinatura"],
+    "Pagamento dos 50%": ["Conferir comprovante", "Confirmar recebimento"],
+    Preparação: ["Alinhar referências", "Confirmar local e horário"],
+    Sessão: ["Revisar equipamentos", "Realizar sessão"],
+    Seleção: ["Enviar galeria", "Receber escolhas"],
+    Edição: ["Editar seleção", "Revisar exportação"],
+    "Pagamento completo": ["Conferir saldo", "Confirmar quitação"],
+    Entrega: ["Preparar galeria final", "Enviar ao cliente"],
+  };
+  return (items[label] || ["Concluir tarefa"]).map((item, index) => ({ id: `${id}-check-${index}`, label: item, done: false }));
+}
+
+function createStages(prefix: string, doneCount = 0): WorkStage[] {
+  return defaultStages.map((label, index) => ({
+    id: `${prefix}-${index}`,
+    label,
+    done: index < doneCount,
+    responsible: "Maryana",
+    checklist: stageChecklist(label, `${prefix}-${index}`).map((item) => ({ ...item, done: index < doneCount })),
+    attachments: [],
+  }));
+}
 
 const initialWorks: Work[] = [
   {
@@ -183,7 +219,7 @@ const initialWorks: Work[] = [
     installments: 2,
     costs: 780,
     photos: { captured: 1240, selected: 320, edited: 140, delivered: 0 },
-    stages: defaultStages.map((label, index) => ({ id: `w1-${index}`, label, done: index < 6 })),
+    stages: createStages("w1", 6),
     attachments: ["contrato-assinado.pdf", "comprovante-entrada.pdf", "moodboard.pdf"],
   },
   {
@@ -205,7 +241,7 @@ const initialWorks: Work[] = [
     installments: 2,
     costs: 220,
     photos: { captured: 540, selected: 80, edited: 80, delivered: 0 },
-    stages: defaultStages.map((label, index) => ({ id: `w2-${index}`, label, done: index < 7 })),
+    stages: createStages("w2", 7),
     attachments: ["referencias-colecao.pdf"],
   },
   {
@@ -227,7 +263,7 @@ const initialWorks: Work[] = [
     installments: 2,
     costs: 80,
     photos: { captured: 0, selected: 0, edited: 0, delivered: 0 },
-    stages: defaultStages.map((label, index) => ({ id: `w3-${index}`, label, done: index < 4 })),
+    stages: createStages("w3", 4),
     attachments: ["referencias-camila.jpg"],
   },
   {
@@ -249,7 +285,7 @@ const initialWorks: Work[] = [
     installments: 2,
     costs: 95,
     photos: { captured: 410, selected: 120, edited: 66, delivered: 0 },
-    stages: defaultStages.map((label, index) => ({ id: `w4-${index}`, label, done: index < 6 })),
+    stages: createStages("w4", 6),
     attachments: [],
   },
   {
@@ -271,7 +307,7 @@ const initialWorks: Work[] = [
     installments: 3,
     costs: 60,
     photos: { captured: 0, selected: 0, edited: 0, delivered: 0 },
-    stages: defaultStages.map((label, index) => ({ id: `w5-${index}`, label, done: index < 2 })),
+    stages: createStages("w5", 2),
     attachments: ["inspiracoes.pdf"],
   },
 ];
@@ -325,6 +361,21 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${value}T12:00:00`)).replace(".", "");
 }
 
+function shiftDate(value: string, days: number) {
+  if (!value) return "";
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function inferredStageDate(work: Work, index: number) {
+  const offsets = [-45, -30, -21, -7, 0, 2];
+  if (index < offsets.length) return shiftDate(work.date, offsets[index]);
+  if (index === 6) return shiftDate(work.deliveryDate, -5);
+  if (index === 7) return shiftDate(work.deliveryDate, -1);
+  return work.deliveryDate;
+}
+
 function workProgress(work: Work) {
   const done = work.stages.filter((stage) => stage.done).length;
   return work.stages.length ? Math.round((done / work.stages.length) * 100) : 0;
@@ -340,6 +391,8 @@ const statusLabels: Record<WorkStatus, string> = {
   editing: "Em edição",
   delivery: "Pronto para entrega",
   completed: "Concluído",
+  archived: "Arquivado",
+  cancelled: "Cancelado",
 };
 
 function Dashboard({ money, works, navigate, toast, onNewWork }: { money: { pending: string; month: string }; works: Work[]; navigate: (label: string) => void; toast: (message: string) => void; onNewWork: () => void }) {
@@ -639,9 +692,9 @@ function WorksView({ works, clients, viewMode, setViewMode, search, setSearch, s
       return (status === "all" || work.status === status) && (category === "all" || work.category === category) && (!term || haystack.includes(term));
     });
   }, [works, clients, search, status, category]);
-  const active = works.filter((work) => work.status !== "completed").length;
+  const active = works.filter((work) => !["completed", "archived", "cancelled"].includes(work.status)).length;
   const scheduled = works.filter((work) => work.status === "scheduled" || work.status === "planning").length;
-  const urgent = works.filter((work) => work.status !== "completed" && work.deliveryDate <= "2026-08-12").length;
+  const urgent = works.filter((work) => !["completed", "archived", "cancelled"].includes(work.status) && work.deliveryDate <= "2026-08-12").length;
   const receivableBRL = works.filter((work) => work.currency === "BRL").reduce((sum, work) => sum + Math.max(0, work.totalValue - work.entryValue), 0);
   const receivableEUR = works.filter((work) => work.currency === "EUR").reduce((sum, work) => sum + Math.max(0, work.totalValue - work.entryValue), 0);
 
@@ -715,11 +768,187 @@ function WorksView({ works, clients, viewMode, setViewMode, search, setSearch, s
   );
 }
 
+type WorkDetailTab = "overview" | "timeline" | "finance" | "photos" | "files" | "costs";
+
+const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> = [
+  { id: "overview", label: "Visão geral", icon: "◇" },
+  { id: "timeline", label: "Timeline", icon: "⌁" },
+  { id: "finance", label: "Financeiro", icon: "＄" },
+  { id: "photos", label: "Fotos", icon: "▧" },
+  { id: "files", label: "Arquivos", icon: "□" },
+  { id: "costs", label: "Custos", icon: "−" },
+];
+
+function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, onCancel, toast }: {
+  work: Work;
+  clients: Client[];
+  onBack: () => void;
+  onUpdate: (work: Work) => void;
+  onDuplicate: (work: Work) => void;
+  onArchive: (work: Work) => void;
+  onCancel: (work: Work) => void;
+  toast: (message: string) => void;
+}) {
+  const [tab, setTab] = useState<WorkDetailTab>("overview");
+  const [selectedStageId, setSelectedStageId] = useState(work.stages.find((stage) => !stage.done)?.id || work.stages[0]?.id || "");
+  const [newStage, setNewStage] = useState("");
+  const [payment, setPayment] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [activities, setActivities] = useState([
+    { id: 1, icon: "✓", title: "Seleção concluída", meta: "Maryana · hoje, 10:42" },
+    { id: 2, icon: "＄", title: `${formatMoney(work.entryValue, work.currency)} registrados como recebidos`, meta: "Maryana · 22 jul, 14:18" },
+    { id: 3, icon: "◇", title: "Prazo de entrega definido", meta: `${formatDate(work.deliveryDate)} · 18 jul, 19:05` },
+    { id: 4, icon: "＋", title: "Trabalho criado", meta: "Maryana · 02 jun, 09:30" },
+  ]);
+  const stageFileRef = useRef<HTMLInputElement>(null);
+  const workFileRef = useRef<HTMLInputElement>(null);
+  const linkedClients = clients.filter((client) => work.clientIds.includes(client.id));
+  const selectedStage = work.stages.find((stage) => stage.id === selectedStageId) || work.stages[0];
+  const receivedPercent = work.totalValue ? Math.min(100, Math.round((work.entryValue / work.totalValue) * 100)) : 0;
+  const progress = workProgress(work);
+  const nextStage = work.stages.find((stage) => !stage.done);
+
+  const addActivity = (title: string, icon = "◇") => setActivities((current) => [{ id: Date.now(), icon, title, meta: "Maryana · agora" }, ...current]);
+  const update = (changes: Partial<Work>) => onUpdate({ ...work, ...changes });
+  const updateStage = (stageId: string, changes: Partial<WorkStage>) => {
+    const stages = work.stages.map((stage) => stage.id === stageId ? { ...stage, ...changes } : stage);
+    const done = stages.filter((stage) => stage.done).length;
+    const status: WorkStatus = done === stages.length ? "completed" : done >= 7 ? "delivery" : done >= 6 ? "editing" : work.date ? "scheduled" : "planning";
+    update({ stages, status });
+  };
+  const toggleStage = (stage: WorkStage) => {
+    if (!stage.done && stage.label === "Pagamento dos 50%" && work.entryValue < work.totalValue / 2) {
+      toast(`Registre pelo menos ${formatMoney(work.totalValue / 2, work.currency)} antes de confirmar esta etapa.`);
+      setTab("finance");
+      return;
+    }
+    if (!stage.done && stage.label === "Pagamento completo" && work.entryValue < work.totalValue) {
+      toast("O saldo ainda não foi totalmente recebido.");
+      setTab("finance");
+      return;
+    }
+    updateStage(stage.id, { done: !stage.done });
+    addActivity(`${stage.label} ${stage.done ? "reaberta" : "concluída"}`, stage.done ? "↻" : "✓");
+  };
+  const moveStage = (stageId: string, direction: -1 | 1) => {
+    const index = work.stages.findIndex((stage) => stage.id === stageId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= work.stages.length) return;
+    const stages = [...work.stages];
+    [stages[index], stages[target]] = [stages[target], stages[index]];
+    update({ stages });
+    addActivity("Ordem das etapas alterada", "↕");
+  };
+  const addCustomStage = () => {
+    const label = newStage.trim();
+    if (!label) return;
+    const id = `custom-${Date.now()}`;
+    update({ stages: [...work.stages, { id, label, done: false, custom: true, responsible: "Maryana", checklist: stageChecklist(label, id), attachments: [] }] });
+    setNewStage("");
+    setSelectedStageId(id);
+    addActivity(`Etapa “${label}” adicionada`, "＋");
+  };
+  const registerPayment = () => {
+    const amount = Number(payment.replace(",", "."));
+    if (!amount || amount <= 0) return;
+    const received = Math.min(work.totalValue, work.entryValue + amount);
+    update({ entryValue: received });
+    setPayment("");
+    addActivity(`Pagamento de ${formatMoney(amount, work.currency)} registrado`, "＄");
+    toast("Pagamento registrado. Confirme manualmente a etapa correspondente.");
+  };
+  const addWorkFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []).map((file) => file.name);
+    if (!files.length) return;
+    update({ attachments: [...work.attachments, ...files] });
+    addActivity(`${files.length} arquivo(s) anexado(s)`, "□");
+  };
+  const addStageFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    if (!selectedStage) return;
+    const files = Array.from(event.target.files || []).map((file) => file.name);
+    updateStage(selectedStage.id, { attachments: [...(selectedStage.attachments || []), ...files] });
+    addActivity(`Arquivo anexado à etapa ${selectedStage.label}`, "□");
+  };
+  const whatsapp = linkedClients[0]?.whatsapp ? `https://wa.me/${normalizePhone(linkedClients[0].whatsapp)}` : "#";
+
+  return (
+    <div className="work-details-page">
+      <button className="detail-back" type="button" onClick={onBack}>← Voltar para trabalhos</button>
+      <section className="work-detail-hero">
+        <div className="work-detail-title">
+          <span className={`work-category-icon status-${work.status}`}>▱</span>
+          <div><span className={`status-badge status-${work.status}`}>{statusLabels[work.status]}</span><h1>{work.title}</h1><p>{work.category} · {namesForClients(work.clientIds, clients)}</p></div>
+        </div>
+        <div className="work-detail-actions">
+          <a className="whatsapp-button" href={whatsapp} target="_blank" rel="noreferrer">◉ WhatsApp</a>
+          <button type="button" onClick={() => setEditing(!editing)}>✎ Editar</button>
+          <button type="button" onClick={() => onDuplicate(work)}>⧉ Duplicar</button>
+          <button type="button" onClick={() => onArchive(work)}>⌑ Arquivar</button>
+          <button className="danger-action" type="button" onClick={() => setCancelOpen(true)}>× Cancelar</button>
+        </div>
+      </section>
+
+      {editing && <section className="detail-inline-edit card">
+        <div className="field-grid"><label className="field"><span>Título</span><input value={work.title} onChange={(event) => update({ title: event.target.value })} /></label><label className="field"><span>Local</span><input value={work.location} onChange={(event) => update({ location: event.target.value })} /></label><label className="field"><span>Data</span><input type="date" value={work.date} onChange={(event) => update({ date: event.target.value })} /></label><label className="field"><span>Horário</span><input type="time" value={work.time} onChange={(event) => update({ time: event.target.value })} /></label><label className="field"><span>Entrega</span><input type="date" value={work.deliveryDate} onChange={(event) => update({ deliveryDate: event.target.value })} /></label><label className="field"><span>Equipe</span><input value={work.team.join(", ")} onChange={(event) => update({ team: event.target.value.split(",").map((item) => item.trim()).filter(Boolean) })} /></label></div>
+        <button className="primary-button" type="button" onClick={() => { setEditing(false); addActivity("Dados principais atualizados", "✎"); toast("Alterações salvas nesta sessão"); }}>Concluir edição</button>
+      </section>}
+
+      <nav className="work-detail-tabs" aria-label="Seções do trabalho">{workDetailTabs.map((item) => <button type="button" key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}><span>{item.icon}</span>{item.label}</button>)}</nav>
+
+      {tab === "overview" && <div className="detail-content-grid">
+        <section className="detail-main-column">
+          <div className="detail-summary-grid">
+            <article><span>SESSÃO</span><strong>{formatDate(work.date)} · {work.time}</strong><small>{work.duration} · {work.location}</small></article>
+            <article><span>ENTREGA</span><strong className={work.deliveryDate <= "2026-08-01" ? "text-danger" : ""}>{formatDate(work.deliveryDate)}</strong><small>{work.deliveryDate <= "2026-08-01" ? "Prazo exige atenção" : "Prazo confirmado"}</small></article>
+            <article><span>FINANCEIRO</span><strong>{formatMoney(work.entryValue, work.currency)} de {formatMoney(work.totalValue, work.currency)}</strong><small>{receivedPercent}% recebido</small></article>
+            <article><span>FOTOS</span><strong>{work.photos.edited} de {work.photos.selected} editadas</strong><small>{work.photos.captured} capturadas</small></article>
+          </div>
+          <article className="card detail-progress-card"><div className="detail-section-heading"><div><p>ANDAMENTO</p><h2>Fluxo do trabalho</h2></div><strong>{progress}%</strong></div><div className="progress large"><i style={{ width: `${progress}%` }} /></div><div className="next-stage-callout"><span>→</span><div><small>PRÓXIMA ETAPA</small><strong>{nextStage?.label || "Trabalho concluído"}</strong><p>{nextStage ? `Responsável: ${nextStage.responsible || "A definir"}` : "Todas as etapas foram finalizadas."}</p></div><button type="button" onClick={() => { setTab("timeline"); if (nextStage) setSelectedStageId(nextStage.id); }}>Abrir timeline</button></div></article>
+          <article className="card"><div className="detail-section-heading"><div><p>PRODUÇÃO</p><h2>Informações do trabalho</h2></div></div><div className="info-list"><div><span>Pacote contratado</span><strong>{work.packageName}</strong></div><div><span>Equipe</span><strong>{work.team.join(" · ")}</strong></div><div><span>Clientes</span><strong>{namesForClients(work.clientIds, clients)}</strong></div><div><span>Arquivos anexados</span><strong>{work.attachments.length}</strong></div></div></article>
+        </section>
+        <aside className="detail-activity card"><div className="detail-section-heading"><div><p>HISTÓRICO</p><h2>Atividades recentes</h2></div></div><div className="activity-list">{activities.map((item) => <div key={item.id}><span>{item.icon}</span><div><strong>{item.title}</strong><small>{item.meta}</small></div></div>)}</div></aside>
+      </div>}
+
+      {tab === "timeline" && <div className="timeline-layout">
+        <section className="timeline-panel card"><div className="detail-section-heading"><div><p>CRONOGRAMA</p><h2>Etapas do trabalho</h2></div><span>{work.stages.filter((stage) => stage.done).length} de {work.stages.length} concluídas</span></div>
+          <div className="timeline-list">{work.stages.map((stage, index) => {
+            const due = stage.dueDate || inferredStageDate(work, index);
+            const state = stage.done ? "done" : due && due < "2026-08-01" ? "late" : due && due <= "2026-08-05" ? "soon" : "pending";
+            return <div key={stage.id} className={`timeline-item ${state} ${selectedStageId === stage.id ? "selected" : ""}`}>
+              <button className="stage-check" type="button" onClick={() => toggleStage(stage)} aria-label={stage.done ? `Reabrir ${stage.label}` : `Concluir ${stage.label}`}>{stage.done ? "✓" : index + 1}</button>
+              <button className="stage-open" type="button" onClick={() => setSelectedStageId(stage.id)}><strong>{stage.label}</strong><small><span>{state === "late" ? "Atrasada" : state === "soon" ? "Prazo próximo" : stage.done ? "Concluída" : formatDate(due)}</span> · {stage.responsible || "Sem responsável"}</small></button>
+              <span className="stage-move"><button type="button" onClick={() => moveStage(stage.id, -1)} disabled={index === 0}>↑</button><button type="button" onClick={() => moveStage(stage.id, 1)} disabled={index === work.stages.length - 1}>↓</button></span>
+            </div>;
+          })}</div>
+          <div className="timeline-add"><input value={newStage} onChange={(event) => setNewStage(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") addCustomStage(); }} placeholder="Nova etapa personalizada" /><button type="button" onClick={addCustomStage}>＋ Adicionar etapa</button></div>
+        </section>
+        {selectedStage && <aside className="stage-detail card"><div className="stage-detail-head"><div><p>DETALHES DA ETAPA</p><h2>{selectedStage.label}</h2></div>{selectedStage.custom && <button type="button" onClick={() => { update({ stages: work.stages.filter((stage) => stage.id !== selectedStage.id) }); setSelectedStageId(work.stages[0]?.id || ""); }}>Remover</button>}</div>
+          <div className="field-grid"><label className="field"><span>Prazo</span><input type="date" value={selectedStage.dueDate || inferredStageDate(work, work.stages.findIndex((stage) => stage.id === selectedStage.id))} onChange={(event) => { updateStage(selectedStage.id, { dueDate: event.target.value }); addActivity(`Prazo de ${selectedStage.label} alterado`, "◇"); }} /></label><label className="field"><span>Responsável</span><select value={selectedStage.responsible || "Maryana"} onChange={(event) => updateStage(selectedStage.id, { responsible: event.target.value })}>{[...new Set(["Maryana", ...work.team])].map((person) => <option key={person}>{person}</option>)}</select></label><label className="field full"><span>Observações</span><textarea rows={3} value={selectedStage.notes || ""} onChange={(event) => updateStage(selectedStage.id, { notes: event.target.value })} placeholder="Orientações, detalhes ou pendências desta etapa." /></label></div>
+          <div className="stage-subsection"><div><strong>Checklist</strong><small>{(selectedStage.checklist || []).filter((item) => item.done).length}/{(selectedStage.checklist || []).length}</small></div><div className="stage-checklist">{(selectedStage.checklist || []).map((item) => <button type="button" key={item.id} className={item.done ? "done" : ""} onClick={() => updateStage(selectedStage.id, { checklist: selectedStage.checklist?.map((check) => check.id === item.id ? { ...check, done: !check.done } : check) })}><span>{item.done ? "✓" : ""}</span>{item.label}</button>)}</div></div>
+          <div className="stage-subsection"><div><strong>Anexos da etapa</strong><small>{selectedStage.attachments?.length || 0}</small></div><input ref={stageFileRef} type="file" multiple hidden onChange={addStageFiles} /><button className="stage-upload" type="button" onClick={() => stageFileRef.current?.click()}>＋ Anexar arquivo</button>{selectedStage.attachments?.map((file) => <span className="mini-file" key={file}>□ {file}</span>)}</div>
+          <button className={selectedStage.done ? "cancel-button full-button" : "primary-button full-button"} type="button" onClick={() => toggleStage(selectedStage)}>{selectedStage.done ? "Reabrir etapa" : "Concluir etapa"}</button>
+        </aside>}
+      </div>}
+
+      {tab === "finance" && <section className="tab-single card finance-tab"><div className="detail-section-heading"><div><p>FINANCEIRO</p><h2>Pagamentos do trabalho</h2></div><span>{receivedPercent}% recebido</span></div><div className="finance-detail-grid"><article><span>VALOR TOTAL</span><strong>{formatMoney(work.totalValue, work.currency)}</strong><small>{work.packageName}</small></article><article><span>RECEBIDO</span><strong>{formatMoney(work.entryValue, work.currency)}</strong><small>{receivedPercent >= 50 ? "Entrada mínima alcançada" : `Faltam ${formatMoney(work.totalValue / 2 - work.entryValue, work.currency)} para 50%`}</small></article><article><span>SALDO</span><strong>{formatMoney(Math.max(0, work.totalValue - work.entryValue), work.currency)}</strong><small>{work.installments} parcela(s) combinadas</small></article></div><div className="progress large"><i style={{ width: `${receivedPercent}%` }} /></div><div className="payment-register"><label className="field"><span>Novo pagamento ({work.currency === "BRL" ? "R$" : "€"})</span><input type="number" min="0" value={payment} onChange={(event) => setPayment(event.target.value)} placeholder="0,00" /></label><button className="primary-button" type="button" onClick={registerPayment}>Registrar pagamento</button></div><div className="payment-milestones"><div className={receivedPercent >= 50 ? "ready" : "blocked"}><span>{receivedPercent >= 50 ? "✓" : "⌛"}</span><div><strong>Pagamento dos 50%</strong><small>{receivedPercent >= 50 ? "Valor alcançado · aguardando confirmação manual" : "Será liberado ao atingir metade do total"}</small></div><button type="button" disabled={receivedPercent < 50} onClick={() => { const stage = work.stages.find((item) => item.label === "Pagamento dos 50%"); if (stage) toggleStage(stage); }}>Confirmar</button></div><div className={receivedPercent >= 100 ? "ready" : "blocked"}><span>{receivedPercent >= 100 ? "✓" : "⌛"}</span><div><strong>Pagamento completo</strong><small>{receivedPercent >= 100 ? "Valor quitado · aguardando confirmação manual" : "Será liberado quando o saldo chegar a zero"}</small></div><button type="button" disabled={receivedPercent < 100} onClick={() => { const stage = work.stages.find((item) => item.label === "Pagamento completo"); if (stage) toggleStage(stage); }}>Confirmar</button></div></div><p className="automation-note">◇ No futuro, pagamentos integrados poderão atualizar estas etapas automaticamente. A confirmação permanece manual nesta versão.</p></section>}
+
+      {tab === "photos" && <section className="tab-single card"><div className="detail-section-heading"><div><p>PRODUÇÃO</p><h2>Controle de fotos</h2></div><span>Atualização manual</span></div><div className="photo-detail-grid">{(["captured", "selected", "edited", "delivered"] as const).map((field) => { const labels = { captured: "Tiradas", selected: "Selecionadas", edited: "Editadas", delivered: "Entregues" }; return <label key={field}><span>{labels[field]}</span><input type="number" min="0" value={work.photos[field]} onChange={(event) => update({ photos: { ...work.photos, [field]: Number(event.target.value) } })} /><small>{field === "edited" && work.photos.selected ? `${Math.round((work.photos.edited / work.photos.selected) * 100)}% da seleção` : field === "delivered" ? "Galeria final" : "Quantidade registrada"}</small></label>; })}</div><div className="photo-flow-line"><span className="done">Captura</span><i /><span className={work.photos.selected ? "done" : ""}>Seleção</span><i /><span className={work.photos.edited >= work.photos.selected && work.photos.selected ? "done" : ""}>Edição</span><i /><span className={work.photos.delivered ? "done" : ""}>Entrega</span></div><p className="automation-note">◇ Quando o módulo de galerias for conectado, seleção e entrega poderão avançar automaticamente.</p></section>}
+
+      {tab === "files" && <section className="tab-single card"><div className="detail-section-heading"><div><p>ARQUIVOS</p><h2>Materiais do trabalho</h2></div><button className="outline-button" type="button" onClick={() => workFileRef.current?.click()}>＋ Adicionar arquivo</button></div><input ref={workFileRef} type="file" multiple hidden onChange={addWorkFiles} /><div className="work-file-grid">{work.attachments.map((file, index) => <article key={`${file}-${index}`}><span>□</span><div><strong>{file}</strong><small>{file.split(".").pop()?.toUpperCase()} · adicionado ao trabalho</small></div><button type="button" onClick={() => update({ attachments: work.attachments.filter((_, fileIndex) => fileIndex !== index) })}>×</button></article>)}{work.attachments.length === 0 && <div className="empty-state"><span>□</span><h2>Nenhum arquivo anexado</h2><p>Adicione contratos, comprovantes ou referências.</p></div>}</div></section>}
+
+      {tab === "costs" && <section className="tab-single card"><div className="detail-section-heading"><div><p>CUSTOS</p><h2>Resultado previsto</h2></div></div><div className="cost-summary"><article><span>RECEITA</span><strong>{formatMoney(work.totalValue, work.currency)}</strong></article><b>−</b><article><span>CUSTOS</span><strong>{formatMoney(work.costs, work.currency)}</strong></article><b>=</b><article className="result"><span>RESULTADO</span><strong>{formatMoney(work.totalValue - work.costs, work.currency)}</strong></article></div><label className="field cost-edit"><span>Custos previstos ou realizados</span><input type="number" min="0" value={work.costs} onChange={(event) => update({ costs: Number(event.target.value) })} /><small className="field-hint">Inclua transporte, equipe, locação, alimentação, impressão e outros gastos.</small></label><div className="cost-placeholder"><span>＋</span><div><strong>Detalhamento de custos</strong><p>No módulo Financeiro será possível separar cada gasto por categoria e moeda.</p></div></div></section>}
+
+      {cancelOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setCancelOpen(false)}><section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cancel-work-title" onMouseDown={(event) => event.stopPropagation()}><span>!</span><h2 id="cancel-work-title">Cancelar este trabalho?</h2><p>O trabalho continuará no histórico com o status “Cancelado”. Nenhum dado será apagado.</p><div><button className="cancel-button" type="button" onClick={() => setCancelOpen(false)}>Voltar</button><button className="danger-button" type="button" onClick={() => onCancel(work)}>Sim, cancelar trabalho</button></div></section></div>}
+    </div>
+  );
+}
+
 function makeEmptyWork(): NewWorkData {
   return {
     title: "", category: "Casamento", clientIds: [], date: "", time: "", duration: "", location: "", team: ["Maryana"], deliveryDate: "", packageName: "", currency: "BRL", totalValue: 0, entryValue: 0, installments: 1, costs: 0,
     photos: { captured: 0, selected: 0, edited: 0, delivered: 0 },
-    stages: defaultStages.map((label, index) => ({ id: `new-${index}`, label, done: false })), attachments: [],
+    stages: createStages("new"), attachments: [],
   };
 }
 
@@ -746,7 +975,8 @@ function NewWorkDrawer({ clients, onClose, onSave }: { clients: Client[]; onClos
   const addStage = () => {
     const label = customStage.trim();
     if (!label) return;
-    update("stages", [...form.stages, { id: `custom-${Date.now()}`, label, done: false }]);
+    const id = `custom-${Date.now()}`;
+    update("stages", [...form.stages, { id, label, done: false, custom: true, responsible: "Maryana", checklist: stageChecklist(label, id), attachments: [] }]);
     setCustomStage("");
   };
   const onFiles = (event: ChangeEvent<HTMLInputElement>) => {
@@ -822,6 +1052,7 @@ export default function Home() {
   const [workStatus, setWorkStatus] = useState<"all" | WorkStatus>("all");
   const [workCategory, setWorkCategory] = useState<"all" | WorkCategory>("all");
   const [newWorkOpen, setNewWorkOpen] = useState(false);
+  const [selectedWorkId, setSelectedWorkId] = useState<number | null>(null);
   const resolvedTheme = useResolvedTheme(themeMode);
 
   useEffect(() => {
@@ -859,6 +1090,7 @@ export default function Home() {
   const navigate = (label: string) => {
     setSearchOpen(false);
     if (label === "Visão geral" || label === "Clientes" || label === "Trabalhos") {
+      setSelectedWorkId(null);
       setActiveNav(label);
       return;
     }
@@ -889,15 +1121,26 @@ export default function Home() {
   const openClient = (client: Client) => setToast(`Abrindo ficha de ${client.name}`);
   const saveWork = (data: NewWorkData) => {
     const completedStages = data.stages.filter((stage) => stage.done).length;
-    const status: WorkStatus = completedStages >= 7 ? "delivery" : completedStages >= 5 ? "editing" : data.date ? "scheduled" : "planning";
+    const status: WorkStatus = completedStages >= data.stages.length ? "completed" : completedStages >= 7 ? "delivery" : completedStages >= 6 ? "editing" : data.date ? "scheduled" : "planning";
     setWorks((current) => [{ ...data, id: Math.max(...current.map((work) => work.id), 0) + 1, status }, ...current]);
     setNewWorkOpen(false);
     setActiveNav("Trabalhos");
     setToast(`${data.title} foi criado com ${data.stages.length} etapas`);
   };
-  const openWork = (work: Work) => setToast(`Abrindo ${work.title}`);
+  const openWork = (work: Work) => setSelectedWorkId(work.id);
+  const updateWork = (updated: Work) => setWorks((current) => current.map((work) => work.id === updated.id ? updated : work));
+  const duplicateWork = (work: Work) => {
+    const id = Math.max(...works.map((item) => item.id), 0) + 1;
+    const copy: Work = { ...work, id, title: `${work.title} · cópia`, status: "planning", stages: work.stages.map((stage, index) => ({ ...stage, id: `w${id}-${index}`, done: false, checklist: stage.checklist?.map((item, checkIndex) => ({ ...item, id: `w${id}-${index}-check-${checkIndex}`, done: false })) })) };
+    setWorks((current) => [copy, ...current]);
+    setSelectedWorkId(id);
+    setToast("Trabalho duplicado. Ajuste datas e informações antes de usar.");
+  };
+  const archiveWork = (work: Work) => { updateWork({ ...work, status: "archived" }); setSelectedWorkId(null); setToast(`${work.title} foi arquivado`); };
+  const cancelWork = (work: Work) => { updateWork({ ...work, status: "cancelled" }); setSelectedWorkId(null); setToast(`${work.title} foi cancelado e mantido no histórico`); };
   const isClients = activeNav === "Clientes";
   const isWorks = activeNav === "Trabalhos";
+  const selectedWork = works.find((work) => work.id === selectedWorkId);
 
   return (
     <div className={`revelar-app theme-${resolvedTheme} palette-${palette}`}>
@@ -924,10 +1167,10 @@ export default function Home() {
           </div>
         </header>
 
-        {isClients ? <ClientsView clients={clients} viewMode={viewMode} setViewMode={setViewMode} search={clientSearch} setSearch={setClientSearch} filter={clientFilter} setFilter={setClientFilter} onNewClient={() => setNewClientOpen(true)} onOpenClient={openClient} /> : isWorks ? <WorksView works={works} clients={clients} viewMode={workViewMode} setViewMode={setWorkViewMode} search={workSearch} setSearch={setWorkSearch} status={workStatus} setStatus={setWorkStatus} category={workCategory} setCategory={setWorkCategory} onNewWork={() => setNewWorkOpen(true)} onOpenWork={openWork} /> : <Dashboard money={money} works={works} navigate={navigate} toast={setToast} onNewWork={() => setNewWorkOpen(true)} />}
+        {selectedWork ? <WorkDetails key={selectedWork.id} work={selectedWork} clients={clients} onBack={() => setSelectedWorkId(null)} onUpdate={updateWork} onDuplicate={duplicateWork} onArchive={archiveWork} onCancel={cancelWork} toast={setToast} /> : isClients ? <ClientsView clients={clients} viewMode={viewMode} setViewMode={setViewMode} search={clientSearch} setSearch={setClientSearch} filter={clientFilter} setFilter={setClientFilter} onNewClient={() => setNewClientOpen(true)} onOpenClient={openClient} /> : isWorks ? <WorksView works={works} clients={clients} viewMode={workViewMode} setViewMode={setWorkViewMode} search={workSearch} setSearch={setWorkSearch} status={workStatus} setStatus={setWorkStatus} category={workCategory} setCategory={setWorkCategory} onNewWork={() => setNewWorkOpen(true)} onOpenWork={openWork} /> : <Dashboard money={money} works={works} navigate={navigate} toast={setToast} onNewWork={() => setNewWorkOpen(true)} />}
       </main>
 
-      <button className="floating-add" type="button" onClick={() => isClients ? setNewClientOpen(true) : setNewWorkOpen(true)} aria-label={isClients ? "Novo cliente" : "Novo trabalho"}>＋</button>
+      {!selectedWork && <button className="floating-add" type="button" onClick={() => isClients ? setNewClientOpen(true) : setNewWorkOpen(true)} aria-label={isClients ? "Novo cliente" : "Novo trabalho"}>＋</button>}
 
       <nav className="mobile-nav" aria-label="Navegação móvel">
         {navItems.slice(0, 4).map((item) => <button type="button" key={item.label} className={activeNav === item.label ? "active" : ""} onClick={() => navigate(item.label)}><span>{item.icon}</span>{item.label === "Visão geral" ? "Início" : item.label}</button>)}
