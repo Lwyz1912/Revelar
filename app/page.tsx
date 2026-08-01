@@ -342,7 +342,7 @@ const statusLabels: Record<WorkStatus, string> = {
   completed: "Concluído",
 };
 
-function Dashboard({ money, works, navigate, toast }: { money: { pending: string; month: string }; works: Work[]; navigate: (label: string) => void; toast: (message: string) => void }) {
+function Dashboard({ money, works, navigate, toast, onNewWork }: { money: { pending: string; month: string }; works: Work[]; navigate: (label: string) => void; toast: (message: string) => void; onNewWork: () => void }) {
   const urgentDeliveries = works.filter((work) => work.status !== "completed" && work.deliveryDate <= "2026-08-12");
   return (
     <div className="dashboard">
@@ -352,7 +352,7 @@ function Dashboard({ money, works, navigate, toast }: { money: { pending: string
           <h1>Boa tarde, Maryana</h1>
           <span>Aqui está um resumo do seu estúdio hoje.</span>
         </div>
-        <button className="primary-button desktop-new" type="button" onClick={() => toast("Novo trabalho iniciado")}>＋ Novo trabalho</button>
+        <button className="primary-button desktop-new" type="button" onClick={onNewWork}>＋ Novo trabalho</button>
       </section>
 
       <section className="metrics" aria-label="Resumo do estúdio">
@@ -924,10 +924,10 @@ export default function Home() {
           </div>
         </header>
 
-        {isClients ? <ClientsView clients={clients} viewMode={viewMode} setViewMode={setViewMode} search={clientSearch} setSearch={setClientSearch} filter={clientFilter} setFilter={setClientFilter} onNewClient={() => setNewClientOpen(true)} onOpenClient={openClient} /> : isWorks ? <WorksView works={works} clients={clients} viewMode={workViewMode} setViewMode={setWorkViewMode} search={workSearch} setSearch={setWorkSearch} status={workStatus} setStatus={setWorkStatus} category={workCategory} setCategory={setWorkCategory} onNewWork={() => setNewWorkOpen(true)} onOpenWork={openWork} /> : <Dashboard money={money} works={works} navigate={navigate} toast={setToast} />}
+        {isClients ? <ClientsView clients={clients} viewMode={viewMode} setViewMode={setViewMode} search={clientSearch} setSearch={setClientSearch} filter={clientFilter} setFilter={setClientFilter} onNewClient={() => setNewClientOpen(true)} onOpenClient={openClient} /> : isWorks ? <WorksView works={works} clients={clients} viewMode={workViewMode} setViewMode={setWorkViewMode} search={workSearch} setSearch={setWorkSearch} status={workStatus} setStatus={setWorkStatus} category={workCategory} setCategory={setWorkCategory} onNewWork={() => setNewWorkOpen(true)} onOpenWork={openWork} /> : <Dashboard money={money} works={works} navigate={navigate} toast={setToast} onNewWork={() => setNewWorkOpen(true)} />}
       </main>
 
-      <button className="floating-add" type="button" onClick={() => isClients ? setNewClientOpen(true) : isWorks ? setNewWorkOpen(true) : setToast("Escolha: novo cliente ou novo trabalho")} aria-label={isClients ? "Novo cliente" : isWorks ? "Novo trabalho" : "Nova ação"}>＋</button>
+      <button className="floating-add" type="button" onClick={() => isClients ? setNewClientOpen(true) : setNewWorkOpen(true)} aria-label={isClients ? "Novo cliente" : "Novo trabalho"}>＋</button>
 
       <nav className="mobile-nav" aria-label="Navegação móvel">
         {navItems.slice(0, 4).map((item) => <button type="button" key={item.label} className={activeNav === item.label ? "active" : ""} onClick={() => navigate(item.label)}><span>{item.icon}</span>{item.label === "Visão geral" ? "Início" : item.label}</button>)}
