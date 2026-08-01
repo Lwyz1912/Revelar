@@ -7,6 +7,8 @@ type Palette = "essencia" | "terracota" | "rose" | "mono" | "lune";
 type Currency = "BRL" | "EUR";
 type ViewMode = "list" | "cards";
 type ClientType = "person" | "company";
+type WorkStatus = "planning" | "scheduled" | "editing" | "delivery" | "completed";
+type WorkCategory = "Casamento" | "Pré-wedding" | "Ensaio pessoal" | "Família" | "Aniversário" | "Editorial para loja" | "Evento" | "Estúdio";
 
 type Client = {
   id: number;
@@ -37,6 +39,33 @@ type NewClientData = {
   avatar?: string;
 };
 
+type WorkStage = { id: string; label: string; done: boolean };
+
+type Work = {
+  id: number;
+  title: string;
+  category: WorkCategory;
+  clientIds: number[];
+  status: WorkStatus;
+  date: string;
+  time: string;
+  duration: string;
+  location: string;
+  team: string[];
+  deliveryDate: string;
+  packageName: string;
+  currency: Currency;
+  totalValue: number;
+  entryValue: number;
+  installments: number;
+  costs: number;
+  photos: { captured: number; selected: number; edited: number; delivered: number };
+  stages: WorkStage[];
+  attachments: string[];
+};
+
+type NewWorkData = Omit<Work, "id" | "status">;
+
 const navItems = [
   { icon: "⌂", label: "Visão geral" },
   { icon: "□", label: "Agenda" },
@@ -54,7 +83,7 @@ const palettes: Array<{ id: Palette; name: string; colors: string[] }> = [
   { id: "lune", name: "Lunê", colors: ["#294796", "#d3a349", "#f7f0df"] },
 ];
 
-const jobs = [
+const dashboardJobs = [
   { name: "Casamento · Amanda e João", progress: 44, edited: 140, total: 320, due: "12 ago" },
   { name: "Editorial · Loja Aurora", progress: 100, edited: 80, total: 80, due: "Hoje" },
   { name: "Família · Renata", progress: 55, edited: 66, total: 120, due: "15 ago" },
@@ -132,6 +161,121 @@ const initialClients: Client[] = [
   },
 ];
 
+const defaultStages = ["Orçamento", "Contrato", "Pagamento", "Preparação", "Sessão", "Seleção", "Edição", "Entrega"];
+
+const initialWorks: Work[] = [
+  {
+    id: 1,
+    title: "Casamento Amanda e João",
+    category: "Casamento",
+    clientIds: [3],
+    status: "editing",
+    date: "2026-07-18",
+    time: "14:00",
+    duration: "8h",
+    location: "Villa Jardim, Caruaru",
+    team: ["Maryana", "Lucas · assistente"],
+    deliveryDate: "2026-08-12",
+    packageName: "Memórias completas",
+    currency: "BRL",
+    totalValue: 4800,
+    entryValue: 2400,
+    installments: 2,
+    costs: 780,
+    photos: { captured: 1240, selected: 320, edited: 140, delivered: 0 },
+    stages: defaultStages.map((label, index) => ({ id: `w1-${index}`, label, done: index < 6 })),
+    attachments: ["contrato-assinado.pdf", "comprovante-entrada.pdf", "moodboard.pdf"],
+  },
+  {
+    id: 2,
+    title: "Editorial coleção Aurora",
+    category: "Editorial para loja",
+    clientIds: [2],
+    status: "delivery",
+    date: "2026-07-22",
+    time: "09:00",
+    duration: "4h",
+    location: "MF Studio",
+    team: ["Maryana", "Bianca · styling"],
+    deliveryDate: "2026-08-01",
+    packageName: "Editorial 80 fotos",
+    currency: "BRL",
+    totalValue: 1500,
+    entryValue: 750,
+    installments: 2,
+    costs: 220,
+    photos: { captured: 540, selected: 80, edited: 80, delivered: 0 },
+    stages: defaultStages.map((label, index) => ({ id: `w2-${index}`, label, done: index < 7 })),
+    attachments: ["referencias-colecao.pdf"],
+  },
+  {
+    id: 3,
+    title: "Aniversário de Camila",
+    category: "Aniversário",
+    clientIds: [1],
+    status: "scheduled",
+    date: "2026-08-01",
+    time: "15:30",
+    duration: "2h",
+    location: "MF Studio",
+    team: ["Maryana"],
+    deliveryDate: "2026-08-10",
+    packageName: "Ensaio Essencial",
+    currency: "BRL",
+    totalValue: 650,
+    entryValue: 325,
+    installments: 2,
+    costs: 80,
+    photos: { captured: 0, selected: 0, edited: 0, delivered: 0 },
+    stages: defaultStages.map((label, index) => ({ id: `w3-${index}`, label, done: index < 4 })),
+    attachments: ["referencias-camila.jpg"],
+  },
+  {
+    id: 4,
+    title: "Família Barbosa",
+    category: "Família",
+    clientIds: [4],
+    status: "editing",
+    date: "2026-07-12",
+    time: "16:00",
+    duration: "2h30",
+    location: "Parque das Rendeiras",
+    team: ["Maryana"],
+    deliveryDate: "2026-08-15",
+    packageName: "Família completa",
+    currency: "BRL",
+    totalValue: 900,
+    entryValue: 450,
+    installments: 2,
+    costs: 95,
+    photos: { captured: 410, selected: 120, edited: 66, delivered: 0 },
+    stages: defaultStages.map((label, index) => ({ id: `w4-${index}`, label, done: index < 6 })),
+    attachments: [],
+  },
+  {
+    id: 5,
+    title: "Pré-wedding Clara e Miguel",
+    category: "Pré-wedding",
+    clientIds: [1, 3],
+    status: "planning",
+    date: "2026-08-19",
+    time: "16:30",
+    duration: "3h",
+    location: "A definir",
+    team: ["Maryana"],
+    deliveryDate: "2026-08-30",
+    packageName: "Pré-wedding externo",
+    currency: "EUR",
+    totalValue: 420,
+    entryValue: 120,
+    installments: 3,
+    costs: 60,
+    photos: { captured: 0, selected: 0, edited: 0, delivered: 0 },
+    stages: defaultStages.map((label, index) => ({ id: `w5-${index}`, label, done: index < 2 })),
+    attachments: ["inspiracoes.pdf"],
+  },
+];
+
 const emptyClient: NewClientData = {
   type: "person",
   name: "",
@@ -172,7 +316,34 @@ function initials(name: string) {
     .join("");
 }
 
-function Dashboard({ money, navigate, toast }: { money: { pending: string; month: string }; navigate: (label: string) => void; toast: (message: string) => void }) {
+function formatMoney(value: number, currency: Currency) {
+  return new Intl.NumberFormat(currency === "BRL" ? "pt-BR" : "pt-PT", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+}
+
+function formatDate(value: string) {
+  if (!value) return "A definir";
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${value}T12:00:00`)).replace(".", "");
+}
+
+function workProgress(work: Work) {
+  const done = work.stages.filter((stage) => stage.done).length;
+  return work.stages.length ? Math.round((done / work.stages.length) * 100) : 0;
+}
+
+function namesForClients(ids: number[], clients: Client[]) {
+  return ids.map((id) => clients.find((client) => client.id === id)?.name).filter(Boolean).join(" + ");
+}
+
+const statusLabels: Record<WorkStatus, string> = {
+  planning: "Planejamento",
+  scheduled: "Agendado",
+  editing: "Em edição",
+  delivery: "Pronto para entrega",
+  completed: "Concluído",
+};
+
+function Dashboard({ money, works, navigate, toast }: { money: { pending: string; month: string }; works: Work[]; navigate: (label: string) => void; toast: (message: string) => void }) {
+  const urgentDeliveries = works.filter((work) => work.status !== "completed" && work.deliveryDate <= "2026-08-12");
   return (
     <div className="dashboard">
       <section className="welcome-row">
@@ -187,7 +358,7 @@ function Dashboard({ money, navigate, toast }: { money: { pending: string; month
       <section className="metrics" aria-label="Resumo do estúdio">
         <article className="metric-card"><span className="metric-icon green">▣</span><div><p>ENSAIOS HOJE</p><strong>2</strong><small>Próximo às 15:30</small></div></article>
         <article className="metric-card"><span className="metric-icon gold">◫</span><div><p>FOTOS PARA EDITAR</p><strong>286</strong><small>Em 3 trabalhos</small></div></article>
-        <article className="metric-card"><span className="metric-icon rose">⌛</span><div><p>ENTREGAS PENDENTES</p><strong>4</strong><small>1 vence amanhã</small></div></article>
+        <article className="metric-card"><span className="metric-icon rose">⌛</span><div><p>ENTREGAS PENDENTES</p><strong>{works.filter((work) => work.status !== "completed").length}</strong><small>{urgentDeliveries.length} exigem atenção</small></div></article>
         <article className="metric-card"><span className="metric-icon green">＄</span><div><p>A RECEBER</p><strong>{money.pending}</strong><small>3 pagamentos</small></div></article>
       </section>
 
@@ -222,7 +393,7 @@ function Dashboard({ money, navigate, toast }: { money: { pending: string; month
         <article className="card editing-flow">
           <div className="card-heading compact"><div><p>FLUXO DE EDIÇÃO</p><h2>Trabalhos em andamento</h2></div><button className="text-button" type="button" onClick={() => navigate("Trabalhos")}>Ver todos ›</button></div>
           <div className="jobs-list">
-            {jobs.map((job) => (
+            {dashboardJobs.map((job) => (
               <div className="job-row" key={job.name}>
                 <div className="progress-title"><span>{job.name}</span><strong>{job.edited}/{job.total}</strong></div>
                 <div className="progress"><i style={{ width: `${job.progress}%` }} /></div>
@@ -243,6 +414,19 @@ function Dashboard({ money, navigate, toast }: { money: { pending: string; month
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="card deadline-alerts">
+        <div className="card-heading compact"><div><p>PRAZOS IMPORTANTES</p><h2>Entregas no calendário</h2></div><button className="text-button" type="button" onClick={() => navigate("Agenda")}>Abrir calendário ›</button></div>
+        <div className="deadline-alert-list">
+          {urgentDeliveries.slice(0, 3).map((work) => (
+            <button type="button" key={work.id} onClick={() => navigate("Trabalhos")}>
+              <span className={`deadline-dot ${work.deliveryDate <= "2026-08-01" ? "late" : "soon"}`} />
+              <span><strong>{work.title}</strong><small>{work.deliveryDate <= "2026-08-01" ? "Entrega hoje" : `Entrega em ${formatDate(work.deliveryDate)}`}</small></span>
+              <b>›</b>
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="card financial-strip">
@@ -434,6 +618,191 @@ function NewClientDrawer({ clients, onClose, onSave }: { clients: Client[]; onCl
   );
 }
 
+function WorksView({ works, clients, viewMode, setViewMode, search, setSearch, status, setStatus, category, setCategory, onNewWork, onOpenWork }: {
+  works: Work[];
+  clients: Client[];
+  viewMode: ViewMode;
+  setViewMode: (mode: ViewMode) => void;
+  search: string;
+  setSearch: (value: string) => void;
+  status: "all" | WorkStatus;
+  setStatus: (value: "all" | WorkStatus) => void;
+  category: "all" | WorkCategory;
+  setCategory: (value: "all" | WorkCategory) => void;
+  onNewWork: () => void;
+  onOpenWork: (work: Work) => void;
+}) {
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return works.filter((work) => {
+      const haystack = `${work.title} ${work.category} ${work.location} ${namesForClients(work.clientIds, clients)}`.toLowerCase();
+      return (status === "all" || work.status === status) && (category === "all" || work.category === category) && (!term || haystack.includes(term));
+    });
+  }, [works, clients, search, status, category]);
+  const active = works.filter((work) => work.status !== "completed").length;
+  const scheduled = works.filter((work) => work.status === "scheduled" || work.status === "planning").length;
+  const urgent = works.filter((work) => work.status !== "completed" && work.deliveryDate <= "2026-08-12").length;
+  const receivableBRL = works.filter((work) => work.currency === "BRL").reduce((sum, work) => sum + Math.max(0, work.totalValue - work.entryValue), 0);
+  const receivableEUR = works.filter((work) => work.currency === "EUR").reduce((sum, work) => sum + Math.max(0, work.totalValue - work.entryValue), 0);
+
+  return (
+    <div className="works-page">
+      <section className="works-title-row">
+        <div><p>PRODUÇÃO</p><h1>Trabalhos</h1><span>Acompanhe cada ensaio do orçamento até a entrega.</span></div>
+        <button className="primary-button" type="button" onClick={onNewWork}>＋ Novo trabalho</button>
+      </section>
+
+      <section className="work-metrics" aria-label="Resumo de trabalhos">
+        <article><span>EM ANDAMENTO</span><strong>{active}</strong><small>Todos os fluxos ativos</small></article>
+        <article><span>AGENDADOS</span><strong>{scheduled}</strong><small>Preparação e sessão</small></article>
+        <article className={urgent ? "metric-urgent" : ""}><span>PRAZOS PRÓXIMOS</span><strong>{urgent}</strong><small>Até 12 de agosto</small></article>
+        <article><span>A RECEBER</span><strong>{formatMoney(receivableBRL, "BRL")}</strong><small>{receivableEUR ? `+ ${formatMoney(receivableEUR, "EUR")}` : "Nenhum valor em euro"}</small></article>
+      </section>
+
+      <section className="works-panel">
+        <header className="works-toolbar">
+          <label className="work-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar trabalho, cliente ou local" aria-label="Buscar trabalhos" /></label>
+          <select value={status} onChange={(event) => setStatus(event.target.value as "all" | WorkStatus)} aria-label="Filtrar por andamento">
+            <option value="all">Todos os andamentos</option>
+            {Object.entries(statusLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select>
+          <select value={category} onChange={(event) => setCategory(event.target.value as "all" | WorkCategory)} aria-label="Filtrar por categoria">
+            <option value="all">Todas as categorias</option>
+            {(["Casamento", "Pré-wedding", "Ensaio pessoal", "Família", "Aniversário", "Editorial para loja", "Evento", "Estúdio"] as WorkCategory[]).map((item) => <option key={item}>{item}</option>)}
+          </select>
+          <div className="view-switch" aria-label="Modo de visualização">
+            <button type="button" className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")} aria-label="Visualizar como lista">☷</button>
+            <button type="button" className={viewMode === "cards" ? "active" : ""} onClick={() => setViewMode("cards")} aria-label="Visualizar como cards">▦</button>
+          </div>
+        </header>
+
+        {filtered.length === 0 ? (
+          <div className="empty-state"><span>⌕</span><h2>Nenhum trabalho encontrado</h2><p>Tente mudar a busca ou os filtros.</p><button className="outline-button" type="button" onClick={() => { setSearch(""); setStatus("all"); setCategory("all"); }}>Limpar filtros</button></div>
+        ) : viewMode === "list" ? (
+          <div className="work-list">
+            <div className="work-list-head"><span>TRABALHO</span><span>DATA E LOCAL</span><span>ANDAMENTO</span><span>FINANCEIRO</span><span>PRAZO</span><span /></div>
+            {filtered.map((work) => {
+              const progress = workProgress(work);
+              const balance = work.totalValue - work.entryValue;
+              return <button className="work-row" type="button" key={work.id} onClick={() => onOpenWork(work)}>
+                <span className="work-main"><span className={`work-category-icon status-${work.status}`}>▱</span><span><strong>{work.title}</strong><small>{work.category} · {namesForClients(work.clientIds, clients)}</small></span></span>
+                <span className="work-date"><strong>{formatDate(work.date)} · {work.time}</strong><small>{work.location}</small></span>
+                <span className="work-flow"><span><strong>{statusLabels[work.status]}</strong><small>{progress}%</small></span><i><b style={{ width: `${progress}%` }} /></i></span>
+                <span className="work-money"><strong>{formatMoney(work.totalValue, work.currency)}</strong><small>{balance > 0 ? `${formatMoney(balance, work.currency)} pendente` : "Pago"}</small></span>
+                <span className={`work-deadline ${work.deliveryDate <= "2026-08-01" ? "urgent" : ""}`}><strong>{formatDate(work.deliveryDate)}</strong><small>{work.deliveryDate <= "2026-08-01" ? "Entrega hoje" : "Prazo de entrega"}</small></span>
+                <span className="row-arrow">›</span>
+              </button>;
+            })}
+          </div>
+        ) : (
+          <div className="work-card-grid">
+            {filtered.map((work) => {
+              const progress = workProgress(work);
+              return <button className="work-card" type="button" key={work.id} onClick={() => onOpenWork(work)}>
+                <span className="work-card-top"><span className={`status-badge status-${work.status}`}>{statusLabels[work.status]}</span><span className="work-category-label">{work.category}</span></span>
+                <strong className="work-card-title">{work.title}</strong><span className="work-card-clients">{namesForClients(work.clientIds, clients)}</span>
+                <span className="work-card-info"><span>◇ {formatDate(work.date)} · {work.time}</span><span>⌖ {work.location}</span></span>
+                <span className="work-card-progress"><span><small>Fluxo do trabalho</small><strong>{progress}%</strong></span><i><b style={{ width: `${progress}%` }} /></i></span>
+                <span className={`work-card-deadline ${work.deliveryDate <= "2026-08-01" ? "urgent" : ""}`}><span>⌛</span><span><small>Entrega</small><strong>{formatDate(work.deliveryDate)}</strong></span></span>
+                <span className="photo-counts"><span>{work.photos.captured}<small>Tiradas</small></span><span>{work.photos.selected}<small>Selecionadas</small></span><span>{work.photos.edited}<small>Editadas</small></span><span>{work.photos.delivered}<small>Entregues</small></span></span>
+              </button>;
+            })}
+          </div>
+        )}
+        <footer className="clients-footer">Mostrando {filtered.length} de {works.length} trabalhos</footer>
+      </section>
+    </div>
+  );
+}
+
+function makeEmptyWork(): NewWorkData {
+  return {
+    title: "", category: "Casamento", clientIds: [], date: "", time: "", duration: "", location: "", team: ["Maryana"], deliveryDate: "", packageName: "", currency: "BRL", totalValue: 0, entryValue: 0, installments: 1, costs: 0,
+    photos: { captured: 0, selected: 0, edited: 0, delivered: 0 },
+    stages: defaultStages.map((label, index) => ({ id: `new-${index}`, label, done: false })), attachments: [],
+  };
+}
+
+function NewWorkDrawer({ clients, onClose, onSave }: { clients: Client[]; onClose: () => void; onSave: (work: NewWorkData) => void }) {
+  const [form, setForm] = useState<NewWorkData>(() => makeEmptyWork());
+  const [step, setStep] = useState(1);
+  const [submitted, setSubmitted] = useState(false);
+  const [customStage, setCustomStage] = useState("");
+  const [teamText, setTeamText] = useState("Maryana");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const categories: WorkCategory[] = ["Casamento", "Pré-wedding", "Ensaio pessoal", "Família", "Aniversário", "Editorial para loja", "Evento", "Estúdio"];
+  const stepNames = ["Essencial", "Agenda", "Financeiro", "Fluxo", "Revisão"];
+
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [onClose]);
+
+  const update = <K extends keyof NewWorkData>(field: K, value: NewWorkData[K]) => setForm((current) => ({ ...current, [field]: value }));
+  const validStep = step === 1 ? !!form.title.trim() && form.clientIds.length > 0 : step === 2 ? !!form.date && !!form.time && !!form.location.trim() && !!form.deliveryDate : step === 3 ? !!form.packageName.trim() && form.totalValue > 0 : true;
+  const toggleClient = (id: number) => update("clientIds", form.clientIds.includes(id) ? form.clientIds.filter((clientId) => clientId !== id) : [...form.clientIds, id]);
+  const goNext = () => { setSubmitted(true); if (!validStep) return; setSubmitted(false); setStep((current) => Math.min(5, current + 1)); };
+  const addStage = () => {
+    const label = customStage.trim();
+    if (!label) return;
+    update("stages", [...form.stages, { id: `custom-${Date.now()}`, label, done: false }]);
+    setCustomStage("");
+  };
+  const onFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    const names = Array.from(event.target.files || []).map((file) => file.name);
+    update("attachments", [...form.attachments, ...names]);
+  };
+  const save = () => onSave({ ...form, title: form.title.trim(), location: form.location.trim(), packageName: form.packageName.trim(), team: teamText.split(",").map((item) => item.trim()).filter(Boolean) });
+
+  return (
+    <div className="drawer-backdrop" role="presentation" onMouseDown={onClose}>
+      <aside className="work-drawer" role="dialog" aria-modal="true" aria-labelledby="new-work-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="drawer-header"><div><p>NOVO TRABALHO</p><h2 id="new-work-title">Criar trabalho</h2><span>Etapa {step} de 5 · {stepNames[step - 1]}</span></div><button type="button" onClick={onClose} aria-label="Fechar cadastro">×</button></header>
+        <div className="work-stepper" aria-label="Progresso do cadastro">{stepNames.map((name, index) => <button type="button" key={name} className={step === index + 1 ? "active" : step > index + 1 ? "done" : ""} onClick={() => index + 1 < step && setStep(index + 1)}><span>{step > index + 1 ? "✓" : index + 1}</span><small>{name}</small></button>)}</div>
+        <div className="work-drawer-body">
+          {step === 1 && <section className="work-form-step">
+            <div className="step-copy"><span>01</span><div><h3>O que será fotografado?</h3><p>Defina o trabalho e vincule todos os clientes envolvidos.</p></div></div>
+            <label className="field"><span>Título do trabalho *</span><input autoFocus value={form.title} onChange={(event) => update("title", event.target.value)} placeholder="Ex.: Casamento Amanda e João" aria-invalid={submitted && !form.title.trim()} />{submitted && !form.title.trim() && <small className="field-error">Informe um título.</small>}</label>
+            <div className="field"><span>Categoria *</span><div className="category-picker">{categories.map((item) => <button key={item} type="button" className={form.category === item ? "active" : ""} onClick={() => update("category", item)}>{item}</button>)}</div></div>
+            <div className="field"><span>Clientes vinculados *</span><div className="client-picker">{clients.map((client) => <button key={client.id} type="button" className={form.clientIds.includes(client.id) ? "active" : ""} onClick={() => toggleClient(client.id)}><span className="client-avatar">{initials(client.name)}</span><span><strong>{client.name}</strong><small>{client.type === "company" ? "Empresa / loja" : client.whatsapp}</small></span><b>{form.clientIds.includes(client.id) ? "✓" : "+"}</b></button>)}</div>{submitted && form.clientIds.length === 0 && <small className="field-error">Selecione pelo menos um cliente.</small>}</div>
+          </section>}
+
+          {step === 2 && <section className="work-form-step">
+            <div className="step-copy"><span>02</span><div><h3>Agenda e produção</h3><p>Organize sessão, prazo, local e equipe.</p></div></div>
+            <div className="field-grid"><label className="field"><span>Data *</span><input type="date" value={form.date} onChange={(event) => update("date", event.target.value)} /></label><label className="field"><span>Horário *</span><input type="time" value={form.time} onChange={(event) => update("time", event.target.value)} /></label><label className="field"><span>Duração</span><input value={form.duration} onChange={(event) => update("duration", event.target.value)} placeholder="Ex.: 3h30" /></label><label className="field"><span>Entrega prevista *</span><input type="date" value={form.deliveryDate} onChange={(event) => update("deliveryDate", event.target.value)} /></label><label className="field full"><span>Local *</span><input value={form.location} onChange={(event) => update("location", event.target.value)} placeholder="Nome e endereço do local" /></label><label className="field full"><span>Equipe</span><input value={teamText} onChange={(event) => setTeamText(event.target.value)} placeholder="Separe os nomes por vírgula" /><small className="field-hint">Ex.: Maryana, Lucas · assistente, Bianca · maquiagem</small></label></div>
+            {submitted && !validStep && <p className="form-error">Preencha data, horário, local e prazo de entrega.</p>}
+          </section>}
+
+          {step === 3 && <section className="work-form-step">
+            <div className="step-copy"><span>03</span><div><h3>Pacote e financeiro</h3><p>Registre o combinado, pagamentos e custos previstos.</p></div></div>
+            <label className="field"><span>Pacote contratado *</span><input value={form.packageName} onChange={(event) => update("packageName", event.target.value)} placeholder="Ex.: Casamento Memórias Completas" /></label>
+            <div className="field-grid finance-fields"><label className="field"><span>Moeda</span><select value={form.currency} onChange={(event) => update("currency", event.target.value as Currency)}><option value="BRL">Real (R$)</option><option value="EUR">Euro (€)</option></select></label><label className="field"><span>Valor total *</span><input type="number" min="0" value={form.totalValue || ""} onChange={(event) => update("totalValue", Number(event.target.value))} placeholder="0" /></label><label className="field"><span>Entrada recebida</span><input type="number" min="0" value={form.entryValue || ""} onChange={(event) => update("entryValue", Number(event.target.value))} placeholder="0" /></label><label className="field"><span>Parcelas</span><input type="number" min="1" max="24" value={form.installments} onChange={(event) => update("installments", Number(event.target.value))} /></label><label className="field"><span>Custos previstos</span><input type="number" min="0" value={form.costs || ""} onChange={(event) => update("costs", Number(event.target.value))} placeholder="Transporte, equipe..." /></label></div>
+            <div className="finance-preview"><span><small>Total</small><strong>{formatMoney(form.totalValue, form.currency)}</strong></span><span><small>Saldo pendente</small><strong>{formatMoney(Math.max(0, form.totalValue - form.entryValue), form.currency)}</strong></span><span><small>Resultado previsto</small><strong>{formatMoney(Math.max(0, form.totalValue - form.costs), form.currency)}</strong></span></div>
+            {submitted && !validStep && <p className="form-error">Informe o pacote e um valor total maior que zero.</p>}
+          </section>}
+
+          {step === 4 && <section className="work-form-step">
+            <div className="step-copy"><span>04</span><div><h3>Etapas, fotos e arquivos</h3><p>Personalize o fluxo e centralize os materiais do trabalho.</p></div></div>
+            <div className="stage-list">{form.stages.map((stage) => <div key={stage.id}><button type="button" className={stage.done ? "checked" : ""} onClick={() => update("stages", form.stages.map((item) => item.id === stage.id ? { ...item, done: !item.done } : item))}><span>{stage.done ? "✓" : ""}</span>{stage.label}</button>{stage.id.startsWith("custom-") && <button type="button" className="remove-stage" onClick={() => update("stages", form.stages.filter((item) => item.id !== stage.id))} aria-label={`Remover ${stage.label}`}>×</button>}</div>)}</div>
+            <div className="add-stage"><input value={customStage} onChange={(event) => setCustomStage(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addStage(); } }} placeholder="Nome de uma etapa personalizada" /><button type="button" onClick={addStage}>＋ Adicionar</button></div>
+            <div className="photo-fields"><label><span>Tiradas</span><input type="number" min="0" value={form.photos.captured || ""} onChange={(event) => update("photos", { ...form.photos, captured: Number(event.target.value) })} /></label><label><span>Selecionadas</span><input type="number" min="0" value={form.photos.selected || ""} onChange={(event) => update("photos", { ...form.photos, selected: Number(event.target.value) })} /></label><label><span>Editadas</span><input type="number" min="0" value={form.photos.edited || ""} onChange={(event) => update("photos", { ...form.photos, edited: Number(event.target.value) })} /></label><label><span>Entregues</span><input type="number" min="0" value={form.photos.delivered || ""} onChange={(event) => update("photos", { ...form.photos, delivered: Number(event.target.value) })} /></label></div>
+            <div className="file-drop"><input ref={fileRef} type="file" multiple hidden onChange={onFiles} /><button type="button" onClick={() => fileRef.current?.click()}><span>＋</span><strong>Anexar arquivos</strong><small>Contrato, referências, comprovantes e outros materiais</small></button>{form.attachments.length > 0 && <div className="attachment-list">{form.attachments.map((name, index) => <span key={`${name}-${index}`}>▧ {name}<button type="button" onClick={() => update("attachments", form.attachments.filter((_, fileIndex) => fileIndex !== index))}>×</button></span>)}</div>}</div>
+          </section>}
+
+          {step === 5 && <section className="work-form-step">
+            <div className="step-copy"><span>05</span><div><h3>Revise antes de criar</h3><p>Os dados poderão ser alterados na ficha do trabalho.</p></div></div>
+            <div className="work-review-hero"><span className="status-badge status-planning">Planejamento</span><strong>{form.title || "Trabalho sem título"}</strong><small>{form.category} · {form.clientIds.map((id) => clients.find((client) => client.id === id)?.name).filter(Boolean).join(" + ")}</small></div>
+            <div className="review-grid"><div><small>SESSÃO</small><strong>{formatDate(form.date)} · {form.time}</strong><span>{form.location}</span></div><div><small>ENTREGA</small><strong>{formatDate(form.deliveryDate)}</strong><span>Alerta no Dashboard e calendário</span></div><div><small>PACOTE</small><strong>{form.packageName}</strong><span>{formatMoney(form.totalValue, form.currency)} · {form.installments}x</span></div><div><small>PRODUÇÃO</small><strong>{form.stages.length} etapas</strong><span>{form.team.length || 1} pessoa(s) · {form.attachments.length} arquivo(s)</span></div></div>
+            <div className="review-note"><span>◇</span><p><strong>Cadastro demonstrativo</strong>Este trabalho ficará disponível enquanto o app estiver aberto. A persistência virá quando conectarmos o banco.</p></div>
+          </section>}
+        </div>
+        <footer className="work-drawer-footer"><button className="cancel-button" type="button" onClick={step === 1 ? onClose : () => { setSubmitted(false); setStep((current) => current - 1); }}>{step === 1 ? "Cancelar" : "← Voltar"}</button><span>{step} de 5</span>{step < 5 ? <button className="primary-button" type="button" onClick={goNext}>Continuar →</button> : <button className="primary-button" type="button" onClick={save}>Criar trabalho</button>}</footer>
+      </aside>
+    </div>
+  );
+}
+
 export default function Home() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [palette, setPalette] = useState<Palette>("essencia");
@@ -447,6 +816,12 @@ export default function Home() {
   const [clientFilter, setClientFilter] = useState<"all" | ClientType>("all");
   const [clients, setClients] = useState<Client[]>(initialClients);
   const [newClientOpen, setNewClientOpen] = useState(false);
+  const [works, setWorks] = useState<Work[]>(initialWorks);
+  const [workViewMode, setWorkViewMode] = useState<ViewMode>("list");
+  const [workSearch, setWorkSearch] = useState("");
+  const [workStatus, setWorkStatus] = useState<"all" | WorkStatus>("all");
+  const [workCategory, setWorkCategory] = useState<"all" | WorkCategory>("all");
+  const [newWorkOpen, setNewWorkOpen] = useState(false);
   const resolvedTheme = useResolvedTheme(themeMode);
 
   useEffect(() => {
@@ -454,11 +829,13 @@ export default function Home() {
     const savedPalette = localStorage.getItem("revelar-palette") as Palette | null;
     const savedCurrency = localStorage.getItem("revelar-currency") as Currency | null;
     const savedView = localStorage.getItem("revelar-client-view") as ViewMode | null;
+    const savedWorkView = localStorage.getItem("revelar-work-view") as ViewMode | null;
     const timer = window.setTimeout(() => {
       if (savedMode) setThemeMode(savedMode);
       if (savedPalette) setPalette(savedPalette);
       if (savedCurrency) setCurrency(savedCurrency);
       if (savedView) setViewMode(savedView);
+      if (savedWorkView) setWorkViewMode(savedWorkView);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -468,7 +845,8 @@ export default function Home() {
     localStorage.setItem("revelar-palette", palette);
     localStorage.setItem("revelar-currency", currency);
     localStorage.setItem("revelar-client-view", viewMode);
-  }, [themeMode, palette, currency, viewMode]);
+    localStorage.setItem("revelar-work-view", workViewMode);
+  }, [themeMode, palette, currency, viewMode, workViewMode]);
 
   useEffect(() => {
     if (!toast) return;
@@ -480,7 +858,7 @@ export default function Home() {
 
   const navigate = (label: string) => {
     setSearchOpen(false);
-    if (label === "Visão geral" || label === "Clientes") {
+    if (label === "Visão geral" || label === "Clientes" || label === "Trabalhos") {
       setActiveNav(label);
       return;
     }
@@ -509,7 +887,17 @@ export default function Home() {
   };
 
   const openClient = (client: Client) => setToast(`Abrindo ficha de ${client.name}`);
+  const saveWork = (data: NewWorkData) => {
+    const completedStages = data.stages.filter((stage) => stage.done).length;
+    const status: WorkStatus = completedStages >= 7 ? "delivery" : completedStages >= 5 ? "editing" : data.date ? "scheduled" : "planning";
+    setWorks((current) => [{ ...data, id: Math.max(...current.map((work) => work.id), 0) + 1, status }, ...current]);
+    setNewWorkOpen(false);
+    setActiveNav("Trabalhos");
+    setToast(`${data.title} foi criado com ${data.stages.length} etapas`);
+  };
+  const openWork = (work: Work) => setToast(`Abrindo ${work.title}`);
   const isClients = activeNav === "Clientes";
+  const isWorks = activeNav === "Trabalhos";
 
   return (
     <div className={`revelar-app theme-${resolvedTheme} palette-${palette}`}>
@@ -527,7 +915,7 @@ export default function Home() {
       <main className="main-content">
         <header className="topbar">
           <div className="mobile-logo">R.</div>
-          <label className={`search ${searchOpen ? "open" : ""}`}><span>⌕</span><input aria-label="Buscar no Revelar" placeholder={isClients ? "Buscar clientes..." : "Buscar clientes, trabalhos..."} value={isClients ? clientSearch : ""} onChange={(event) => isClients && setClientSearch(event.target.value)} readOnly={!isClients} /></label>
+          <label className={`search ${searchOpen ? "open" : ""}`}><span>⌕</span><input aria-label="Buscar no Revelar" placeholder={isClients ? "Buscar clientes..." : isWorks ? "Buscar trabalhos..." : "Buscar clientes, trabalhos..."} value={isClients ? clientSearch : isWorks ? workSearch : ""} onChange={(event) => isClients ? setClientSearch(event.target.value) : isWorks && setWorkSearch(event.target.value)} readOnly={!isClients && !isWorks} /></label>
           <div className="top-actions">
             <button className="icon-button mobile-search" type="button" onClick={() => setSearchOpen(!searchOpen)} aria-label="Abrir busca">⌕</button>
             <select value={currency} onChange={(event) => setCurrency(event.target.value as Currency)} aria-label="Moeda"><option value="BRL">R$</option><option value="EUR">€</option></select>
@@ -536,10 +924,10 @@ export default function Home() {
           </div>
         </header>
 
-        {isClients ? <ClientsView clients={clients} viewMode={viewMode} setViewMode={setViewMode} search={clientSearch} setSearch={setClientSearch} filter={clientFilter} setFilter={setClientFilter} onNewClient={() => setNewClientOpen(true)} onOpenClient={openClient} /> : <Dashboard money={money} navigate={navigate} toast={setToast} />}
+        {isClients ? <ClientsView clients={clients} viewMode={viewMode} setViewMode={setViewMode} search={clientSearch} setSearch={setClientSearch} filter={clientFilter} setFilter={setClientFilter} onNewClient={() => setNewClientOpen(true)} onOpenClient={openClient} /> : isWorks ? <WorksView works={works} clients={clients} viewMode={workViewMode} setViewMode={setWorkViewMode} search={workSearch} setSearch={setWorkSearch} status={workStatus} setStatus={setWorkStatus} category={workCategory} setCategory={setWorkCategory} onNewWork={() => setNewWorkOpen(true)} onOpenWork={openWork} /> : <Dashboard money={money} works={works} navigate={navigate} toast={setToast} />}
       </main>
 
-      <button className="floating-add" type="button" onClick={() => isClients ? setNewClientOpen(true) : setToast("Escolha: novo cliente ou novo ensaio")} aria-label={isClients ? "Novo cliente" : "Nova ação"}>＋</button>
+      <button className="floating-add" type="button" onClick={() => isClients ? setNewClientOpen(true) : isWorks ? setNewWorkOpen(true) : setToast("Escolha: novo cliente ou novo trabalho")} aria-label={isClients ? "Novo cliente" : isWorks ? "Novo trabalho" : "Nova ação"}>＋</button>
 
       <nav className="mobile-nav" aria-label="Navegação móvel">
         {navItems.slice(0, 4).map((item) => <button type="button" key={item.label} className={activeNav === item.label ? "active" : ""} onClick={() => navigate(item.label)}><span>{item.icon}</span>{item.label === "Visão geral" ? "Início" : item.label}</button>)}
@@ -558,6 +946,7 @@ export default function Home() {
       )}
 
       {newClientOpen && <NewClientDrawer clients={clients} onClose={() => setNewClientOpen(false)} onSave={saveClient} />}
+      {newWorkOpen && <NewWorkDrawer clients={clients} onClose={() => setNewWorkOpen(false)} onSave={saveWork} />}
       {toast && <div className="toast" role="status"><span>✓</span>{toast}</div>}
     </div>
   );
