@@ -770,6 +770,19 @@ function WorksView({ works, clients, viewMode, setViewMode, search, setSearch, s
 
 type WorkDetailTab = "overview" | "timeline" | "finance" | "photos" | "files" | "costs";
 
+type LocalAttachment = { url: string; type: string; size: number };
+
+function attachmentExtension(name: string) {
+  return name.split(".").pop()?.toLowerCase() || "arquivo";
+}
+
+function attachmentKind(name: string, type = "") {
+  const extension = attachmentExtension(name);
+  if (type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif"].includes(extension)) return "image";
+  if (type === "application/pdf" || extension === "pdf") return "pdf";
+  return "other";
+}
+
 const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> = [
   { id: "overview", label: "Visão geral", icon: "◇" },
   { id: "timeline", label: "Timeline", icon: "⌁" },
@@ -795,6 +808,9 @@ function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, 
   const [payment, setPayment] = useState("");
   const [editing, setEditing] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [localFiles, setLocalFiles] = useState<Record<string, LocalAttachment>>({});
+  const localFilesRef = useRef<Record<string, LocalAttachment>>({});
   const [activities, setActivities] = useState([
     { id: 1, icon: "✓", title: "Seleção concluída", meta: "Maryana · hoje, 10:42" },
     { id: 2, icon: "＄", title: `${formatMoney(work.entryValue, work.currency)} registrados como recebidos`, meta: "Maryana · 22 jul, 14:18" },
@@ -808,6 +824,12 @@ function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, 
   const receivedPercent = work.totalValue ? Math.min(100, Math.round((work.entryValue / work.totalValue) * 100)) : 0;
   const progress = workProgress(work);
   const nextStage = work.stages.find((stage) => !stage.done);
+  const currentPreview = previewFile ? localFiles[previewFile] : undefined;
+  const currentPreviewKind = previewFile ? attachmentKind(previewFile, currentPreview?.type) : "other";
+
+  useEffect(() => () => {
+    Object.values(localFilesRef.current).forEach((file) => URL.revokeObjectURL(file.url));
+  }, []);
 
   const addActivity = (title: string, icon = "◇") => setActivities((current) => [{ id: Date.now(), icon, title, meta: "Maryana · agora" }, ...current]);
   const update = (changes: Partial<Work>) => onUpdate({ ...work, ...changes });
@@ -858,17 +880,27 @@ function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, 
     addActivity(`Pagamento de ${formatMoney(amount, work.currency)} registrado`, "＄");
     toast("Pagamento registrado. Confirme manualmente a etapa correspondente.");
   };
+  const rememberFiles = (files: File[]) => {
+    const entries = Object.fromEntries(files.map((file) => [file.name, { url: URL.createObjectURL(file), type: file.type, size: file.size }]));
+    localFilesRef.current = { ...localFilesRef.current, ...entries };
+    setLocalFiles((current) => ({ ...current, ...entries }));
+  };
   const addWorkFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []).map((file) => file.name);
-    if (!files.length) return;
-    update({ attachments: [...work.attachments, ...files] });
-    addActivity(`${files.length} arquivo(s) anexado(s)`, "□");
+    const selectedFiles = Array.from(event.target.files || []);
+    if (!selectedFiles.length) return;
+    rememberFiles(selectedFiles);
+    update({ attachments: [...work.attachments, ...selectedFiles.map((file) => file.name)] });
+    addActivity(`${selectedFiles.length} arquivo(s) anexado(s)`, "□");
+    event.target.value = "";
   };
   const addStageFiles = (event: ChangeEvent<HTMLInputElement>) => {
     if (!selectedStage) return;
-    const files = Array.from(event.target.files || []).map((file) => file.name);
-    updateStage(selectedStage.id, { attachments: [...(selectedStage.attachments || []), ...files] });
+    const selectedFiles = Array.from(event.target.files || []);
+    if (!selectedFiles.length) return;
+    rememberFiles(selectedFiles);
+    updateStage(selectedStage.id, { attachments: [...(selectedStage.attachments || []), ...selectedFiles.map((file) => file.name)] });
     addActivity(`Arquivo anexado à etapa ${selectedStage.label}`, "□");
+    event.target.value = "";
   };
   const whatsapp = linkedClients[0]?.whatsapp ? `https://wa.me/${normalizePhone(linkedClients[0].whatsapp)}` : "#";
 
@@ -926,7 +958,7 @@ function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, 
         {selectedStage && <aside className="stage-detail card"><div className="stage-detail-head"><div><p>DETALHES DA ETAPA</p><h2>{selectedStage.label}</h2></div>{selectedStage.custom && <button type="button" onClick={() => { update({ stages: work.stages.filter((stage) => stage.id !== selectedStage.id) }); setSelectedStageId(work.stages[0]?.id || ""); }}>Remover</button>}</div>
           <div className="field-grid"><label className="field"><span>Prazo</span><input type="date" value={selectedStage.dueDate || inferredStageDate(work, work.stages.findIndex((stage) => stage.id === selectedStage.id))} onChange={(event) => { updateStage(selectedStage.id, { dueDate: event.target.value }); addActivity(`Prazo de ${selectedStage.label} alterado`, "◇"); }} /></label><label className="field"><span>Responsável</span><select value={selectedStage.responsible || "Maryana"} onChange={(event) => updateStage(selectedStage.id, { responsible: event.target.value })}>{[...new Set(["Maryana", ...work.team])].map((person) => <option key={person}>{person}</option>)}</select></label><label className="field full"><span>Observações</span><textarea rows={3} value={selectedStage.notes || ""} onChange={(event) => updateStage(selectedStage.id, { notes: event.target.value })} placeholder="Orientações, detalhes ou pendências desta etapa." /></label></div>
           <div className="stage-subsection"><div><strong>Checklist</strong><small>{(selectedStage.checklist || []).filter((item) => item.done).length}/{(selectedStage.checklist || []).length}</small></div><div className="stage-checklist">{(selectedStage.checklist || []).map((item) => <button type="button" key={item.id} className={item.done ? "done" : ""} onClick={() => updateStage(selectedStage.id, { checklist: selectedStage.checklist?.map((check) => check.id === item.id ? { ...check, done: !check.done } : check) })}><span>{item.done ? "✓" : ""}</span>{item.label}</button>)}</div></div>
-          <div className="stage-subsection"><div><strong>Anexos da etapa</strong><small>{selectedStage.attachments?.length || 0}</small></div><input ref={stageFileRef} type="file" multiple hidden onChange={addStageFiles} /><button className="stage-upload" type="button" onClick={() => stageFileRef.current?.click()}>＋ Anexar arquivo</button>{selectedStage.attachments?.map((file) => <span className="mini-file" key={file}>□ {file}</span>)}</div>
+          <div className="stage-subsection"><div><strong>Anexos da etapa</strong><small>{selectedStage.attachments?.length || 0}</small></div><input ref={stageFileRef} type="file" multiple hidden onChange={addStageFiles} /><button className="stage-upload" type="button" onClick={() => stageFileRef.current?.click()}>＋ Anexar arquivo</button>{selectedStage.attachments?.map((file) => <button className="mini-file" type="button" key={file} onClick={() => setPreviewFile(file)}><span>□ {file}</span><strong>Visualizar</strong></button>)}</div>
           <button className={selectedStage.done ? "cancel-button full-button" : "primary-button full-button"} type="button" onClick={() => toggleStage(selectedStage)}>{selectedStage.done ? "Reabrir etapa" : "Concluir etapa"}</button>
         </aside>}
       </div>}
@@ -935,11 +967,23 @@ function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, 
 
       {tab === "photos" && <section className="tab-single card"><div className="detail-section-heading"><div><p>PRODUÇÃO</p><h2>Controle de fotos</h2></div><span>Atualização manual</span></div><div className="photo-detail-grid">{(["captured", "selected", "edited", "delivered"] as const).map((field) => { const labels = { captured: "Tiradas", selected: "Selecionadas", edited: "Editadas", delivered: "Entregues" }; return <label key={field}><span>{labels[field]}</span><input type="number" min="0" value={work.photos[field]} onChange={(event) => update({ photos: { ...work.photos, [field]: Number(event.target.value) } })} /><small>{field === "edited" && work.photos.selected ? `${Math.round((work.photos.edited / work.photos.selected) * 100)}% da seleção` : field === "delivered" ? "Galeria final" : "Quantidade registrada"}</small></label>; })}</div><div className="photo-flow-line"><span className="done">Captura</span><i /><span className={work.photos.selected ? "done" : ""}>Seleção</span><i /><span className={work.photos.edited >= work.photos.selected && work.photos.selected ? "done" : ""}>Edição</span><i /><span className={work.photos.delivered ? "done" : ""}>Entrega</span></div><p className="automation-note">◇ Quando o módulo de galerias for conectado, seleção e entrega poderão avançar automaticamente.</p></section>}
 
-      {tab === "files" && <section className="tab-single card"><div className="detail-section-heading"><div><p>ARQUIVOS</p><h2>Materiais do trabalho</h2></div><button className="outline-button" type="button" onClick={() => workFileRef.current?.click()}>＋ Adicionar arquivo</button></div><input ref={workFileRef} type="file" multiple hidden onChange={addWorkFiles} /><div className="work-file-grid">{work.attachments.map((file, index) => <article key={`${file}-${index}`}><span>□</span><div><strong>{file}</strong><small>{file.split(".").pop()?.toUpperCase()} · adicionado ao trabalho</small></div><button type="button" onClick={() => update({ attachments: work.attachments.filter((_, fileIndex) => fileIndex !== index) })}>×</button></article>)}{work.attachments.length === 0 && <div className="empty-state"><span>□</span><h2>Nenhum arquivo anexado</h2><p>Adicione contratos, comprovantes ou referências.</p></div>}</div></section>}
+      {tab === "files" && <section className="tab-single card"><div className="detail-section-heading"><div><p>ARQUIVOS</p><h2>Materiais do trabalho</h2></div><button className="outline-button" type="button" onClick={() => workFileRef.current?.click()}>＋ Adicionar arquivo</button></div><input ref={workFileRef} type="file" multiple hidden onChange={addWorkFiles} /><div className="work-file-grid">{work.attachments.map((file, index) => <article key={`${file}-${index}`}><span>□</span><button className="file-main-action" type="button" onClick={() => setPreviewFile(file)}><strong>{file}</strong><small>{attachmentExtension(file).toUpperCase()} · clique para visualizar</small></button><span className="file-actions"><button type="button" onClick={() => setPreviewFile(file)}>Visualizar</button><button className="remove-file" type="button" aria-label={`Remover ${file}`} onClick={() => update({ attachments: work.attachments.filter((_, fileIndex) => fileIndex !== index) })}>×</button></span></article>)}{work.attachments.length === 0 && <div className="empty-state"><span>□</span><h2>Nenhum arquivo anexado</h2><p>Adicione contratos, comprovantes ou referências.</p></div>}</div></section>}
 
       {tab === "costs" && <section className="tab-single card"><div className="detail-section-heading"><div><p>CUSTOS</p><h2>Resultado previsto</h2></div></div><div className="cost-summary"><article><span>RECEITA</span><strong>{formatMoney(work.totalValue, work.currency)}</strong></article><b>−</b><article><span>CUSTOS</span><strong>{formatMoney(work.costs, work.currency)}</strong></article><b>=</b><article className="result"><span>RESULTADO</span><strong>{formatMoney(work.totalValue - work.costs, work.currency)}</strong></article></div><label className="field cost-edit"><span>Custos previstos ou realizados</span><input type="number" min="0" value={work.costs} onChange={(event) => update({ costs: Number(event.target.value) })} /><small className="field-hint">Inclua transporte, equipe, locação, alimentação, impressão e outros gastos.</small></label><div className="cost-placeholder"><span>＋</span><div><strong>Detalhamento de custos</strong><p>No módulo Financeiro será possível separar cada gasto por categoria e moeda.</p></div></div></section>}
 
       {cancelOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setCancelOpen(false)}><section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cancel-work-title" onMouseDown={(event) => event.stopPropagation()}><span>!</span><h2 id="cancel-work-title">Cancelar este trabalho?</h2><p>O trabalho continuará no histórico com o status “Cancelado”. Nenhum dado será apagado.</p><div><button className="cancel-button" type="button" onClick={() => setCancelOpen(false)}>Voltar</button><button className="danger-button" type="button" onClick={() => onCancel(work)}>Sim, cancelar trabalho</button></div></section></div>}
+      {previewFile && <div className="modal-backdrop file-preview-backdrop" role="presentation" onMouseDown={() => setPreviewFile(null)}><section className="file-preview-modal" role="dialog" aria-modal="true" aria-labelledby="file-preview-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header><div><p>VISUALIZAÇÃO DO ANEXO</p><h2 id="file-preview-title">{previewFile}</h2><span>{currentPreview ? `${attachmentExtension(previewFile).toUpperCase()} · arquivo enviado nesta sessão` : "Arquivo demonstrativo"}</span></div><button type="button" aria-label="Fechar visualização" onClick={() => setPreviewFile(null)}>×</button></header>
+        <div className="file-preview-body">
+          {currentPreview && currentPreviewKind === "image" && <img src={currentPreview.url} alt={`Prévia de ${previewFile}`} />}
+          {currentPreview && currentPreviewKind === "pdf" && <object data={currentPreview.url} type="application/pdf"><div className="unsupported-preview"><span>PDF</span><h3>Prévia indisponível neste navegador</h3><p>Use o botão de baixar para abrir o arquivo.</p></div></object>}
+          {!currentPreview && currentPreviewKind === "image" && <div className="demo-image-preview"><span>PRÉVIA DEMONSTRATIVA</span><div className="demo-photo-shape"><i /><i /><i /></div><h3>Referência visual do ensaio</h3><p>Quando um arquivo real for enviado, a imagem original aparecerá aqui.</p></div>}
+          {!currentPreview && currentPreviewKind === "pdf" && <div className="demo-document"><div className="demo-document-top"><span>REVELAR.</span><b>PRÉVIA DEMONSTRATIVA</b></div><h3>{previewFile.toLowerCase().includes("comprovante") ? "Comprovante de pagamento" : previewFile.toLowerCase().includes("contrato") ? "Contrato de prestação fotográfica" : "Documento do trabalho"}</h3><p>Casamento Amanda e João</p><div className="demo-document-grid"><span><small>CLIENTE</small><strong>Amanda e João</strong></span><span><small>DATA</small><strong>18 de julho de 2026</strong></span><span><small>STATUS</small><strong>Documento conferido</strong></span><span><small>RESPONSÁVEL</small><strong>Maryana</strong></span></div><div className="demo-document-lines"><i /><i /><i /><i /></div><div className="demo-signature">Assinatura / confirmação</div></div>}
+          {currentPreview && currentPreviewKind === "other" && <div className="unsupported-preview"><span>{attachmentExtension(previewFile).toUpperCase()}</span><h3>Este formato não possui prévia</h3><p>O arquivo original continua disponível para baixar.</p></div>}
+          {!currentPreview && currentPreviewKind === "other" && <div className="unsupported-preview"><span>{attachmentExtension(previewFile).toUpperCase()}</span><h3>Arquivo demonstrativo</h3><p>Envie um arquivo real para habilitar a visualização ou download.</p></div>}
+        </div>
+        <footer><p>{currentPreview ? "O arquivo ficará disponível apenas durante esta sessão demonstrativa." : "Esta é uma prévia ilustrativa; os arquivos reais serão persistidos após conectarmos o banco."}</p>{currentPreview ? <a className="primary-button" href={currentPreview.url} download={previewFile}>↓ Baixar arquivo</a> : <button className="primary-button" type="button" onClick={() => setPreviewFile(null)}>Entendi</button>}</footer>
+      </section></div>}
     </div>
   );
 }
