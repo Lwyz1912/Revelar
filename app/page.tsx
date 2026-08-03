@@ -9,6 +9,73 @@ type ViewMode = "list" | "cards";
 type ClientType = "person" | "company";
 type WorkStatus = "planning" | "scheduled" | "editing" | "delivery" | "completed" | "archived" | "cancelled";
 type WorkCategory = "Casamento" | "Pré-wedding" | "Ensaio pessoal" | "Família" | "Aniversário" | "Editorial para loja" | "Evento" | "Estúdio";
+type FinanceScope = "professional" | "personal";
+type TransactionType = "income" | "expense" | "transfer";
+type TransactionStatus = "paid" | "received" | "pending" | "late";
+type QuoteStatus = "draft" | "sent" | "approved" | "declined";
+type ContractStatus = "draft" | "sent" | "waiting" | "signed" | "cancelled";
+type ProductKind = "course" | "pdf" | "preset" | "photo" | "album" | "package";
+type ProductPriceType = "fixed" | "from" | "consult";
+type ProductAvailability = "unlimited" | "stock" | "capacity";
+type ProductDiscountType = "none" | "fixed" | "percent";
+
+type ProductOptionValue = { id: string; label: string; priceDelta: number };
+type ProductOption = { id: string; name: string; values: ProductOptionValue[] };
+type Product = {
+  id: number;
+  name: string;
+  kind: ProductKind;
+  description: string;
+  currency: Currency;
+  priceType: ProductPriceType;
+  basePrice: number;
+  options: ProductOption[];
+  availability: ProductAvailability;
+  availableQuantity?: number;
+  availabilityLabel?: string;
+  deliveryType: "manual" | "file" | "link";
+  deliveryFile?: string;
+  deliveryLink?: string;
+  discountType: ProductDiscountType;
+  discountValue: number;
+  discountStart?: string;
+  discountEnd?: string;
+  status: "active" | "draft" | "archived";
+  publicReady: boolean;
+  sales: number;
+};
+
+type WorkCost = {
+  id: string;
+  name: string;
+  category: string;
+  tags: string[];
+  amount: number;
+  status: "planned" | "paid";
+  date: string;
+};
+
+type FinanceTransaction = {
+  id: string;
+  type: TransactionType;
+  scope: FinanceScope;
+  description: string;
+  amount: number;
+  currency: Currency;
+  date: string;
+  category: string;
+  tags: string[];
+  account: string;
+  destinationAccount?: string;
+  paymentMethod: string;
+  status: TransactionStatus;
+  workId?: number;
+  origin: string;
+};
+
+type QuoteItem = { id: string; kind: "service" | "photo" | "course" | "pdf" | "preset" | "extra"; description: string; quantity: number; unitPrice: number; productId?: number; options?: string[] };
+type Quote = { id: number; title: string; clientId?: number; currency: Currency; items: QuoteItem[]; discount: number; validUntil: string; notes: string; status: QuoteStatus };
+type Contract = { id: number; title: string; clientId?: number; quoteId?: number; status: ContractStatus; template: "standard" | "custom"; templateFile?: string; content: string; updatedAt: string };
 
 type Client = {
   id: number;
@@ -69,6 +136,7 @@ type Work = {
   entryValue: number;
   installments: number;
   costs: number;
+  costItems?: WorkCost[];
   photos: { captured: number; selected: number; edited: number; delivered: number };
   stages: WorkStage[];
   attachments: string[];
@@ -102,16 +170,19 @@ type AgendaEvent = {
 };
 
 const navItems = [
-  { icon: "⌂", label: "Visão geral" },
-  { icon: "□", label: "Agenda" },
-  { icon: "♙", label: "Clientes" },
-  { icon: "▱", label: "Trabalhos" },
-  { icon: "◇", label: "Financeiro" },
-  { icon: "⌖", label: "Locais" },
+  { icon: "/brand/revelar-icons-svg-monocromatico/01-visao-geral.svg", label: "Visão geral" },
+  { icon: "/brand/revelar-icons-svg-monocromatico/04-agenda.svg", label: "Agenda" },
+  { icon: "/brand/revelar-icons-svg-monocromatico/02-clientes.svg", label: "Clientes" },
+  { icon: "/brand/revelar-icons-svg-monocromatico/03-trabalhos.svg", label: "Trabalhos" },
+  { icon: "/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg", label: "Financeiro" },
+  { icon: "/brand/revelar-icons-svg-monocromatico/10-fotografias.svg", label: "Produtos" },
+  { icon: "/brand/revelar-icons-svg-monocromatico/09-arquivos.svg", label: "Orçamentos" },
+  { icon: "/brand/revelar-icons-svg-monocromatico/08-contratos.svg", label: "Contratos" },
+  { icon: "/brand/revelar-icons-svg-monocromatico/05-calendario.svg", label: "Locais" },
 ];
 
 const palettes: Array<{ id: Palette; name: string; colors: string[] }> = [
-  { id: "essencia", name: "Essência", colors: ["#173f2a", "#c99852", "#f6f1e7"] },
+  { id: "essencia", name: "Essência", colors: ["#132b13", "#b89a65", "#f5f1e8"] },
   { id: "terracota", name: "Terracota", colors: ["#702f2b", "#c47047", "#f7eee6"] },
   { id: "rose", name: "Rosé", colors: ["#75414b", "#c7908f", "#f8eff0"] },
   { id: "mono", name: "Monocromático", colors: ["#171717", "#7a7a7a", "#f3f3f3"] },
@@ -498,10 +569,10 @@ function Dashboard({ money, works, navigate, toast, onNewWork }: { money: { pend
       </section>
 
       <section className="metrics" aria-label="Resumo do estúdio">
-        <article className="metric-card"><span className="metric-icon green">▣</span><div><p>ENSAIOS HOJE</p><strong>2</strong><small>Próximo às 15:30</small></div></article>
-        <article className="metric-card"><span className="metric-icon gold">◫</span><div><p>FOTOS PARA EDITAR</p><strong>286</strong><small>Em 3 trabalhos</small></div></article>
-        <article className="metric-card"><span className="metric-icon rose">⌛</span><div><p>ENTREGAS PENDENTES</p><strong>{works.filter((work) => work.status !== "completed").length}</strong><small>{urgentDeliveries.length} exigem atenção</small></div></article>
-        <article className="metric-card"><span className="metric-icon green">＄</span><div><p>A RECEBER</p><strong>{money.pending}</strong><small>3 pagamentos</small></div></article>
+        <article className="metric-card"><span className="metric-icon green"><img src="/brand/revelar-icons-svg-monocromatico/04-agenda.svg" alt="" /></span><div><p>ENSAIOS HOJE</p><strong>2</strong><small>Próximo às 15:30</small></div></article>
+        <article className="metric-card"><span className="metric-icon gold"><img src="/brand/revelar-icons-svg-monocromatico/10-fotografias.svg" alt="" /></span><div><p>FOTOS PARA EDITAR</p><strong>286</strong><small>Em 3 trabalhos</small></div></article>
+        <article className="metric-card"><span className="metric-icon rose"><img src="/brand/revelar-icons-svg-monocromatico/11-entrega.svg" alt="" /></span><div><p>ENTREGAS PENDENTES</p><strong>{works.filter((work) => work.status !== "completed").length}</strong><small>{urgentDeliveries.length} exigem atenção</small></div></article>
+        <article className="metric-card"><span className="metric-icon green"><img src="/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg" alt="" /></span><div><p>A RECEBER</p><strong>{money.pending}</strong><small>3 pagamentos</small></div></article>
       </section>
 
       <section className="dashboard-grid first-grid">
@@ -511,9 +582,9 @@ function Dashboard({ money, works, navigate, toast, onNewWork }: { money: { pend
             <button className="outline-button" type="button" onClick={() => toast("Abrindo detalhes do ensaio")}>Ver detalhes <b>›</b></button>
           </div>
           <div className="job-facts">
-            <div><span>◉</span><p>Pagamento<strong>50% recebido</strong></p></div>
-            <div><span>▤</span><p>Cronograma<strong>5 etapas</strong></p></div>
-            <div><span>♧</span><p>Moodboard<strong>12 referências</strong></p></div>
+            <div><span><img src="/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg" alt="" /></span><p>Pagamento<strong>50% recebido</strong></p></div>
+            <div><span><img src="/brand/revelar-icons-svg-monocromatico/04-agenda.svg" alt="" /></span><p>Cronograma<strong>5 etapas</strong></p></div>
+            <div><span><img src="/brand/revelar-icons-svg-monocromatico/10-fotografias.svg" alt="" /></span><p>Moodboard<strong>12 referências</strong></p></div>
           </div>
           <div className="progress-title"><span>Preparação do trabalho</span><strong>75%</strong></div>
           <div className="progress"><i style={{ width: "75%" }} /></div>
@@ -578,6 +649,168 @@ function Dashboard({ money, works, navigate, toast, onNewWork }: { money: { pend
       </section>
     </div>
   );
+}
+
+function FinancialView({ works, transactions, setTransactions, currency, setCurrency, onOpenWork, toast }: { works: Work[]; transactions: FinanceTransaction[]; setTransactions: Dispatch<SetStateAction<FinanceTransaction[]>>; currency: Currency; setCurrency: (currency: Currency) => void; onOpenWork: (work: Work) => void; toast: (message: string) => void }) {
+  const [scope, setScope] = useState<"all" | FinanceScope>("all");
+  const [kind, setKind] = useState<"all" | TransactionType>("all");
+  const [newOpen, setNewOpen] = useState(false);
+  const [showConversion, setShowConversion] = useState(false);
+  const [eurRate, setEurRate] = useState(6.35);
+  const [draft, setDraft] = useState<Omit<FinanceTransaction, "id">>({ type: "expense", scope: "professional", description: "", amount: 0, currency, date: "2026-08-03", category: "Equipamento", tags: [], account: "Conta principal", paymentMethod: "Pix / transferência", status: "paid", origin: "Lançamento avulso" });
+
+  const linked = useMemo<FinanceTransaction[]>(() => works.filter((work) => work.status !== "cancelled").flatMap((work) => {
+    const costs = work.costItems?.length ? work.costItems : work.costs > 0 ? [{ id: `legacy-${work.id}`, name: "Custos do trabalho", category: "Produção", tags: [work.category], amount: work.costs, status: "paid" as const, date: work.date }] : [];
+    const entries: FinanceTransaction[] = work.entryValue > 0 ? [{ id: `work-income-${work.id}`, type: "income", scope: "professional", description: `Recebimento · ${work.title}`, amount: work.entryValue, currency: work.currency, date: work.date, category: "Cliente", tags: [work.category], account: "Conta principal", paymentMethod: "Transferência", status: "received", workId: work.id, origin: work.title }] : [];
+    return [...entries, ...costs.map((cost) => ({ id: `work-cost-${work.id}-${cost.id}`, type: "expense" as const, scope: "professional" as const, description: cost.name, amount: cost.amount, currency: work.currency, date: cost.date || work.date, category: cost.category, tags: cost.tags, account: "Conta principal", paymentMethod: "Cartão / transferência", status: cost.status === "paid" ? "paid" as const : "pending" as const, workId: work.id, origin: work.title }))];
+  }), [works]);
+  const allTransactions = useMemo(() => [...transactions, ...linked], [transactions, linked]);
+  const visible = allTransactions.filter((item) => item.currency === currency && (scope === "all" || item.scope === scope) && (kind === "all" || item.type === kind));
+  const received = visible.filter((item) => item.type === "income" && item.status === "received").reduce((sum, item) => sum + item.amount, 0);
+  const expenses = visible.filter((item) => item.type === "expense" && item.status === "paid").reduce((sum, item) => sum + item.amount, 0);
+  const pending = visible.filter((item) => item.status === "pending" || item.status === "late").reduce((sum, item) => sum + item.amount, 0);
+  const balance = received - expenses;
+  const converted = currency === "EUR" ? balance * eurRate : balance / eurRate;
+  const maxFlow = Math.max(received, expenses, pending, 1);
+
+  const addTransaction = (event: FormEvent) => {
+    event.preventDefault();
+    if (!draft.description.trim() || draft.amount <= 0) return;
+    setTransactions((current) => [{ ...draft, id: `tx-${Date.now()}`, tags: draft.tags.filter(Boolean), destinationAccount: draft.type === "transfer" ? draft.destinationAccount : undefined }, ...current]);
+    setNewOpen(false);
+    setDraft({ type: "expense", scope: "professional", description: "", amount: 0, currency, date: "2026-08-03", category: "Equipamento", tags: [], account: "Conta principal", paymentMethod: "Pix / transferência", status: "paid", origin: "Lançamento avulso" });
+    toast("Lançamento adicionado ao financeiro");
+  };
+
+  return <div className="finance-page">
+    <section className="finance-title-row"><div><p>GESTÃO FINANCEIRA COMPLETA</p><h1>Financeiro</h1><span>Vida pessoal e profissional separadas, com visão combinada quando você quiser.</span></div><div className="finance-title-actions"><div className="currency-switch"><button type="button" className={currency === "BRL" ? "active" : ""} onClick={() => setCurrency("BRL")}>BRL · R$</button><button type="button" className={currency === "EUR" ? "active" : ""} onClick={() => setCurrency("EUR")}>EUR · €</button></div><button className="primary-button" type="button" onClick={() => { setDraft((current) => ({ ...current, currency })); setNewOpen(true); }}>＋ Lançamento</button></div></section>
+
+    <section className="finance-control-row"><div className="finance-tabs"><button className={scope === "all" ? "active" : ""} onClick={() => setScope("all")}>Visão geral</button><button className={scope === "professional" ? "active" : ""} onClick={() => setScope("professional")}>Profissional</button><button className={scope === "personal" ? "active" : ""} onClick={() => setScope("personal")}>Pessoal</button></div><div className="finance-tabs compact"><button className={kind === "all" ? "active" : ""} onClick={() => setKind("all")}>Tudo</button><button className={kind === "income" ? "active" : ""} onClick={() => setKind("income")}>Entradas</button><button className={kind === "expense" ? "active" : ""} onClick={() => setKind("expense")}>Saídas</button><button className={kind === "transfer" ? "active" : ""} onClick={() => setKind("transfer")}>Transferências</button></div></section>
+
+    <section className="finance-metrics"><article><img src="/brand/revelar-icons-svg-monocromatico/11-entrega.svg" alt="" /><span>ENTRADAS RECEBIDAS</span><strong>{formatMoney(received, currency)}</strong><small>{visible.filter((item) => item.type === "income").length} recebimentos</small></article><article><img src="/brand/revelar-icons-svg-monocromatico/07-custos.svg" alt="" /><span>SAÍDAS PAGAS</span><strong>{formatMoney(expenses, currency)}</strong><small>Custos e despesas</small></article><article><img src="/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg" alt="" /><span>PENDENTE / ATRASADO</span><strong>{formatMoney(pending, currency)}</strong><small>Valores para acompanhar</small></article><article><img src="/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg" alt="" /><span>SALDO DO PERÍODO</span><strong>{formatMoney(balance, currency)}</strong><small>Transferências não alteram o saldo</small></article></section>
+
+    <section className="finance-layout"><article className="card finance-overview-card"><div className="card-heading"><div><p>ORIGEM E DESTINO</p><h2>Fluxo detalhado</h2><span>Entradas e saídas filtradas nesta visão</span></div></div><div className="finance-bars">{[{ label: "Entradas", value: received, tone: "primary" }, { label: "Saídas", value: expenses, tone: "rose" }, { label: "Pendentes", value: pending, tone: "accent" }].map((item) => <div key={item.label}><span><b>{item.label}</b><strong>{formatMoney(item.value, currency)}</strong></span><i><em className={item.tone} style={{ width: `${Math.max(3, item.value / maxFlow * 100)}%` }} /></i></div>)}</div></article><article className="card exchange-card"><div className="card-heading"><div><p>CONVERSÃO OPCIONAL</p><h2>Real ↔ Euro</h2></div></div><label className="exchange-toggle"><input type="checkbox" checked={showConversion} onChange={(event) => setShowConversion(event.target.checked)} /><span>Mostrar valor convertido</span></label><label className="field"><span>1 EUR vale quantos BRL?</span><input type="number" min="0.01" step="0.01" value={eurRate} onChange={(event) => setEurRate(Number(event.target.value) || 1)} /></label>{showConversion && <div className="converted-balance"><small>SALDO CONVERTIDO</small><strong>{formatMoney(converted, currency === "BRL" ? "EUR" : "BRL")}</strong><span>Taxa configurável, sem misturar os saldos.</span></div>}</article></section>
+
+    <section className="finance-ledger card"><div className="card-heading compact"><div><p>EXTRATO DETALHADO</p><h2>De onde veio e para onde foi</h2></div><span>{visible.length} movimentações</span></div><div className="ledger-head"><span>Data e descrição</span><span>Origem / destino</span><span>Categoria e tags</span><span>Conta e método</span><span>Valor</span></div>{visible.map((item) => <button type="button" key={item.id} onClick={() => item.workId && onOpenWork(works.find((work) => work.id === item.workId)!)}><span><i className={`money-dot ${item.type}`} /> <span><strong>{item.description}</strong><small>{formatDate(item.date)} · {item.scope === "professional" ? "Profissional" : "Pessoal"}</small></span></span><span><strong>{item.origin}</strong><small>{item.type === "transfer" ? `Para ${item.destinationAccount}` : item.type === "income" ? "Entrada" : "Saída"}</small></span><span><strong>{item.category}</strong><small>{item.tags.length ? item.tags.map((tag) => `#${tag}`).join(" ") : "Sem tags"}</small></span><span><strong>{item.account}</strong><small>{item.paymentMethod}</small></span><span className={`ledger-value ${item.type}`}>{item.type === "expense" ? "−" : item.type === "income" ? "+" : "↔"} {formatMoney(item.amount, item.currency)}<small>{item.status === "received" ? "Recebido" : item.status === "paid" ? "Pago" : item.status === "late" ? "Atrasado" : "Pendente"}</small></span></button>)}{visible.length === 0 && <div className="finance-empty"><p>Nenhuma movimentação encontrada nesta visão.</p></div>}</section>
+
+    {newOpen && <div className="drawer-backdrop" role="presentation" onMouseDown={() => setNewOpen(false)}><aside className="client-drawer finance-drawer" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><div><p>NOVO LANÇAMENTO</p><h2>Registrar movimentação</h2><span>Pode ser pessoal, profissional ou uma transferência.</span></div><button type="button" onClick={() => setNewOpen(false)}>×</button></div><form onSubmit={addTransaction}><div className="drawer-body"><div className="transaction-kind">{(["income", "expense", "transfer"] as TransactionType[]).map((type) => <button type="button" key={type} className={draft.type === type ? "active" : ""} onClick={() => setDraft({ ...draft, type })}>{type === "income" ? "＋ Entrada" : type === "expense" ? "− Saída" : "↔ Transferência"}</button>)}</div><div className="field-grid"><label className="field full"><span>Descrição *</span><input required value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="Ex.: aluguel do estúdio ou venda de preset" /></label><label className="field"><span>Área</span><select value={draft.scope} onChange={(event) => setDraft({ ...draft, scope: event.target.value as FinanceScope })}><option value="professional">Profissional</option><option value="personal">Pessoal</option></select></label><label className="field"><span>Data</span><input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label><label className="field"><span>Moeda</span><select value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value as Currency })}><option value="BRL">Real</option><option value="EUR">Euro</option></select></label><label className="field"><span>Valor *</span><input required type="number" min="0.01" step="0.01" value={draft.amount || ""} onChange={(event) => setDraft({ ...draft, amount: Number(event.target.value) })} /></label><label className="field"><span>Categoria</span><input list="finance-categories" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /><datalist id="finance-categories"><option value="Transporte"/><option value="Equipamento"/><option value="Alimentação"/><option value="Aluguel"/><option value="Lazer"/><option value="Cliente"/><option value="Curso"/><option value="Produto digital"/></datalist></label><label className="field"><span>Tags</span><input value={draft.tags.join(", ")} onChange={(event) => setDraft({ ...draft, tags: event.target.value.split(",").map((tag) => tag.trim()) })} placeholder="estúdio, recorrente" /></label><label className="field"><span>Conta / carteira</span><input value={draft.account} onChange={(event) => setDraft({ ...draft, account: event.target.value })} /></label>{draft.type === "transfer" && <label className="field"><span>Conta de destino</span><input value={draft.destinationAccount || ""} onChange={(event) => setDraft({ ...draft, destinationAccount: event.target.value })} /></label>}<label className="field"><span>Forma de pagamento</span><select value={draft.paymentMethod} onChange={(event) => setDraft({ ...draft, paymentMethod: event.target.value })}><option>Pix / transferência</option><option>Cartão de crédito</option><option>Cartão de débito</option><option>Dinheiro</option><option>Débito automático</option></select></label><label className="field"><span>Situação</span><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as TransactionStatus })}><option value={draft.type === "income" ? "received" : "paid"}>{draft.type === "income" ? "Recebido" : "Pago"}</option><option value="pending">Pendente</option><option value="late">Atrasado</option></select></label><label className="field full"><span>Origem / referência</span><input value={draft.origin} onChange={(event) => setDraft({ ...draft, origin: event.target.value })} placeholder="Cliente, loja, salário, casa..." /></label></div></div><div className="drawer-footer"><button className="cancel-button" type="button" onClick={() => setNewOpen(false)}>Cancelar</button><button className="primary-button" type="submit">Salvar lançamento</button></div></form></aside></div>}
+  </div>;
+}
+
+const quoteStatusLabels: Record<QuoteStatus, string> = { draft: "Rascunho", sent: "Enviado", approved: "Aprovado", declined: "Recusado" };
+const contractStatusLabels: Record<ContractStatus, string> = { draft: "Rascunho", sent: "Enviado", waiting: "Aguardando assinatura", signed: "Assinado", cancelled: "Cancelado" };
+const productKindLabels: Record<QuoteItem["kind"], string> = { service: "Serviço fotográfico", photo: "Venda de fotos", course: "Curso", pdf: "PDF / e-book", preset: "Preset", extra: "Extra" };
+const catalogKindLabels: Record<ProductKind, string> = { course: "Curso", pdf: "PDF / e-book", preset: "Preset", photo: "Foto avulsa", album: "Álbum", package: "Pacote fotográfico" };
+const productPriceLabels: Record<ProductPriceType, string> = { fixed: "Preço fixo", from: "A partir de", consult: "Sob consulta" };
+
+function emptyProduct(currency: Currency): Omit<Product, "id" | "sales"> {
+  return { name: "", kind: "package", description: "", currency, priceType: "fixed", basePrice: 0, options: [], availability: "unlimited", deliveryType: "manual", discountType: "none", discountValue: 0, status: "active", publicReady: false };
+}
+
+function productDiscountActive(product: Pick<Product, "discountType" | "discountValue" | "discountStart" | "discountEnd">) {
+  const today = "2026-08-03";
+  return product.discountType !== "none" && product.discountValue > 0 && (!product.discountStart || product.discountStart <= today) && (!product.discountEnd || product.discountEnd >= today);
+}
+
+function discountedProductPrice(product: Product, price = product.basePrice) {
+  if (!productDiscountActive(product)) return price;
+  return Math.max(0, product.discountType === "percent" ? price * (1 - product.discountValue / 100) : price - product.discountValue);
+}
+
+function productToQuoteKind(kind: ProductKind): QuoteItem["kind"] {
+  if (kind === "package") return "service";
+  if (kind === "album") return "extra";
+  return kind;
+}
+
+function ProductsView({ products, setProducts, clients, currency, onSale, onCreateQuote, toast }: { products: Product[]; setProducts: Dispatch<SetStateAction<Product[]>>; clients: Client[]; currency: Currency; onSale: (product: Product, clientId: number | undefined, quantity: number, options: string[], total: number) => void; onCreateQuote: (product: Product) => void; toast: (message: string) => void }) {
+  const [search, setSearch] = useState("");
+  const [kind, setKind] = useState<"all" | ProductKind>("all");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<Omit<Product, "id" | "sales">>(emptyProduct(currency));
+  const [saleProductId, setSaleProductId] = useState<number | null>(null);
+  const [saleClientId, setSaleClientId] = useState<number | undefined>(clients[0]?.id);
+  const [saleQuantity, setSaleQuantity] = useState(1);
+  const [saleOptions, setSaleOptions] = useState<Record<string, string>>({});
+
+  const visible = products.filter((product) => (kind === "all" || product.kind === kind) && (!search.trim() || `${product.name} ${product.description} ${catalogKindLabels[product.kind]}`.toLowerCase().includes(search.trim().toLowerCase())));
+  const saleProduct = products.find((product) => product.id === saleProductId);
+  const selectedOptionValues = saleProduct?.options.map((option) => option.values.find((value) => value.id === saleOptions[option.id])).filter(Boolean) as ProductOptionValue[] | undefined;
+  const saleUnitPrice = saleProduct ? discountedProductPrice(saleProduct, saleProduct.basePrice + (selectedOptionValues || []).reduce((sum, option) => sum + option.priceDelta, 0)) : 0;
+  const saleTotal = saleUnitPrice * saleQuantity;
+
+  const openNew = () => { setEditingId(null); setDraft(emptyProduct(currency)); setEditorOpen(true); };
+  const openEdit = (product: Product) => { const { id, sales, ...editable } = product; void id; void sales; setEditingId(product.id); setDraft(editable); setEditorOpen(true); };
+  const saveProduct = (event: FormEvent) => {
+    event.preventDefault();
+    if (!draft.name.trim() || (draft.priceType !== "consult" && draft.basePrice <= 0)) return;
+    if (editingId) setProducts((current) => current.map((product) => product.id === editingId ? { ...draft, id: editingId, sales: product.sales } : product));
+    else setProducts((current) => [{ ...draft, id: Math.max(...current.map((product) => product.id), 0) + 1, sales: 0 }, ...current]);
+    setEditorOpen(false);
+    toast(editingId ? "Produto atualizado" : "Produto criado no catálogo");
+  };
+  const addOption = () => setDraft({ ...draft, options: [...draft.options, { id: `option-${Date.now()}`, name: "Nova opção", values: [{ id: `value-${Date.now()}`, label: "Opção padrão", priceDelta: 0 }] }] });
+  const updateOption = (optionId: string, changes: Partial<ProductOption>) => setDraft({ ...draft, options: draft.options.map((option) => option.id === optionId ? { ...option, ...changes } : option) });
+  const updateOptionValue = (optionId: string, valueId: string, changes: Partial<ProductOptionValue>) => setDraft({ ...draft, options: draft.options.map((option) => option.id === optionId ? { ...option, values: option.values.map((value) => value.id === valueId ? { ...value, ...changes } : value) } : option) });
+  const addOptionValue = (optionId: string) => setDraft({ ...draft, options: draft.options.map((option) => option.id === optionId ? { ...option, values: [...option.values, { id: `value-${Date.now()}-${option.values.length}`, label: "Nova variação", priceDelta: 0 }] } : option) });
+  const openSale = (product: Product) => {
+    if (product.priceType === "consult") { onCreateQuote(product); return; }
+    setSaleProductId(product.id); setSaleQuantity(1); setSaleClientId(clients[0]?.id); setSaleOptions(Object.fromEntries(product.options.map((option) => [option.id, option.values[0]?.id || ""])));
+  };
+  const confirmSale = (event: FormEvent) => {
+    event.preventDefault();
+    if (!saleProduct || saleQuantity < 1 || saleTotal <= 0) return;
+    onSale(saleProduct, saleClientId, saleQuantity, (selectedOptionValues || []).map((option) => option.label), saleTotal);
+    setSaleProductId(null);
+  };
+
+  return <div className="products-page">
+    <section className="documents-title-row"><div><p>CATÁLOGO E VENDAS</p><h1>Produtos</h1><span>Preços reutilizáveis para pacotes, álbuns, fotos, cursos, PDFs e presets.</span></div><button className="primary-button" type="button" onClick={openNew}>＋ Novo produto</button></section>
+    <section className="document-metrics"><article><span>PRODUTOS ATIVOS</span><strong>{products.filter((product) => product.status === "active").length}</strong><small>Prontos para vender</small></article><article><span>DIGITAIS</span><strong>{products.filter((product) => ["course", "pdf", "preset"].includes(product.kind)).length}</strong><small>Entrega por arquivo ou link</small></article><article><span>DISPONIBILIDADE</span><strong>{products.filter((product) => product.availability !== "unlimited").length}</strong><small>Com estoque ou limite</small></article><article><span>VENDAS REGISTRADAS</span><strong>{products.reduce((sum, product) => sum + product.sales, 0)}</strong><small>Integradas ao Financeiro</small></article></section>
+    <section className="product-toolbar"><label className="client-search"><span className="search-glyph" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar produtos..." /></label><div className="finance-tabs">{(["all", "package", "album", "photo", "course", "pdf", "preset"] as Array<"all" | ProductKind>).map((item) => <button type="button" key={item} className={kind === item ? "active" : ""} onClick={() => setKind(item)}>{item === "all" ? "Todos" : catalogKindLabels[item]}</button>)}</div></section>
+    <section className="product-grid">{visible.map((product) => { const promo = productDiscountActive(product); const unavailable = product.availability !== "unlimited" && (product.availableQuantity || 0) <= 0; return <article className={`card product-card ${product.status !== "active" ? "inactive" : ""}`} key={product.id}><div className="product-card-top"><span className={`product-kind kind-${product.kind}`}>{catalogKindLabels[product.kind]}</span><span className={`document-status status-${product.status}`}>{product.status === "active" ? "Ativo" : product.status === "draft" ? "Rascunho" : "Arquivado"}</span></div><h2>{product.name}</h2><p>{product.description}</p><div className="product-price"><small>{productPriceLabels[product.priceType].toUpperCase()}</small>{product.priceType === "consult" ? <strong>Sob consulta</strong> : <><strong>{product.priceType === "from" && "a partir de "}{formatMoney(discountedProductPrice(product), product.currency)}</strong>{promo && <del>{formatMoney(product.basePrice, product.currency)}</del>}</>}</div><div className="product-facts"><span>{product.options.length ? `${product.options.length} grupo${product.options.length > 1 ? "s" : ""} de opções` : "Sem variações"}</span><span>{product.availability === "unlimited" ? "Disponibilidade ilimitada" : `${product.availableQuantity || 0} ${product.availabilityLabel || (product.availability === "stock" ? "em estoque" : "vagas")}`}</span><span>{product.deliveryType === "file" ? `Arquivo · ${product.deliveryFile || "não anexado"}` : product.deliveryType === "link" ? "Entrega por link" : "Entrega manual"}</span>{product.publicReady && <span>Preparado para loja pública</span>}</div><div className="product-card-actions"><button type="button" onClick={() => openEdit(product)}>Editar</button><button type="button" onClick={() => onCreateQuote(product)}>Usar em orçamento</button><button className="primary-mini" type="button" disabled={unavailable || product.status !== "active"} onClick={() => openSale(product)}>{product.priceType === "consult" ? "Criar orçamento" : unavailable ? "Indisponível" : "Vender"}</button></div></article>; })}{visible.length === 0 && <div className="card empty-state product-empty"><span>□</span><h2>Nenhum produto encontrado</h2><p>Ajuste os filtros ou crie um novo produto.</p></div>}</section>
+
+    {editorOpen && <div className="drawer-backdrop" role="presentation" onMouseDown={() => setEditorOpen(false)}><aside className="client-drawer product-drawer" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><div><p>{editingId ? "EDITAR PRODUTO" : "NOVO PRODUTO"}</p><h2>{editingId ? draft.name : "Adicionar ao catálogo"}</h2><span>Preço, variações, promoção, entrega e disponibilidade.</span></div><button type="button" onClick={() => setEditorOpen(false)}>×</button></div><form onSubmit={saveProduct}><div className="drawer-body"><div className="field-grid"><label className="field full"><span>Nome *</span><input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Ex.: Pacote Casamento Essencial" /></label><label className="field"><span>Tipo</span><select value={draft.kind} onChange={(event) => setDraft({ ...draft, kind: event.target.value as ProductKind })}>{(Object.keys(catalogKindLabels) as ProductKind[]).map((item) => <option value={item} key={item}>{catalogKindLabels[item]}</option>)}</select></label><label className="field"><span>Status</span><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as Product["status"] })}><option value="active">Ativo</option><option value="draft">Rascunho</option><option value="archived">Arquivado</option></select></label><label className="field full"><span>Descrição</span><textarea rows={3} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="Explique o que está incluído e para quem é o produto." /></label><label className="field"><span>Tipo de preço</span><select value={draft.priceType} onChange={(event) => setDraft({ ...draft, priceType: event.target.value as ProductPriceType })}><option value="fixed">Preço fixo</option><option value="from">A partir de</option><option value="consult">Sob consulta</option></select></label><label className="field"><span>Moeda</span><select value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value as Currency })}><option value="BRL">Real · R$</option><option value="EUR">Euro · €</option></select></label>{draft.priceType !== "consult" && <label className="field full"><span>Preço base *</span><input required type="number" min="0" step="0.01" value={draft.basePrice || ""} onChange={(event) => setDraft({ ...draft, basePrice: Number(event.target.value) })} /></label>}</div><section className="product-builder-section"><div className="builder-heading"><div><strong>Variações e acréscimos</strong><small>Ex.: Tamanho → 20×20 + R$ 0, 30×30 + R$ 250.</small></div><button type="button" onClick={addOption}>＋ Grupo de opções</button></div>{draft.options.map((option) => <article className="option-editor" key={option.id}><div><input value={option.name} onChange={(event) => updateOption(option.id, { name: event.target.value })} aria-label="Nome do grupo de opções" /><button type="button" onClick={() => setDraft({ ...draft, options: draft.options.filter((item) => item.id !== option.id) })}>Remover grupo</button></div>{option.values.map((value) => <div className="option-value-row" key={value.id}><input value={value.label} onChange={(event) => updateOptionValue(option.id, value.id, { label: event.target.value })} placeholder="Nome da opção" /><label><span>＋</span><input type="number" min="0" step="0.01" value={value.priceDelta || ""} onChange={(event) => updateOptionValue(option.id, value.id, { priceDelta: Number(event.target.value) })} aria-label="Acréscimo" /></label><button type="button" onClick={() => updateOption(option.id, { values: option.values.filter((item) => item.id !== value.id) })}>×</button></div>)}<button className="add-option-value" type="button" onClick={() => addOptionValue(option.id)}>＋ Adicionar escolha</button></article>)}</section><div className="field-grid"><label className="field"><span>Disponibilidade</span><select value={draft.availability} onChange={(event) => setDraft({ ...draft, availability: event.target.value as ProductAvailability, availableQuantity: event.target.value === "unlimited" ? undefined : draft.availableQuantity || 1 })}><option value="unlimited">Ilimitada</option><option value="stock">Estoque físico</option><option value="capacity">Vagas / agenda</option></select></label>{draft.availability !== "unlimited" && <><label className="field"><span>Quantidade disponível</span><input type="number" min="0" value={draft.availableQuantity || 0} onChange={(event) => setDraft({ ...draft, availableQuantity: Number(event.target.value) })} /></label><label className="field full"><span>Descrição do limite</span><input value={draft.availabilityLabel || ""} onChange={(event) => setDraft({ ...draft, availabilityLabel: event.target.value })} placeholder="Ex.: vagas neste mês ou unidades em estoque" /></label></>}<label className="field"><span>Entrega</span><select value={draft.deliveryType} onChange={(event) => setDraft({ ...draft, deliveryType: event.target.value as Product["deliveryType"] })}><option value="manual">Manual / serviço</option><option value="file">Arquivo anexado</option><option value="link">Link de entrega</option></select></label>{draft.deliveryType === "file" && <label className="field file-field"><span>Arquivo</span><input type="file" onChange={(event) => setDraft({ ...draft, deliveryFile: event.target.files?.[0]?.name })} /><small>{draft.deliveryFile || "Nenhum arquivo selecionado"}</small></label>}{draft.deliveryType === "link" && <label className="field"><span>Link de entrega</span><input type="url" value={draft.deliveryLink || ""} onChange={(event) => setDraft({ ...draft, deliveryLink: event.target.value })} placeholder="https://..." /></label>}<label className="field"><span>Desconto</span><select value={draft.discountType} onChange={(event) => setDraft({ ...draft, discountType: event.target.value as ProductDiscountType })}><option value="none">Sem desconto</option><option value="fixed">Valor fixo</option><option value="percent">Porcentagem</option></select></label>{draft.discountType !== "none" && <><label className="field"><span>{draft.discountType === "percent" ? "Porcentagem (%)" : `Valor (${draft.currency})`}</span><input type="number" min="0" step="0.01" value={draft.discountValue || ""} onChange={(event) => setDraft({ ...draft, discountValue: Number(event.target.value) })} /></label><label className="field"><span>Início da promoção</span><input type="date" value={draft.discountStart || ""} onChange={(event) => setDraft({ ...draft, discountStart: event.target.value })} /></label><label className="field"><span>Fim da promoção</span><input type="date" value={draft.discountEnd || ""} onChange={(event) => setDraft({ ...draft, discountEnd: event.target.value })} /></label></>}<label className="checkbox-field full"><input type="checkbox" checked={draft.publicReady} onChange={(event) => setDraft({ ...draft, publicReady: event.target.checked })} /><span><strong>Preparar para a futura loja pública</strong><small>Mantém título, descrição, preço e entrega prontos para publicação futura.</small></span></label></div></div><div className="drawer-footer"><button className="cancel-button" type="button" onClick={() => setEditorOpen(false)}>Cancelar</button><button className="primary-button" type="submit">Salvar produto</button></div></form></aside></div>}
+
+    {saleProduct && <div className="drawer-backdrop" role="presentation" onMouseDown={() => setSaleProductId(null)}><aside className="client-drawer sale-drawer" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><div><p>VENDA DIRETA</p><h2>{saleProduct.name}</h2><span>O recebimento será criado automaticamente no Financeiro.</span></div><button type="button" onClick={() => setSaleProductId(null)}>×</button></div><form onSubmit={confirmSale}><div className="drawer-body"><div className="field-grid"><label className="field full"><span>Cliente</span><select value={saleClientId || ""} onChange={(event) => setSaleClientId(Number(event.target.value) || undefined)}><option value="">Venda sem cliente vinculado</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name}</option>)}</select></label>{saleProduct.options.map((option) => <label className="field" key={option.id}><span>{option.name}</span><select value={saleOptions[option.id] || ""} onChange={(event) => setSaleOptions({ ...saleOptions, [option.id]: event.target.value })}>{option.values.map((value) => <option value={value.id} key={value.id}>{value.label}{value.priceDelta ? ` (+${formatMoney(value.priceDelta, saleProduct.currency)})` : ""}</option>)}</select></label>)}<label className="field"><span>Quantidade</span><input type="number" min="1" max={saleProduct.availability === "unlimited" ? undefined : saleProduct.availableQuantity} value={saleQuantity} onChange={(event) => setSaleQuantity(Math.max(1, Number(event.target.value) || 1))} /></label><label className="field"><span>Situação</span><select disabled><option>Recebido</option></select></label></div><div className="sale-summary"><span><small>VALOR UNITÁRIO</small><strong>{formatMoney(saleUnitPrice, saleProduct.currency)}</strong></span><b>× {saleQuantity}</b><span><small>TOTAL DA VENDA</small><strong>{formatMoney(saleTotal, saleProduct.currency)}</strong></span></div>{productDiscountActive(saleProduct) && <div className="promotion-note">Promoção ativa aplicada automaticamente.</div>}{saleProduct.deliveryType !== "manual" && <div className="delivery-note"><strong>Entrega vinculada</strong><span>{saleProduct.deliveryType === "file" ? saleProduct.deliveryFile || "Arquivo ainda não anexado" : saleProduct.deliveryLink || "Link ainda não informado"}</span></div>}</div><div className="drawer-footer"><button className="cancel-button" type="button" onClick={() => setSaleProductId(null)}>Cancelar</button><button className="primary-button" type="submit">Confirmar venda</button></div></form></aside></div>}
+  </div>;
+}
+
+function quoteTotal(quote: Pick<Quote, "items" | "discount">) {
+  return Math.max(0, quote.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) - quote.discount);
+}
+
+function QuotesView({ quotes, setQuotes, clients, currency, onConvert, onCreateContract, toast }: { quotes: Quote[]; setQuotes: Dispatch<SetStateAction<Quote[]>>; clients: Client[]; currency: Currency; onConvert: (quote: Quote) => void; onCreateContract: (quote: Quote) => void; toast: (message: string) => void }) {
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [draft, setDraft] = useState<Omit<Quote, "id" | "status">>({ title: "", clientId: clients[0]?.id, currency, items: [{ id: "item-1", kind: "service", description: "Ensaio fotográfico", quantity: 1, unitPrice: 0 }], discount: 0, validUntil: "2026-08-17", notes: "Valores e datas ficam reservados até o vencimento deste orçamento." });
+  const draftTotal = quoteTotal(draft);
+  const updateItem = (id: string, changes: Partial<QuoteItem>) => setDraft({ ...draft, items: draft.items.map((item) => item.id === id ? { ...item, ...changes } : item) });
+  const saveQuote = (event: FormEvent) => {
+    event.preventDefault();
+    if (!draft.title.trim() || !draft.items.length) return;
+    setQuotes((current) => [{ ...draft, id: Math.max(...current.map((item) => item.id), 0) + 1, status: "draft" }, ...current]);
+    setBuilderOpen(false);
+    toast("Orçamento salvo como rascunho");
+  };
+  const setStatus = (quote: Quote, status: QuoteStatus) => setQuotes((current) => current.map((item) => item.id === quote.id ? { ...item, status } : item));
+
+  return <div className="documents-page"><section className="documents-title-row"><div><p>PROPOSTAS E VENDAS</p><h1>Orçamentos</h1><span>Fotografia, fotos avulsas, cursos, PDFs, presets e outros produtos.</span></div><button className="primary-button" type="button" onClick={() => setBuilderOpen(true)}>＋ Novo orçamento</button></section><section className="document-metrics"><article><span>EM ABERTO</span><strong>{quotes.filter((item) => item.status === "draft" || item.status === "sent").length}</strong><small>Rascunhos e enviados</small></article><article><span>APROVADOS</span><strong>{quotes.filter((item) => item.status === "approved").length}</strong><small>Prontos para converter</small></article><article><span>PRODUTOS DIGITAIS</span><strong>{quotes.flatMap((item) => item.items).filter((item) => ["course", "pdf", "preset"].includes(item.kind)).length}</strong><small>Cursos, PDFs e presets</small></article><article><span>TOTAL APROVADO</span><strong>{formatMoney(quotes.filter((item) => item.status === "approved" && item.currency === currency).reduce((sum, item) => sum + quoteTotal(item), 0), currency)}</strong><small>Na moeda selecionada</small></article></section><section className="quote-grid">{quotes.map((quote) => { const client = clients.find((item) => item.id === quote.clientId); return <article className="card quote-card" key={quote.id}><div className="quote-card-top"><span className={`document-status status-${quote.status}`}>{quoteStatusLabels[quote.status]}</span><small>Válido até {formatDate(quote.validUntil)}</small></div><h2>{quote.title}</h2><p>{client?.name || "Cliente não vinculado"}</p><div className="quote-products">{quote.items.slice(0, 3).map((item) => <span key={item.id}>{productKindLabels[item.kind]} · {item.quantity}×</span>)}</div><div className="quote-total"><small>TOTAL</small><strong>{formatMoney(quoteTotal(quote), quote.currency)}</strong>{quote.discount > 0 && <span>Desconto de {formatMoney(quote.discount, quote.currency)}</span>}</div><div className="quote-actions"><select value={quote.status} onChange={(event) => setStatus(quote, event.target.value as QuoteStatus)}><option value="draft">Rascunho</option><option value="sent">Enviado</option><option value="approved">Aprovado</option><option value="declined">Recusado</option></select><button type="button" onClick={() => window.print()}>PDF / imprimir</button>{quote.status === "approved" && <><button type="button" onClick={() => onConvert(quote)}>Criar trabalho</button><button className="primary-mini" type="button" onClick={() => onCreateContract(quote)}>Criar contrato</button></>}</div></article>; })}</section>
+  {builderOpen && <div className="drawer-backdrop" role="presentation" onMouseDown={() => setBuilderOpen(false)}><aside className="client-drawer quote-drawer" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><div><p>NOVO ORÇAMENTO</p><h2>Montar proposta</h2><span>Combine serviços, produtos digitais, fotos e extras.</span></div><button type="button" onClick={() => setBuilderOpen(false)}>×</button></div><form onSubmit={saveQuote}><div className="drawer-body"><div className="field-grid"><label className="field full"><span>Título *</span><input required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Ex.: Casamento Amanda e João" /></label><label className="field"><span>Cliente</span><select value={draft.clientId || ""} onChange={(event) => setDraft({ ...draft, clientId: Number(event.target.value) || undefined })}><option value="">Sem cliente</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label className="field"><span>Moeda</span><select value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value as Currency })}><option value="BRL">Real</option><option value="EUR">Euro</option></select></label></div><div className="builder-section"><div className="builder-heading"><div><strong>Itens do orçamento</strong><small>Serviços e produtos</small></div><button type="button" onClick={() => setDraft({ ...draft, items: [...draft.items, { id: `item-${Date.now()}`, kind: "extra", description: "", quantity: 1, unitPrice: 0 }] })}>＋ Adicionar</button></div>{draft.items.map((item) => <div className="quote-item-row" key={item.id}><select value={item.kind} onChange={(event) => updateItem(item.id, { kind: event.target.value as QuoteItem["kind"] })}>{Object.entries(productKindLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><input value={item.description} onChange={(event) => updateItem(item.id, { description: event.target.value })} placeholder="Descrição" /><input aria-label="Quantidade" type="number" min="1" value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: Number(event.target.value) })} /><input aria-label="Preço unitário" type="number" min="0" value={item.unitPrice || ""} onChange={(event) => updateItem(item.id, { unitPrice: Number(event.target.value) })} placeholder="Valor" /><button type="button" onClick={() => setDraft({ ...draft, items: draft.items.filter((row) => row.id !== item.id) })}>×</button></div>)}</div><div className="field-grid"><label className="field"><span>Desconto</span><input type="number" min="0" value={draft.discount || ""} onChange={(event) => setDraft({ ...draft, discount: Number(event.target.value) })} /></label><label className="field"><span>Validade</span><input type="date" value={draft.validUntil} onChange={(event) => setDraft({ ...draft, validUntil: event.target.value })} /></label><label className="field full"><span>Observações</span><textarea rows={4} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></label></div><div className="quote-builder-total"><span>Total do orçamento</span><strong>{formatMoney(draftTotal, draft.currency)}</strong></div></div><div className="drawer-footer"><button className="cancel-button" type="button" onClick={() => setBuilderOpen(false)}>Cancelar</button><button className="primary-button" type="submit">Salvar orçamento</button></div></form></aside></div>}
+  </div>;
+}
+
+function ContractsView({ contracts, setContracts, clients, quotes, toast }: { contracts: Contract[]; setContracts: Dispatch<SetStateAction<Contract[]>>; clients: Client[]; quotes: Quote[]; toast: (message: string) => void }) {
+  const [selectedId, setSelectedId] = useState(contracts[0]?.id || 0);
+  const [templateFile, setTemplateFile] = useState("");
+  const selected = contracts.find((item) => item.id === selectedId);
+  const update = (changes: Partial<Contract>) => selected && setContracts((current) => current.map((item) => item.id === selected.id ? { ...item, ...changes, updatedAt: "Agora" } : item));
+  const createBlank = () => {
+    const id = Math.max(...contracts.map((item) => item.id), 0) + 1;
+    const contract: Contract = { id, title: "Novo contrato fotográfico", clientId: clients[0]?.id, status: "draft", template: "standard", content: "CONTRATO DE PRESTAÇÃO DE SERVIÇOS FOTOGRÁFICOS\n\nCONTRATANTE: {{cliente}}\nCONTRATADA: Maryana Fotografia\n\n1. OBJETO\nPrestação dos serviços descritos no orçamento aprovado.\n\n2. PAGAMENTO\nOs valores, parcelas e vencimentos seguem o orçamento vinculado.\n\n3. PRAZOS E ENTREGA\nAs datas de sessão, seleção, edição e entrega serão registradas no Revelar.\n\n4. CANCELAMENTO E REMARCAÇÃO\nAs condições serão combinadas entre as partes e registradas por escrito.\n\n5. USO DE IMAGEM\nQualquer autorização de publicação deverá ser indicada pelo cliente.\n\nAssinaturas:\n\n________________________  ________________________", updatedAt: "Agora" };
+    setContracts((current) => [contract, ...current]); setSelectedId(id);
+  };
+  return <div className="documents-page"><section className="documents-title-row"><div><p>DOCUMENTOS E ASSINATURAS</p><h1>Contratos</h1><span>Use o modelo editável do Revelar. ou substitua por seu próprio PDF/DOCX.</span></div><button className="primary-button" type="button" onClick={createBlank}>＋ Novo contrato</button></section><div className="contracts-layout"><aside className="card contract-list"><div className="card-heading compact"><div><p>DOCUMENTOS</p><h2>Seus contratos</h2></div><span>{contracts.length}</span></div>{contracts.map((contract) => <button type="button" className={selectedId === contract.id ? "active" : ""} key={contract.id} onClick={() => setSelectedId(contract.id)}><span><strong>{contract.title}</strong><small>{clients.find((client) => client.id === contract.clientId)?.name || "Sem cliente"} · {contractStatusLabels[contract.status]}</small></span><b>›</b></button>)}</aside>{selected ? <section className="card contract-editor"><div className="contract-editor-head"><div><p>EDITOR DE CONTRATO</p><input value={selected.title} onChange={(event) => update({ title: event.target.value })} /></div><span className={`document-status status-${selected.status}`}>{contractStatusLabels[selected.status]}</span></div><div className="contract-toolbar"><label><span>Status</span><select value={selected.status} onChange={(event) => update({ status: event.target.value as ContractStatus })}><option value="draft">Rascunho</option><option value="sent">Enviado</option><option value="waiting">Aguardando assinatura</option><option value="signed">Assinado</option><option value="cancelled">Cancelado</option></select></label><label><span>Cliente</span><select value={selected.clientId || ""} onChange={(event) => update({ clientId: Number(event.target.value) || undefined })}><option value="">Sem cliente</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label><span>Orçamento</span><select value={selected.quoteId || ""} onChange={(event) => update({ quoteId: Number(event.target.value) || undefined })}><option value="">Sem orçamento</option>{quotes.map((quote) => <option key={quote.id} value={quote.id}>{quote.title}</option>)}</select></label></div><div className="template-chooser"><button type="button" className={selected.template === "standard" ? "active" : ""} onClick={() => update({ template: "standard", templateFile: undefined })}><span>REVELAR.</span><strong>Modelo padrão editável</strong><small>Texto completo e personalizável</small></button><label className={selected.template === "custom" ? "active" : ""}><input type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setTemplateFile(file.name); update({ template: "custom", templateFile: file.name }); toast("Template próprio definido para este contrato"); }} /><span>↑</span><strong>{selected.templateFile || templateFile || "Enviar PDF ou DOCX"}</strong><small>Substitui o modelo padrão</small></label></div>{selected.template === "standard" ? <label className="contract-content"><span>Conteúdo do contrato</span><textarea value={selected.content} onChange={(event) => update({ content: event.target.value })} /></label> : <div className="custom-template-preview"><span>{selected.templateFile?.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX"}</span><div><strong>{selected.templateFile}</strong><p>Este arquivo foi definido como modelo. Os dados do cliente e do orçamento ficam vinculados ao contrato.</p></div></div>}<div className="contract-footer"><span>Última atualização: {selected.updatedAt}</span><div><button type="button" onClick={() => { update({ status: "sent" }); toast("Contrato marcado como enviado"); }}>Marcar como enviado</button><button className="primary-button" type="button" onClick={() => window.print()}>Gerar PDF / imprimir</button></div></div></section> : <div className="card empty-state"><span>□</span><h2>Crie seu primeiro contrato</h2><p>Você poderá editar o modelo padrão ou enviar um arquivo próprio.</p></div>}</div></div>;
 }
 
 function ClientsView({ clients, viewMode, setViewMode, search, setSearch, filter, setFilter, onNewClient, onOpenClient }: {
@@ -895,6 +1128,7 @@ function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, 
   const [selectedStageId, setSelectedStageId] = useState(work.stages.find((stage) => !stage.done)?.id || work.stages[0]?.id || "");
   const [newStage, setNewStage] = useState("");
   const [payment, setPayment] = useState("");
+  const [costDraft, setCostDraft] = useState({ name: "", category: "Transporte", tags: "", amount: 0, status: "planned" as WorkCost["status"], date: work.date });
   const [editing, setEditing] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
@@ -909,6 +1143,7 @@ function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, 
   const stageFileRef = useRef<HTMLInputElement>(null);
   const workFileRef = useRef<HTMLInputElement>(null);
   const linkedClients = clients.filter((client) => work.clientIds.includes(client.id));
+  const costItems: WorkCost[] = work.costItems?.length ? work.costItems : work.costs > 0 ? [{ id: `legacy-${work.id}`, name: "Custos anteriores", category: "Produção", tags: [work.category], amount: work.costs, status: "planned", date: work.date }] : [];
   const selectedStage = work.stages.find((stage) => stage.id === selectedStageId) || work.stages[0];
   const receivedPercent = work.totalValue ? Math.min(100, Math.round((work.entryValue / work.totalValue) * 100)) : 0;
   const progress = workProgress(work);
@@ -968,6 +1203,19 @@ function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, 
     setPayment("");
     addActivity(`Pagamento de ${formatMoney(amount, work.currency)} registrado`, "＄");
     toast("Pagamento registrado. Confirme manualmente a etapa correspondente.");
+  };
+  const addCost = () => {
+    if (!costDraft.name.trim() || costDraft.amount <= 0) return;
+    const item: WorkCost = { id: `cost-${Date.now()}`, name: costDraft.name.trim(), category: costDraft.category || "Outros", tags: costDraft.tags.split(",").map((tag) => tag.trim()).filter(Boolean), amount: costDraft.amount, status: costDraft.status, date: costDraft.date || work.date };
+    const next = [...costItems, item].filter((cost) => !cost.id.startsWith("legacy-") || costItems.length === 1);
+    update({ costItems: next, costs: next.reduce((sum, cost) => sum + cost.amount, 0) });
+    setCostDraft({ name: "", category: "Transporte", tags: "", amount: 0, status: "planned", date: work.date });
+    addActivity(`Custo “${item.name}” adicionado`, "−");
+    toast("Custo detalhado e sincronizado com o Financeiro");
+  };
+  const removeCost = (id: string) => {
+    const next = costItems.filter((item) => item.id !== id);
+    update({ costItems: next, costs: next.reduce((sum, item) => sum + item.amount, 0) });
   };
   const rememberFiles = (files: File[]) => {
     const entries = Object.fromEntries(files.map((file) => [file.name, { url: URL.createObjectURL(file), type: file.type, size: file.size }]));
@@ -1058,7 +1306,7 @@ function WorkDetails({ work, clients, onBack, onUpdate, onDuplicate, onArchive, 
 
       {tab === "files" && <section className="tab-single card"><div className="detail-section-heading"><div><p>ARQUIVOS</p><h2>Materiais do trabalho</h2></div><button className="outline-button" type="button" onClick={() => workFileRef.current?.click()}>＋ Adicionar arquivo</button></div><input ref={workFileRef} type="file" multiple hidden onChange={addWorkFiles} /><div className="work-file-grid">{work.attachments.map((file, index) => <article key={`${file}-${index}`}><span>□</span><button className="file-main-action" type="button" onClick={() => setPreviewFile(file)}><strong>{file}</strong><small>{attachmentExtension(file).toUpperCase()} · clique para visualizar</small></button><span className="file-actions"><button type="button" onClick={() => setPreviewFile(file)}>Visualizar</button><button className="remove-file" type="button" aria-label={`Remover ${file}`} onClick={() => update({ attachments: work.attachments.filter((_, fileIndex) => fileIndex !== index) })}>×</button></span></article>)}{work.attachments.length === 0 && <div className="empty-state"><span>□</span><h2>Nenhum arquivo anexado</h2><p>Adicione contratos, comprovantes ou referências.</p></div>}</div></section>}
 
-      {tab === "costs" && <section className="tab-single card"><div className="detail-section-heading"><div><p>CUSTOS</p><h2>Resultado previsto</h2></div></div><div className="cost-summary"><article><span>RECEITA</span><strong>{formatMoney(work.totalValue, work.currency)}</strong></article><b>−</b><article><span>CUSTOS</span><strong>{formatMoney(work.costs, work.currency)}</strong></article><b>=</b><article className="result"><span>RESULTADO</span><strong>{formatMoney(work.totalValue - work.costs, work.currency)}</strong></article></div><label className="field cost-edit"><span>Custos previstos ou realizados</span><input type="number" min="0" value={work.costs} onChange={(event) => update({ costs: Number(event.target.value) })} /><small className="field-hint">Inclua transporte, equipe, locação, alimentação, impressão e outros gastos.</small></label><div className="cost-placeholder"><span>＋</span><div><strong>Detalhamento de custos</strong><p>No módulo Financeiro será possível separar cada gasto por categoria e moeda.</p></div></div></section>}
+      {tab === "costs" && <section className="tab-single card"><div className="detail-section-heading"><div><p>CUSTOS DETALHADOS</p><h2>Origem de cada gasto</h2></div><span>Sincronizado com o Financeiro</span></div><div className="cost-summary"><article><span>RECEITA</span><strong>{formatMoney(work.totalValue, work.currency)}</strong></article><b>−</b><article><span>CUSTOS</span><strong>{formatMoney(work.costs, work.currency)}</strong></article><b>=</b><article className="result"><span>RESULTADO</span><strong>{formatMoney(work.totalValue - work.costs, work.currency)}</strong></article></div><div className="cost-entry-grid"><label className="field"><span>Nome do custo</span><input value={costDraft.name} onChange={(event) => setCostDraft({ ...costDraft, name: event.target.value })} placeholder="Ex.: combustível para o casamento" /></label><label className="field"><span>Categoria</span><input list="work-cost-categories" value={costDraft.category} onChange={(event) => setCostDraft({ ...costDraft, category: event.target.value })} /><datalist id="work-cost-categories"><option value="Transporte"/><option value="Equipamento"/><option value="Alimentação"/><option value="Aluguel"/><option value="Equipe"/><option value="Impressão"/><option value="Cliente"/></datalist></label><label className="field"><span>Tags</span><input value={costDraft.tags} onChange={(event) => setCostDraft({ ...costDraft, tags: event.target.value })} placeholder="viagem, casamento" /></label><label className="field"><span>Valor ({work.currency})</span><input type="number" min="0" value={costDraft.amount || ""} onChange={(event) => setCostDraft({ ...costDraft, amount: Number(event.target.value) })} /></label><label className="field"><span>Data</span><input type="date" value={costDraft.date} onChange={(event) => setCostDraft({ ...costDraft, date: event.target.value })} /></label><label className="field"><span>Situação</span><select value={costDraft.status} onChange={(event) => setCostDraft({ ...costDraft, status: event.target.value as WorkCost["status"] })}><option value="planned">Previsto</option><option value="paid">Pago</option></select></label><button className="primary-button cost-add-button" type="button" onClick={addCost}>＋ Adicionar custo</button></div><div className="cost-list-head"><span>Gasto</span><span>Categoria / tags</span><span>Situação</span><span>Valor</span><span /></div><div className="cost-item-list">{costItems.map((item) => <article key={item.id}><span><strong>{item.name}</strong><small>{formatDate(item.date)}</small></span><span><strong>{item.category}</strong><small>{item.tags.length ? item.tags.map((tag) => `#${tag}`).join(" ") : "Sem tags"}</small></span><span className={`cost-state ${item.status}`}>{item.status === "paid" ? "Pago" : "Previsto"}</span><strong>{formatMoney(item.amount, work.currency)}</strong><button type="button" onClick={() => removeCost(item.id)} aria-label={`Remover ${item.name}`}>×</button></article>)}{costItems.length === 0 && <div className="finance-empty"><p>Nenhum custo cadastrado neste trabalho.</p></div>}</div></section>}
 
       {cancelOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setCancelOpen(false)}><section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="cancel-work-title" onMouseDown={(event) => event.stopPropagation()}><span>!</span><h2 id="cancel-work-title">Cancelar este trabalho?</h2><p>O trabalho continuará no histórico com o status “Cancelado”. Nenhum dado será apagado.</p><div><button className="cancel-button" type="button" onClick={() => setCancelOpen(false)}>Voltar</button><button className="danger-button" type="button" onClick={() => onCancel(work)}>Sim, cancelar trabalho</button></div></section></div>}
       {previewFile && <div className="modal-backdrop file-preview-backdrop" role="presentation" onMouseDown={() => setPreviewFile(null)}><section className="file-preview-modal" role="dialog" aria-modal="true" aria-labelledby="file-preview-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -1348,6 +1596,32 @@ function AgendaView({ works, clients, customEvents, setCustomEvents, initialView
   );
 }
 
+const initialFinanceTransactions: FinanceTransaction[] = [
+  { id: "tx-personal-1", type: "expense", scope: "personal", description: "Aluguel de casa", amount: 450, currency: "EUR", date: "2026-08-01", category: "Aluguel", tags: ["moradia", "mensal"], account: "Conta Portugal", paymentMethod: "Débito automático", status: "paid", origin: "Vida pessoal" },
+  { id: "tx-digital-1", type: "income", scope: "professional", description: "Venda do pack Presets Essência", amount: 189, currency: "BRL", date: "2026-08-02", category: "Produto digital", tags: ["preset", "loja"], account: "Conta principal", paymentMethod: "Pix / transferência", status: "received", origin: "Loja digital" },
+  { id: "tx-equipment-1", type: "expense", scope: "professional", description: "Cartão de memória", amount: 149, currency: "BRL", date: "2026-08-02", category: "Equipamento", tags: ["câmera"], account: "Conta principal", paymentMethod: "Cartão de crédito", status: "paid", origin: "Loja de equipamentos" },
+  { id: "tx-transfer-1", type: "transfer", scope: "personal", description: "Reserva mensal", amount: 100, currency: "EUR", date: "2026-08-02", category: "Transferência", tags: ["reserva"], account: "Conta Portugal", destinationAccount: "Poupança", paymentMethod: "Transferência", status: "paid", origin: "Entre contas" },
+];
+
+const initialProducts: Product[] = [
+  { id: 1, name: "Pack Presets Essência", kind: "preset", description: "12 presets autorais para tons naturais, pele suave e luz quente.", currency: "BRL", priceType: "fixed", basePrice: 189, options: [], availability: "unlimited", deliveryType: "link", deliveryLink: "https://exemplo.com/entrega-presets", discountType: "percent", discountValue: 15, discountStart: "2026-08-01", discountEnd: "2026-08-10", status: "active", publicReady: true, sales: 8 },
+  { id: 2, name: "Álbum Memórias", kind: "album", description: "Álbum fotográfico premium com capa personalizada e acabamento editorial.", currency: "BRL", priceType: "from", basePrice: 590, options: [{ id: "album-size", name: "Tamanho", values: [{ id: "size-20", label: "20×20 cm", priceDelta: 0 }, { id: "size-30", label: "30×30 cm", priceDelta: 280 }] }, { id: "album-pages", name: "Páginas", values: [{ id: "pages-20", label: "20 páginas", priceDelta: 0 }, { id: "pages-30", label: "30 páginas", priceDelta: 160 }] }], availability: "stock", availableQuantity: 6, availabilityLabel: "unidades disponíveis", deliveryType: "manual", discountType: "fixed", discountValue: 50, discountStart: "2026-08-01", discountEnd: "2026-08-31", status: "active", publicReady: true, sales: 3 },
+  { id: 3, name: "Curso Fotografia de Estúdio", kind: "course", description: "Formação prática sobre luz, direção de pessoas e fluxo de um ensaio em estúdio.", currency: "BRL", priceType: "fixed", basePrice: 790, options: [{ id: "course-level", name: "Modalidade", values: [{ id: "course-basic", label: "Básico", priceDelta: 0 }, { id: "course-full", label: "Completo + mentoria", priceDelta: 410 }] }], availability: "capacity", availableQuantity: 12, availabilityLabel: "vagas nesta turma", deliveryType: "link", deliveryLink: "https://exemplo.com/area-do-curso", discountType: "none", discountValue: 0, status: "active", publicReady: true, sales: 5 },
+  { id: 4, name: "Guia de Poses Naturais", kind: "pdf", description: "PDF prático para condução de ensaios individuais, casais e famílias.", currency: "EUR", priceType: "fixed", basePrice: 18, options: [], availability: "unlimited", deliveryType: "file", deliveryFile: "guia-poses-naturais.pdf", discountType: "none", discountValue: 0, status: "active", publicReady: true, sales: 11 },
+  { id: 5, name: "Fotos adicionais tratadas", kind: "photo", description: "Seleção de imagens extras além da quantidade incluída no pacote contratado.", currency: "BRL", priceType: "fixed", basePrice: 25, options: [{ id: "photo-quantity", name: "Combo", values: [{ id: "photo-one", label: "1 foto", priceDelta: 0 }, { id: "photo-ten", label: "Combo com 10 fotos", priceDelta: 175 }] }], availability: "unlimited", deliveryType: "link", deliveryLink: "https://exemplo.com/galeria", discountType: "none", discountValue: 0, status: "active", publicReady: false, sales: 24 },
+  { id: 6, name: "Casamento Essencial", kind: "package", description: "Cobertura fotográfica enxuta para cerimônia e recepção. Personalização após conversa.", currency: "BRL", priceType: "consult", basePrice: 0, options: [{ id: "wedding-hours", name: "Cobertura", values: [{ id: "hours-six", label: "Até 6 horas", priceDelta: 0 }, { id: "hours-ten", label: "Até 10 horas", priceDelta: 1200 }] }], availability: "capacity", availableQuantity: 2, availabilityLabel: "casamentos disponíveis neste mês", deliveryType: "manual", discountType: "none", discountValue: 0, status: "active", publicReady: true, sales: 1 },
+];
+
+const initialQuotes: Quote[] = [
+  { id: 1, title: "Casamento Amanda e João", clientId: 3, currency: "BRL", items: [{ id: "q1-1", kind: "service", description: "Cobertura completa do casamento", quantity: 1, unitPrice: 4800 }, { id: "q1-2", kind: "extra", description: "Álbum impresso", quantity: 1, unitPrice: 750 }], discount: 250, validUntil: "2026-08-18", notes: "Reserva confirmada após entrada e assinatura.", status: "approved" },
+  { id: 2, title: "Editorial mensal Loja Aurora", clientId: 2, currency: "BRL", items: [{ id: "q2-1", kind: "service", description: "Editorial de coleção", quantity: 1, unitPrice: 950 }, { id: "q2-2", kind: "photo", description: "Fotos adicionais tratadas", quantity: 10, unitPrice: 25 }], discount: 0, validUntil: "2026-08-12", notes: "Uso comercial para redes sociais da coleção.", status: "sent" },
+  { id: 3, title: "Pack Presets Essência", currency: "EUR", items: [{ id: "q3-1", kind: "preset", description: "Pack com 12 presets autorais", quantity: 1, unitPrice: 29 }], discount: 0, validUntil: "2026-08-31", notes: "Produto digital com entrega após confirmação.", status: "draft" },
+];
+
+const initialContracts: Contract[] = [
+  { id: 1, title: "Contrato · Casamento Amanda e João", clientId: 3, quoteId: 1, status: "waiting", template: "standard", updatedAt: "Hoje, 18:42", content: "CONTRATO DE PRESTAÇÃO DE SERVIÇOS FOTOGRÁFICOS\n\nCONTRATANTE: Amanda e João\nCONTRATADA: Maryana Fotografia\n\n1. OBJETO\nCobertura fotográfica do casamento conforme orçamento aprovado.\n\n2. PAGAMENTO\nO valor total, entrada e parcelas seguem o orçamento vinculado.\n\n3. PRAZOS E ENTREGA\nA seleção, edição e entrega obedecerão ao cronograma registrado no Revelar.\n\n4. CANCELAMENTO E REMARCAÇÃO\nQualquer alteração deverá ser registrada por escrito entre as partes.\n\n5. USO DE IMAGEM\nA autorização de publicação será definida pelo cliente.\n\nAssinaturas:\n\n________________________  ________________________" },
+];
+
 export default function Home() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [palette, setPalette] = useState<Palette>("essencia");
@@ -1370,6 +1644,10 @@ export default function Home() {
   const [selectedWorkId, setSelectedWorkId] = useState<number | null>(null);
   const [agendaEvents, setAgendaEvents] = useState<AgendaEvent[]>(initialAgendaEvents);
   const [agendaInitialView, setAgendaInitialView] = useState<AgendaViewMode>("month");
+  const [transactions, setTransactions] = useState<FinanceTransaction[]>(initialFinanceTransactions);
+  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [quotes, setQuotes] = useState<Quote[]>(initialQuotes);
+  const [contracts, setContracts] = useState<Contract[]>(initialContracts);
   const resolvedTheme = useResolvedTheme(themeMode);
 
   useEffect(() => {
@@ -1378,12 +1656,22 @@ export default function Home() {
     const savedCurrency = localStorage.getItem("revelar-currency") as Currency | null;
     const savedView = localStorage.getItem("revelar-client-view") as ViewMode | null;
     const savedWorkView = localStorage.getItem("revelar-work-view") as ViewMode | null;
+    const savedWorks = localStorage.getItem("revelar-works");
+    const savedTransactions = localStorage.getItem("revelar-transactions");
+    const savedProducts = localStorage.getItem("revelar-products");
+    const savedQuotes = localStorage.getItem("revelar-quotes");
+    const savedContracts = localStorage.getItem("revelar-contracts");
     const timer = window.setTimeout(() => {
       if (savedMode) setThemeMode(savedMode);
       if (savedPalette) setPalette(savedPalette);
       if (savedCurrency) setCurrency(savedCurrency);
       if (savedView) setViewMode(savedView);
       if (savedWorkView) setWorkViewMode(savedWorkView);
+      try { if (savedWorks) setWorks(JSON.parse(savedWorks)); } catch {}
+      try { if (savedTransactions) setTransactions(JSON.parse(savedTransactions)); } catch {}
+      try { if (savedProducts) setProducts(JSON.parse(savedProducts)); } catch {}
+      try { if (savedQuotes) setQuotes(JSON.parse(savedQuotes)); } catch {}
+      try { if (savedContracts) setContracts(JSON.parse(savedContracts)); } catch {}
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -1396,6 +1684,12 @@ export default function Home() {
     localStorage.setItem("revelar-work-view", workViewMode);
   }, [themeMode, palette, currency, viewMode, workViewMode]);
 
+  useEffect(() => { localStorage.setItem("revelar-works", JSON.stringify(works)); }, [works]);
+  useEffect(() => { localStorage.setItem("revelar-transactions", JSON.stringify(transactions)); }, [transactions]);
+  useEffect(() => { localStorage.setItem("revelar-products", JSON.stringify(products)); }, [products]);
+  useEffect(() => { localStorage.setItem("revelar-quotes", JSON.stringify(quotes)); }, [quotes]);
+  useEffect(() => { localStorage.setItem("revelar-contracts", JSON.stringify(contracts)); }, [contracts]);
+
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2800);
@@ -1406,7 +1700,7 @@ export default function Home() {
 
   const navigate = (label: string) => {
     setSearchOpen(false);
-    if (label === "Visão geral" || label === "Agenda" || label === "Clientes" || label === "Trabalhos") {
+    if (["Visão geral", "Agenda", "Clientes", "Trabalhos", "Financeiro", "Produtos", "Orçamentos", "Contratos"].includes(label)) {
       if (label === "Agenda") {
         setAgendaInitialView(window.matchMedia("(max-width: 720px)").matches ? "list" : "month");
       }
@@ -1458,51 +1752,79 @@ export default function Home() {
   };
   const archiveWork = (work: Work) => { updateWork({ ...work, status: "archived" }); setSelectedWorkId(null); setToast(`${work.title} foi arquivado`); };
   const cancelWork = (work: Work) => { updateWork({ ...work, status: "cancelled" }); setSelectedWorkId(null); setToast(`${work.title} foi cancelado e mantido no histórico`); };
+  const convertQuoteToWork = (quote: Quote) => {
+    const id = Math.max(...works.map((item) => item.id), 0) + 1;
+    const client = clients.find((item) => item.id === quote.clientId);
+    const work: Work = { id, title: quote.title, category: "Estúdio", clientIds: quote.clientId ? [quote.clientId] : [], status: "planning", date: "", time: "", duration: "", location: "", team: ["Maryana"], deliveryDate: "", packageName: quote.items.map((item) => item.description).filter(Boolean).join(" + "), currency: quote.currency, totalValue: quoteTotal(quote), entryValue: 0, installments: 1, costs: 0, costItems: [], photos: { captured: 0, selected: 0, edited: 0, delivered: 0 }, stages: createStages(`w${id}`, 2), attachments: [`orcamento-${quote.id}.pdf`] };
+    setWorks((current) => [work, ...current]); setSelectedWorkId(id); setActiveNav("Trabalhos"); setToast(`Orçamento de ${client?.name || "cliente"} convertido em trabalho`);
+  };
+  const createContractFromQuote = (quote: Quote) => {
+    const id = Math.max(...contracts.map((item) => item.id), 0) + 1;
+    const client = clients.find((item) => item.id === quote.clientId);
+    setContracts((current) => [{ id, title: `Contrato · ${quote.title}`, clientId: quote.clientId, quoteId: quote.id, status: "draft", template: "standard", updatedAt: "Agora", content: `CONTRATO DE PRESTAÇÃO DE SERVIÇOS E/OU FORNECIMENTO DE PRODUTOS\n\nCONTRATANTE: ${client?.name || "{{cliente}}"}\nCONTRATADA: Maryana Fotografia\n\n1. OBJETO\nItens aprovados no orçamento “${quote.title}”.\n\n2. VALOR\nTotal de ${formatMoney(quoteTotal(quote), quote.currency)} conforme condições combinadas.\n\n3. ENTREGA E PRAZOS\nOs serviços e produtos serão entregues conforme o cronograma acordado.\n\n4. CANCELAMENTO E ALTERAÇÕES\nMudanças deverão ser registradas por escrito entre as partes.\n\nAssinaturas:\n\n________________________  ________________________` }, ...current]); setActiveNav("Contratos"); setToast("Contrato criado a partir do orçamento aprovado");
+  };
+  const sellProduct = (product: Product, clientId: number | undefined, quantity: number, options: string[], total: number) => {
+    const client = clients.find((item) => item.id === clientId);
+    setProducts((current) => current.map((item) => item.id === product.id ? { ...item, sales: item.sales + quantity, availableQuantity: item.availability === "unlimited" ? item.availableQuantity : Math.max(0, (item.availableQuantity || 0) - quantity) } : item));
+    setTransactions((current) => [{ id: `product-sale-${Date.now()}`, type: "income", scope: "professional", description: `Venda · ${product.name}`, amount: total, currency: product.currency, date: "2026-08-03", category: catalogKindLabels[product.kind], tags: [product.kind, ...options], account: "Conta principal", paymentMethod: "Pix / transferência", status: "received", origin: client?.name || "Venda direta sem cliente" }, ...current]);
+    setToast(`Venda de ${product.name} registrada no Financeiro`);
+  };
+  const createQuoteFromProduct = (product: Product) => {
+    const id = Math.max(...quotes.map((item) => item.id), 0) + 1;
+    const unitPrice = product.priceType === "consult" ? 0 : discountedProductPrice(product);
+    setQuotes((current) => [{ id, title: product.name, clientId: clients[0]?.id, currency: product.currency, items: [{ id: `product-${product.id}-${Date.now()}`, kind: productToQuoteKind(product.kind), description: product.name, quantity: 1, unitPrice, productId: product.id }], discount: 0, validUntil: "2026-08-17", notes: product.priceType === "consult" ? "Valor a definir após conversa com o cliente." : "Produto adicionado a partir do catálogo Revelar.", status: "draft" }, ...current]);
+    setActiveNav("Orçamentos");
+    setToast(product.priceType === "consult" ? "Orçamento criado para definir o valor com o cliente" : "Produto adicionado a um novo orçamento");
+  };
   const isClients = activeNav === "Clientes";
   const isWorks = activeNav === "Trabalhos";
   const isAgenda = activeNav === "Agenda";
+  const isFinancial = activeNav === "Financeiro";
+  const isProducts = activeNav === "Produtos";
+  const isQuotes = activeNav === "Orçamentos";
+  const isContracts = activeNav === "Contratos";
   const selectedWork = works.find((work) => work.id === selectedWorkId);
 
   return (
     <div className={`revelar-app theme-${resolvedTheme} palette-${palette}`}>
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark" aria-hidden="true">R.</div><div><strong>Revelar.</strong><span>Fotografia & gestão</span></div></div>
+        <div className="brand"><img className="brand-logo" src="/brand/revelar-logo-horizontal.svg" alt="Revelar." /><span>Fotografia & gestão</span></div>
         <nav className="side-nav" aria-label="Navegação principal">
           <p>PRINCIPAL</p>
-          {navItems.slice(0, 4).map((item) => <button key={item.label} className={activeNav === item.label ? "active" : ""} onClick={() => navigate(item.label)} type="button"><span>{item.icon}</span>{item.label}</button>)}
+          {navItems.slice(0, 4).map((item) => <button key={item.label} className={activeNav === item.label ? "active" : ""} onClick={() => navigate(item.label)} type="button"><img src={item.icon} alt="" />{item.label}</button>)}
           <p className="nav-group">GESTÃO</p>
-          {navItems.slice(4).map((item) => <button key={item.label} className={activeNav === item.label ? "active" : ""} onClick={() => navigate(item.label)} type="button"><span>{item.icon}</span>{item.label}</button>)}
+          {navItems.slice(4).map((item) => <button key={item.label} className={activeNav === item.label ? "active" : ""} onClick={() => navigate(item.label)} type="button"><img src={item.icon} alt="" />{item.label}</button>)}
         </nav>
-        <div className="sidebar-bottom"><button type="button" onClick={() => setSettingsOpen(true)}><span>⚙</span> Configurações</button><button className="profile" type="button" onClick={() => setToast("Perfil da Maryana")}><span className="avatar">M</span><span><strong>Maryana</strong><small>Fotógrafa</small></span><b>›</b></button></div>
+        <div className="sidebar-bottom"><button type="button" onClick={() => setSettingsOpen(true)}><img src="/brand/revelar-icons-svg-monocromatico/13-configuracoes.svg" alt="" /> Configurações</button><button className="profile" type="button" onClick={() => setToast("Perfil da Maryana")}><span className="avatar">M</span><span><strong>Maryana</strong><small>Fotógrafa</small></span><b>›</b></button></div>
       </aside>
 
       <main className="main-content">
         <header className="topbar">
-          <div className="mobile-logo">R.</div>
-          <label className={`search ${searchOpen ? "open" : ""}`}><span>⌕</span><input aria-label="Buscar no Revelar" placeholder={isClients ? "Buscar clientes..." : isWorks ? "Buscar trabalhos..." : "Buscar clientes, trabalhos..."} value={isClients ? clientSearch : isWorks ? workSearch : ""} onChange={(event) => isClients ? setClientSearch(event.target.value) : isWorks && setWorkSearch(event.target.value)} readOnly={!isClients && !isWorks} /></label>
+          <img className="mobile-logo" src="/brand/revelar-symbol.svg" alt="Revelar." />
+          <label className={`search ${searchOpen ? "open" : ""}`}><span className="search-glyph" aria-hidden="true" /><input aria-label="Buscar no Revelar" placeholder={isClients ? "Buscar clientes..." : isWorks ? "Buscar trabalhos..." : "Buscar clientes, trabalhos..."} value={isClients ? clientSearch : isWorks ? workSearch : ""} onChange={(event) => isClients ? setClientSearch(event.target.value) : isWorks && setWorkSearch(event.target.value)} readOnly={!isClients && !isWorks} /></label>
           <div className="top-actions">
-            <button className="icon-button mobile-search" type="button" onClick={() => setSearchOpen(!searchOpen)} aria-label="Abrir busca">⌕</button>
+            <button className="icon-button mobile-search" type="button" onClick={() => setSearchOpen(!searchOpen)} aria-label="Abrir busca"><span className="search-glyph" aria-hidden="true" /></button>
             <select value={currency} onChange={(event) => setCurrency(event.target.value as Currency)} aria-label="Moeda"><option value="BRL">R$</option><option value="EUR">€</option></select>
-            <button className="icon-button" type="button" onClick={() => setThemeMode(resolvedTheme === "light" ? "dark" : "light")} aria-label="Alternar tema">{resolvedTheme === "light" ? "☾" : "☀"}</button>
-            <button className="icon-button notification" type="button" onClick={() => setToast("Você não tem novas notificações")} aria-label="Notificações">♢<i /></button>
+            <button className="icon-button" type="button" onClick={() => setThemeMode(resolvedTheme === "light" ? "dark" : "light")} aria-label="Alternar tema"><img src="/brand/revelar-icons-svg-monocromatico/14-temas.svg" alt="" /></button>
+            <button className="icon-button notification" type="button" onClick={() => setToast("Você não tem novas notificações")} aria-label="Notificações"><img src="/brand/revelar-icons-svg-monocromatico/12-notificacoes.svg" alt="" /><i /></button>
           </div>
         </header>
 
-        {selectedWork ? <WorkDetails key={selectedWork.id} work={selectedWork} clients={clients} onBack={() => setSelectedWorkId(null)} onUpdate={updateWork} onDuplicate={duplicateWork} onArchive={archiveWork} onCancel={cancelWork} toast={setToast} /> : isAgenda ? <AgendaView works={works} clients={clients} customEvents={agendaEvents} setCustomEvents={setAgendaEvents} initialView={agendaInitialView} onOpenWork={openWork} toast={setToast} /> : isClients ? <ClientsView clients={clients} viewMode={viewMode} setViewMode={setViewMode} search={clientSearch} setSearch={setClientSearch} filter={clientFilter} setFilter={setClientFilter} onNewClient={() => setNewClientOpen(true)} onOpenClient={openClient} /> : isWorks ? <WorksView works={works} clients={clients} viewMode={workViewMode} setViewMode={setWorkViewMode} search={workSearch} setSearch={setWorkSearch} status={workStatus} setStatus={setWorkStatus} category={workCategory} setCategory={setWorkCategory} onNewWork={() => setNewWorkOpen(true)} onOpenWork={openWork} /> : <Dashboard money={money} works={works} navigate={navigate} toast={setToast} onNewWork={() => setNewWorkOpen(true)} />}
+        {selectedWork ? <WorkDetails key={selectedWork.id} work={selectedWork} clients={clients} onBack={() => setSelectedWorkId(null)} onUpdate={updateWork} onDuplicate={duplicateWork} onArchive={archiveWork} onCancel={cancelWork} toast={setToast} /> : isAgenda ? <AgendaView works={works} clients={clients} customEvents={agendaEvents} setCustomEvents={setAgendaEvents} initialView={agendaInitialView} onOpenWork={openWork} toast={setToast} /> : isClients ? <ClientsView clients={clients} viewMode={viewMode} setViewMode={setViewMode} search={clientSearch} setSearch={setClientSearch} filter={clientFilter} setFilter={setClientFilter} onNewClient={() => setNewClientOpen(true)} onOpenClient={openClient} /> : isWorks ? <WorksView works={works} clients={clients} viewMode={workViewMode} setViewMode={setWorkViewMode} search={workSearch} setSearch={setWorkSearch} status={workStatus} setStatus={setWorkStatus} category={workCategory} setCategory={setWorkCategory} onNewWork={() => setNewWorkOpen(true)} onOpenWork={openWork} /> : isFinancial ? <FinancialView works={works} transactions={transactions} setTransactions={setTransactions} currency={currency} setCurrency={setCurrency} onOpenWork={openWork} toast={setToast} /> : isProducts ? <ProductsView products={products} setProducts={setProducts} clients={clients} currency={currency} onSale={sellProduct} onCreateQuote={createQuoteFromProduct} toast={setToast} /> : isQuotes ? <QuotesView quotes={quotes} setQuotes={setQuotes} clients={clients} currency={currency} onConvert={convertQuoteToWork} onCreateContract={createContractFromQuote} toast={setToast} /> : isContracts ? <ContractsView contracts={contracts} setContracts={setContracts} clients={clients} quotes={quotes} toast={setToast} /> : <Dashboard money={money} works={works} navigate={navigate} toast={setToast} onNewWork={() => setNewWorkOpen(true)} />}
       </main>
 
-      {!selectedWork && !isAgenda && <button className="floating-add" type="button" onClick={() => isClients ? setNewClientOpen(true) : setNewWorkOpen(true)} aria-label={isClients ? "Novo cliente" : "Novo trabalho"}>＋</button>}
+      {!selectedWork && !isAgenda && !isFinancial && !isProducts && !isQuotes && !isContracts && <button className="floating-add" type="button" onClick={() => isClients ? setNewClientOpen(true) : setNewWorkOpen(true)} aria-label={isClients ? "Novo cliente" : "Novo trabalho"}>＋</button>}
 
       <nav className="mobile-nav" aria-label="Navegação móvel">
-        {navItems.slice(0, 4).map((item) => <button type="button" key={item.label} className={activeNav === item.label ? "active" : ""} onClick={() => navigate(item.label)}><span>{item.icon}</span>{item.label === "Visão geral" ? "Início" : item.label}</button>)}
-        <button type="button" onClick={() => setSettingsOpen(true)}><span>☰</span>Mais</button>
+        {navItems.filter((item) => item.label !== "Locais").map((item) => <button type="button" key={item.label} className={activeNav === item.label ? "active" : ""} onClick={() => navigate(item.label)}><img src={item.icon} alt="" />{item.label === "Visão geral" ? "Início" : item.label}</button>)}
+        <button type="button" onClick={() => setSettingsOpen(true)}><img src="/brand/revelar-icons-svg-monocromatico/13-configuracoes.svg" alt="" />Mais</button>
       </nav>
 
       {settingsOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}>
           <section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()}>
             <header><div><p>CONFIGURAÇÕES</p><h2 id="settings-title">Aparência</h2></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Fechar">×</button></header>
-            <div className="settings-section"><h3>Modo</h3><p>Escolha como o Revelar aparece para você.</p><div className="segmented">{(["system", "light", "dark"] as ThemeMode[]).map((mode) => <button type="button" key={mode} className={themeMode === mode ? "selected" : ""} onClick={() => setThemeMode(mode)}>{mode === "system" ? "◐ Automático" : mode === "light" ? "☀ Claro" : "☾ Escuro"}</button>)}</div></div>
+            <div className="settings-section"><h3>Modo</h3><p>Escolha como o Revelar aparece para você.</p><div className="segmented">{(["system", "light", "dark"] as ThemeMode[]).map((mode) => <button type="button" key={mode} className={themeMode === mode ? "selected" : ""} onClick={() => setThemeMode(mode)}>{mode === "system" ? "Automático" : mode === "light" ? "Claro" : "Escuro"}</button>)}</div></div>
             <div className="settings-section"><h3>Paleta</h3><p>Mude as cores sem perder a identidade profissional.</p><div className="palette-grid">{palettes.map((option) => <button type="button" key={option.id} className={palette === option.id ? "selected" : ""} onClick={() => setPalette(option.id)}><span className="color-dots">{option.colors.map((color) => <i key={color} style={{ background: color }} />)}</span><strong>{option.name}</strong><small>{palette === option.id ? "Ativo" : "Visualizar"}</small></button>)}</div></div>
             <footer><button className="primary-button" type="button" onClick={() => { setSettingsOpen(false); setToast("Aparência salva neste dispositivo"); }}>Salvar aparência</button></footer>
           </section>
