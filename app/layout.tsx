@@ -19,8 +19,9 @@ export const metadata: Metadata = {
     "codex-preview": "development",
   },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/brand/revelar-symbol.svg",
+    shortcut: "/brand/revelar-symbol.svg",
+    apple: "/brand/revelar-symbol.svg",
   },
 };
 
