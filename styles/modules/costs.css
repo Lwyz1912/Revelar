@@ -1,0 +1,78 @@
+/* Custos detalhados dentro do trabalho */
+.cost-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 11px;
+  margin-top: 23px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-2);
+}
+.cost-add-button {
+  align-self: end;
+  min-height: 39px;
+}
+.cost-list-head,
+.cost-item-list article {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.8fr) 90px 105px 28px;
+  gap: 12px;
+  align-items: center;
+}
+.cost-list-head {
+  margin-top: 20px;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.cost-item-list {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.cost-item-list article {
+  padding: 13px 12px;
+  border-top: 1px solid var(--border);
+}
+.cost-item-list article:first-child {
+  border-top: 0;
+}
+.cost-item-list strong,
+.cost-item-list small {
+  display: block;
+}
+.cost-item-list strong {
+  font-size: 11px;
+}
+.cost-item-list small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.cost-item-list article > strong {
+  text-align: right;
+}
+.cost-item-list button {
+  width: 27px;
+  height: 27px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.cost-state {
+  width: max-content;
+  padding: 5px 7px;
+  border-radius: 999px;
+  color: #94631e;
+  background: color-mix(in srgb, #d29a3e 13%, var(--surface));
+  font-size: 9px;
+  font-weight: 800;
+}
+.cost-state.paid {
+  color: #3f7752;
+  background: color-mix(in srgb, #4d8a61 11%, var(--surface));
+}
