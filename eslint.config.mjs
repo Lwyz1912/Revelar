@@ -11,8 +11,16 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    ".vinext/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // Revelar uses tiny, self-hosted SVG brand assets and local object URLs.
+      // Image optimization would add overhead without improving these sources.
+      "@next/next/no-img-element": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;
