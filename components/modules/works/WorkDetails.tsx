@@ -1,13 +1,22 @@
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { workStatusLabels } from "@/config/labels";
 import { addDays, todayIso } from "@/lib/dates";
 import { formatDate, formatMoney, normalizePhone } from "@/lib/format";
 import { stageChecklist } from "@/lib/workflow";
 import { inferredStageDate, namesForClients, workProgress } from "@/lib/works";
-import type { Client, Work, WorkCost, WorkStage, WorkStatus } from "@/types/revelar";
+import type {
+  Client,
+  GalleryEvent,
+  Work,
+  WorkCost,
+  WorkGallery,
+  WorkStage,
+  WorkStatus,
+} from "@/types/revelar";
+import { WorkFilesHub } from "@/components/modules/works/WorkFilesHub";
 
-type WorkDetailTab = "overview" | "timeline" | "finance" | "photos" | "files" | "costs";
+type WorkDetailTab = "overview" | "timeline" | "finance" | "gallery" | "files" | "costs";
 
 type LocalAttachment = { url: string; type: string; size: number };
 
@@ -27,8 +36,8 @@ const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> 
   { id: "overview", label: "Visão geral", icon: "◇" },
   { id: "timeline", label: "Timeline", icon: "⌁" },
   { id: "finance", label: "Financeiro", icon: "＄" },
-  { id: "photos", label: "Fotos", icon: "▧" },
-  { id: "files", label: "Arquivos", icon: "□" },
+  { id: "gallery", label: "Galeria", icon: "▧" },
+  { id: "files", label: "Documentos", icon: "□" },
   { id: "costs", label: "Custos", icon: "−" },
 ];
 
@@ -40,6 +49,7 @@ export function WorkDetails({
   onDuplicate,
   onArchive,
   onCancel,
+  onPhotoExtras,
   toast,
 }: {
   work: Work;
@@ -49,6 +59,7 @@ export function WorkDetails({
   onDuplicate: (work: Work) => void;
   onArchive: (work: Work) => void;
   onCancel: (work: Work) => void;
+  onPhotoExtras: (work: Work, gallery: WorkGallery) => void;
   toast: (message: string) => void;
 }) {
   const today = todayIso();
@@ -72,7 +83,9 @@ export function WorkDetails({
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   const [localFiles, setLocalFiles] = useState<Record<string, LocalAttachment>>({});
   const localFilesRef = useRef<Record<string, LocalAttachment>>({});
-  const [activities, setActivities] = useState([
+  const [activities, setActivities] = useState<
+    Array<{ id: string | number; icon: string; title: string; meta: string }>
+  >([
     { id: 1, icon: "✓", title: "Seleção concluída", meta: "Maryana · hoje, 10:42" },
     {
       id: 2,
@@ -116,6 +129,39 @@ export function WorkDetails({
   const currentPreviewKind = previewFile
     ? attachmentKind(previewFile, currentPreview?.type)
     : "other";
+
+  const syncGalleryStats = useCallback(
+    (photos: Work["photos"]) => {
+      if (
+        photos.captured === work.photos.captured &&
+        photos.selected === work.photos.selected &&
+        photos.edited === work.photos.edited &&
+        photos.delivered === work.photos.delivered
+      )
+        return;
+      onUpdate({ ...work, photos });
+    },
+    [onUpdate, work],
+  );
+
+  const syncGalleryEvents = useCallback((events: GalleryEvent[]) => {
+    setActivities((current) => {
+      const existing = new Set(current.map((activity) => String(activity.id)));
+      const incoming = events
+        .filter((event) => !existing.has(event.id))
+        .map((event) => ({
+          id: event.id,
+          icon: event.eventType.includes("download")
+            ? "⇩"
+            : event.eventType.includes("comment")
+              ? "●"
+              : "◇",
+          title: event.detail,
+          meta: `Galeria · ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(event.createdAt))}`,
+        }));
+      return incoming.length ? [...incoming, ...current].slice(0, 80) : current;
+    });
+  }, []);
 
   useEffect(
     () => () => {
@@ -844,65 +890,15 @@ export function WorkDetails({
         </section>
       )}
 
-      {tab === "photos" && (
-        <section className="tab-single card">
-          <div className="detail-section-heading">
-            <div>
-              <p>PRODUÇÃO</p>
-              <h2>Controle de fotos</h2>
-            </div>
-            <span>Atualização manual</span>
-          </div>
-          <div className="photo-detail-grid">
-            {(["captured", "selected", "edited", "delivered"] as const).map((field) => {
-              const labels = {
-                captured: "Tiradas",
-                selected: "Selecionadas",
-                edited: "Editadas",
-                delivered: "Entregues",
-              };
-              return (
-                <label key={field}>
-                  <span>{labels[field]}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={work.photos[field]}
-                    onChange={(event) =>
-                      update({ photos: { ...work.photos, [field]: Number(event.target.value) } })
-                    }
-                  />
-                  <small>
-                    {field === "edited" && work.photos.selected
-                      ? `${Math.round((work.photos.edited / work.photos.selected) * 100)}% da seleção`
-                      : field === "delivered"
-                        ? "Galeria final"
-                        : "Quantidade registrada"}
-                  </small>
-                </label>
-              );
-            })}
-          </div>
-          <div className="photo-flow-line">
-            <span className="done">Captura</span>
-            <i />
-            <span className={work.photos.selected ? "done" : ""}>Seleção</span>
-            <i />
-            <span
-              className={
-                work.photos.edited >= work.photos.selected && work.photos.selected ? "done" : ""
-              }
-            >
-              Edição
-            </span>
-            <i />
-            <span className={work.photos.delivered ? "done" : ""}>Entrega</span>
-          </div>
-          <p className="automation-note">
-            ◇ Quando o módulo de galerias for conectado, seleção e entrega poderão avançar
-            automaticamente.
-          </p>
-        </section>
+      {tab === "gallery" && (
+        <WorkFilesHub
+          work={work}
+          clients={clients}
+          onStats={syncGalleryStats}
+          onEvents={syncGalleryEvents}
+          onPhotoExtras={(gallery) => onPhotoExtras(work, gallery)}
+          toast={toast}
+        />
       )}
 
       {tab === "files" && (

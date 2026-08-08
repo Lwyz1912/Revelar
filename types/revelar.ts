@@ -194,6 +194,71 @@ export type Work = {
 
 export type NewWorkData = Omit<Work, "id" | "status">;
 
+export type GalleryPhase = "selection" | "approval" | "delivery";
+export type GalleryFolder = "preview" | "selection" | "edited" | "delivered" | "originals";
+export type GalleryStorageMode = "smart" | "backup";
+
+export type GalleryPhoto = {
+  id: string;
+  folder: GalleryFolder;
+  filename: string;
+  mimeType: string;
+  size: number;
+  selected: boolean;
+  approved: boolean;
+  comment: string;
+  hasPreview: boolean;
+  hasOriginal: boolean;
+  hasHigh: boolean;
+  hasSocial: boolean;
+};
+
+export type GalleryAsset = {
+  id: string;
+  kind: "high_zip" | "social_zip" | "watermark";
+  filename: string;
+  size: number;
+};
+
+export type GalleryEvent = {
+  id: string;
+  eventType: string;
+  detail: string;
+  createdAt: string;
+};
+
+export type WorkGallery = {
+  id: string;
+  workId: number;
+  workTitle: string;
+  clientName: string;
+  slug: string;
+  url: string;
+  hasPin: boolean;
+  expiresAt?: string;
+  phase: GalleryPhase;
+  selectionLimit: number;
+  extraPriceCents: number;
+  currency: Currency;
+  selectionLocked: boolean;
+  revisionLimit: number;
+  revisionRound: number;
+  watermarkLabel: string;
+  storageMode: GalleryStorageMode;
+  photos: GalleryPhoto[];
+  assets: GalleryAsset[];
+  events: GalleryEvent[];
+  stats: {
+    captured: number;
+    selected: number;
+    edited: number;
+    delivered: number;
+    totalBytes: number;
+    extraCount: number;
+    extraAmount: number;
+  };
+};
+
 export type AgendaViewMode = "month" | "week" | "day" | "list";
 export type AgendaEventKind =
   | "session"
