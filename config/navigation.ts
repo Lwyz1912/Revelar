@@ -28,12 +28,17 @@ export const navItems = [
     available: true,
   },
   {
+    icon: "/brand/revelar-icons-svg-monocromatico/10-fotografias.svg",
+    label: "Galeria",
+    available: true,
+  },
+  {
     icon: "/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg",
     label: "Financeiro",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/10-fotografias.svg",
+    icon: "/brand/revelar-icons-svg-monocromatico/11-entrega.svg",
     label: "Produtos",
     available: true,
   },

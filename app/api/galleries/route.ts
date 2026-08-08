@@ -1,5 +1,10 @@
 import { getChatGPTUser } from "@/app/chatgpt-auth";
-import { createGallery, galleryForOwner, serializeGallery } from "@/lib/server/gallery-repository";
+import {
+  createGallery,
+  galleriesForOwner,
+  galleryForOwner,
+  serializeGallery,
+} from "@/lib/server/gallery-repository";
 import type { Currency } from "@/types/revelar";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +13,12 @@ export async function GET(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Entre para acessar suas galerias." }, { status: 401 });
   const workId = Number(new URL(request.url).searchParams.get("workId"));
+  if (!new URL(request.url).searchParams.has("workId")) {
+    const galleries = await galleriesForOwner(user.email);
+    return Response.json({
+      galleries: await Promise.all(galleries.map((gallery) => serializeGallery(gallery))),
+    });
+  }
   if (!Number.isInteger(workId)) {
     return Response.json({ error: "Trabalho inválido." }, { status: 400 });
   }

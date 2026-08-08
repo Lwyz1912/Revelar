@@ -7,6 +7,7 @@ export type AppSection =
   | "Agenda"
   | "Clientes"
   | "Trabalhos"
+  | "Galeria"
   | "Financeiro"
   | "Produtos"
   | "Orçamentos"

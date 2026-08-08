@@ -67,6 +67,13 @@ export async function galleryForOwner(ownerEmail: string, workId: number) {
   );
 }
 
+export async function galleriesForOwner(ownerEmail: string) {
+  return all<GalleryRow>(
+    "SELECT * FROM galleries WHERE owner_email = ? ORDER BY updated_at DESC",
+    ownerEmail,
+  );
+}
+
 export async function galleryById(id: string) {
   return first<GalleryRow>("SELECT * FROM galleries WHERE id = ? LIMIT 1", id);
 }

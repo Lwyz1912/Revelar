@@ -90,13 +90,15 @@ export function MobileNavigation({
                   <span>
                     <strong>{item.label}</strong>
                     <small>
-                      {item.label === "Financeiro"
-                        ? "Entradas, saídas e saldos"
-                        : item.label === "Produtos"
-                          ? "Catálogo e vendas"
-                          : item.label === "Orçamentos"
-                            ? "Propostas para clientes"
-                            : "Documentos e assinaturas"}
+                      {item.label === "Galeria"
+                        ? "Ensaios, seleção e entrega"
+                        : item.label === "Financeiro"
+                          ? "Entradas, saídas e saldos"
+                          : item.label === "Produtos"
+                            ? "Catálogo e vendas"
+                            : item.label === "Orçamentos"
+                              ? "Propostas para clientes"
+                              : "Documentos e assinaturas"}
                     </small>
                   </span>
                 </button>

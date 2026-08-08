@@ -24,7 +24,7 @@ export function Sidebar({
       </div>
       <nav className="side-nav" aria-label="Navegação principal">
         <p>PRINCIPAL</p>
-        {navItems.slice(0, 4).map((item) => (
+        {navItems.slice(0, 5).map((item) => (
           <button
             key={item.label}
             className={activeNav === item.label ? "active" : ""}
@@ -37,7 +37,7 @@ export function Sidebar({
           </button>
         ))}
         <p className="nav-group">GESTÃO</p>
-        {navItems.slice(4).map((item) => (
+        {navItems.slice(5).map((item) => (
           <button
             key={item.label}
             className={`${activeNav === item.label ? "active" : ""} ${!item.available ? "planned" : ""}`}
