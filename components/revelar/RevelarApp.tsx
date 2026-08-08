@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { navItems } from "@/config/navigation";
 import { MobileNavigation } from "@/components/layout/MobileNavigation";
@@ -33,6 +33,7 @@ import type {
   Quote,
   Work,
   WorkCategory,
+  WorkGallery,
   WorkStatus,
 } from "@/types/revelar";
 import { AgendaView } from "@/components/modules/agenda/AgendaView";
@@ -214,6 +215,34 @@ export function RevelarApp() {
         : "Produto adicionado a um novo orçamento",
     );
   };
+  const registerPhotoExtras = useCallback(
+    (work: Work, gallery: WorkGallery) => {
+      const transactionId = `gallery-extra-${gallery.id}`;
+      setTransactions((current) => {
+        const transaction = {
+          id: transactionId,
+          type: "income" as const,
+          scope: "professional" as const,
+          description: `${gallery.stats.extraCount} foto${gallery.stats.extraCount === 1 ? " adicional" : "s adicionais"} · ${gallery.clientName}`,
+          amount: gallery.stats.extraAmount,
+          currency: gallery.currency,
+          date: today,
+          category: "Cliente",
+          tags: ["fotos adicionais", work.category],
+          account: "A receber",
+          paymentMethod: "A definir",
+          status: "pending" as const,
+          workId: work.id,
+          origin: `Galeria · ${gallery.workTitle}`,
+        };
+        const exists = current.some((item) => item.id === transactionId);
+        return exists
+          ? current.map((item) => (item.id === transactionId ? transaction : item))
+          : [transaction, ...current];
+      });
+    },
+    [setTransactions, today],
+  );
   const isClients = activeNav === "Clientes";
   const isWorks = activeNav === "Trabalhos";
   const isAgenda = activeNav === "Agenda";
@@ -260,6 +289,7 @@ export function RevelarApp() {
             onDuplicate={duplicateWork}
             onArchive={archiveWork}
             onCancel={cancelWork}
+            onPhotoExtras={registerPhotoExtras}
             toast={setToast}
           />
         ) : isAgenda ? (
