@@ -3,12 +3,14 @@
 import { type ChangeEvent, type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  blendAdjustments,
   builtInPresets,
   buildDemoEditingData,
   editingCssFilter,
   neutralAdjustments,
   normalizeAdjustments,
   parseImportedPreset,
+  presetCategories,
 } from "@/lib/editing";
 import { createEditingPreview, downloadBlob, renderEditedPhoto } from "@/lib/editor-image.client";
 import type {
@@ -64,6 +66,17 @@ function filenameWithoutExtension(filename: string) {
   return filename.replace(/\.[^.]+$/, "");
 }
 
+function effectVariables(adjustments: EditingAdjustments, original = false) {
+  return {
+    "--edit-grain": original ? 0 : adjustments.grain / 100,
+    "--edit-vignette": original ? 0 : adjustments.vignette / 100,
+    "--edit-halation": original ? 0 : adjustments.halation / 100,
+    "--edit-leak": original ? 0 : adjustments.lightLeak / 100,
+    "--edit-dust": original ? 0 : adjustments.dust / 100,
+    "--edit-chromatic": original ? 0 : adjustments.chromatic / 100,
+  } as CSSProperties;
+}
+
 export function EditingStudioView({ toast }: { toast: (message: string) => void }) {
   const [albums, setAlbums] = useState<EditingAlbum[]>(demo.albums);
   const [photos, setPhotos] = useState<EditingPhoto[]>(demo.photos);
@@ -72,6 +85,8 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [presetId, setPresetId] = useState<string | undefined>();
   const [adjustments, setAdjustments] = useState<EditingAdjustments>(neutralAdjustments);
+  const [presetIntensity, setPresetIntensity] = useState(100);
+  const [presetCategory, setPresetCategory] = useState<(typeof presetCategories)[number]>("Todos");
   const [showOriginal, setShowOriginal] = useState(false);
   const [adjustmentGroup, setAdjustmentGroup] = useState("Luz e cor");
   const [albumDialog, setAlbumDialog] = useState(false);
@@ -81,6 +96,9 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
   const presetInput = useRef<HTMLInputElement>(null);
 
   const presets = [...builtInPresets, ...privatePresets];
+  const shelfPresets = builtInPresets.filter(
+    (preset) => presetCategory === "Todos" || preset.category === presetCategory,
+  );
   const activeAlbum = albums.find((album) => album.id === activeAlbumId);
   const activePhoto = photos.find((photo) => photo.id === activePhotoId);
   const albumPhotos = photos.filter((photo) => photo.albumId === activeAlbumId);
@@ -114,12 +132,19 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
     setActivePhotoId(photo.id);
     setPresetId(photo.presetId);
     setAdjustments(normalizeAdjustments(photo.adjustments));
+    setPresetIntensity(100);
     setShowOriginal(false);
   };
 
   const choosePreset = (preset: EditingPreset) => {
     setPresetId(preset.id);
+    setPresetIntensity(100);
     setAdjustments(normalizeAdjustments(preset.adjustments));
+  };
+
+  const openPhotoWithPreset = (photo: EditingPhoto, preset: EditingPreset) => {
+    openPhoto(photo);
+    choosePreset(preset);
   };
 
   const saveRecipe = async () => {
@@ -276,13 +301,7 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
     const effectStyle = {
       filter: showOriginal ? "none" : editingCssFilter(adjustments),
     };
-    const effectVars = {
-      "--edit-grain": showOriginal ? 0 : adjustments.grain / 100,
-      "--edit-vignette": showOriginal ? 0 : adjustments.vignette / 100,
-      "--edit-halation": showOriginal ? 0 : adjustments.halation / 100,
-      "--edit-leak": showOriginal ? 0 : adjustments.lightLeak / 100,
-      "--edit-dust": showOriginal ? 0 : adjustments.dust / 100,
-    } as CSSProperties;
+    const effectVars = effectVariables(adjustments, showOriginal);
     return (
       <div className="editing-studio editor-open">
         <header className="editing-editor-bar">
@@ -339,6 +358,7 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
                 className={!presetId && !edited ? "active" : ""}
                 onClick={() => {
                   setPresetId(undefined);
+                  setPresetIntensity(100);
                   setAdjustments(neutralAdjustments);
                 }}
               >
@@ -368,6 +388,25 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
           </section>
 
           <aside className="editing-controls">
+            {presetId && (
+              <label className="editing-intensity">
+                <span>
+                  Intensidade do preset <b>{presetIntensity}%</b>
+                </span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={presetIntensity}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    const preset = presets.find((item) => item.id === presetId);
+                    setPresetIntensity(value);
+                    if (preset) setAdjustments(blendAdjustments(preset.adjustments, value));
+                  }}
+                />
+              </label>
+            )}
             <div className="editing-control-tabs">
               {adjustmentGroups.map((group) => (
                 <button
@@ -409,6 +448,7 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
               type="button"
               onClick={() => {
                 setPresetId(undefined);
+                setPresetIntensity(100);
                 setAdjustments(neutralAdjustments);
               }}
             >
@@ -485,20 +525,38 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
               </div>
               <small>{builtInPresets.length} estilos incluídos</small>
             </div>
+            <div className="editing-camera-filters" aria-label="Categorias de câmeras">
+              {presetCategories.map((category) => (
+                <button
+                  type="button"
+                  key={category}
+                  className={presetCategory === category ? "active" : ""}
+                  onClick={() => setPresetCategory(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
             <div className="editing-camera-grid">
-              {builtInPresets.slice(0, 5).map((preset, index) => (
+              {shelfPresets.map((preset, index) => (
                 <button
                   key={preset.id}
                   type="button"
-                  onClick={() => openPhoto(demo.photos[index % demo.photos.length])}
+                  onClick={() =>
+                    openPhotoWithPreset(demo.photos[index % demo.photos.length], preset)
+                  }
                 >
-                  <span className="editing-camera-preview">
+                  <span
+                    className="editing-camera-preview"
+                    style={effectVariables(preset.adjustments)}
+                  >
                     <img
                       src={demo.photos[index % demo.photos.length].previewUrl}
                       alt=""
                       style={{ filter: editingCssFilter(preset.adjustments) }}
                     />
                     <i>{preset.camera}</i>
+                    <em>{preset.category}</em>
                   </span>
                   <strong>{preset.name}</strong>
                   <small>{preset.description}</small>
