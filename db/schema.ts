@@ -167,3 +167,33 @@ export const appState = sqliteTable(
   },
   (table) => [index("app_state_updated_idx").on(table.updatedAt)],
 );
+
+export const appFiles = sqliteTable(
+  "app_files",
+  {
+    id: text("id").primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    objectKey: text("object_key").notNull(),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull(),
+    scope: text("scope").notNull(),
+    relatedId: text("related_id"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("app_files_object_key_unique").on(table.objectKey),
+    index("app_files_owner_idx").on(table.ownerEmail, table.createdAt),
+    index("app_files_related_idx").on(table.ownerEmail, table.scope, table.relatedId),
+  ],
+);
+
+export const professionalSettings = sqliteTable(
+  "professional_settings",
+  {
+    ownerEmail: text("owner_email").primaryKey(),
+    dataJson: text("data_json").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("professional_settings_updated_idx").on(table.updatedAt)],
+);
