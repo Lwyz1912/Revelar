@@ -506,6 +506,11 @@
     max-height: 91vh;
     width: 100%;
   }
+  .settings-modal.settings-workspace {
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+  }
   .toast {
     left: 14px;
     right: 14px;
