@@ -1,6 +1,15 @@
-import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useCallback, useRef, useState } from "react";
 
+import { FileViewer } from "@/components/shared/FileViewer";
 import { workStatusLabels } from "@/config/labels";
+import {
+  deleteAppFile,
+  fileDownloadUrl,
+  fileViewUrl,
+  formatFileSize,
+  isAppFileRef,
+  uploadAppFile,
+} from "@/lib/app-files.client";
 import { addDays, todayIso } from "@/lib/dates";
 import { formatDate, formatMoney, normalizePhone } from "@/lib/format";
 import { stageChecklist } from "@/lib/workflow";
@@ -8,6 +17,7 @@ import { inferredStageDate, namesForClients, workProgress } from "@/lib/works";
 import type {
   Client,
   GalleryEvent,
+  AppFileRef,
   Work,
   WorkCost,
   WorkGallery,
@@ -26,6 +36,10 @@ type WorkDetailTab =
   | "costs";
 
 type LocalAttachment = { url: string; type: string; size: number };
+
+function attachmentName(file: string | AppFileRef) {
+  return typeof file === "string" ? file : file.name;
+}
 
 function attachmentExtension(name: string) {
   return name.split(".").pop()?.toLowerCase() || "arquivo";
@@ -89,8 +103,13 @@ export function WorkDetails({
   const [editing, setEditing] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
-  const [localFiles, setLocalFiles] = useState<Record<string, LocalAttachment>>({});
-  const localFilesRef = useRef<Record<string, LocalAttachment>>({});
+  const [previewStoredFile, setPreviewStoredFile] = useState<AppFileRef | null>(null);
+  const [poseEditorOpen, setPoseEditorOpen] = useState(false);
+  const [editingPoseId, setEditingPoseId] = useState<string | null>(null);
+  const [poseDraft, setPoseDraft] = useState({ title: "", notes: "", link: "" });
+  const [poseImage, setPoseImage] = useState<File | null>(null);
+  const [savingPose, setSavingPose] = useState(false);
+  const localFiles: Record<string, LocalAttachment> = {};
   const [activities, setActivities] = useState<
     Array<{ id: string | number; icon: string; title: string; meta: string }>
   >([
@@ -175,6 +194,62 @@ export function WorkDetails({
   };
   const updateMoodboard = (next: typeof moodboard) => onUpdate({ ...work, moodboard: next });
 
+  const openPoseEditor = (reference?: (typeof moodboard.references)[number]) => {
+    setEditingPoseId(reference?.id || null);
+    setPoseDraft({
+      title: reference?.title || "",
+      notes: reference?.notes || (reference?.kind === "pose" ? reference.value : ""),
+      link: reference?.file ? "" : reference?.kind === "pose" ? "" : reference?.value || "",
+    });
+    setPoseImage(null);
+    setPoseEditorOpen(true);
+  };
+
+  const savePose = async () => {
+    if (!poseDraft.title.trim()) return;
+    setSavingPose(true);
+    try {
+      const previous = editingPoseId
+        ? moodboard.references.find((reference) => reference.id === editingPoseId)
+        : undefined;
+      const uploaded = poseImage
+        ? await uploadAppFile(poseImage, "moodboard", String(work.id))
+        : previous?.file;
+      if (poseImage && previous?.file) await deleteAppFile(previous.file).catch(() => undefined);
+      const reference = {
+        id: editingPoseId || crypto.randomUUID(),
+        kind: "pose" as const,
+        title: poseDraft.title.trim(),
+        value: uploaded ? fileViewUrl(uploaded) : poseDraft.link.trim(),
+        notes: poseDraft.notes.trim(),
+        file: uploaded,
+      };
+      updateMoodboard({
+        ...moodboard,
+        references: previous
+          ? moodboard.references.map((item) => (item.id === previous.id ? reference : item))
+          : [...moodboard.references, reference],
+      });
+      setPoseEditorOpen(false);
+      setPoseImage(null);
+      toast(previous ? "Ideia de pose atualizada" : "Ideia de pose adicionada ao trabalho");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível salvar a pose");
+    } finally {
+      setSavingPose(false);
+    }
+  };
+
+  const removePose = async (id: string) => {
+    const reference = moodboard.references.find((item) => item.id === id);
+    if (reference?.file) await deleteAppFile(reference.file).catch(() => undefined);
+    updateMoodboard({
+      ...moodboard,
+      references: moodboard.references.filter((item) => item.id !== id),
+    });
+    toast("Ideia de pose removida");
+  };
+
   const syncGalleryStats = useCallback(
     (photos: Work["photos"]) => {
       if (
@@ -207,13 +282,6 @@ export function WorkDetails({
       return incoming.length ? [...incoming, ...current].slice(0, 80) : current;
     });
   }, []);
-
-  useEffect(
-    () => () => {
-      Object.values(localFilesRef.current).forEach((file) => URL.revokeObjectURL(file.url));
-    },
-    [],
-  );
 
   const addActivity = (title: string, icon = "◇") =>
     setActivities((current) => [
@@ -331,37 +399,44 @@ export function WorkDetails({
     const next = costItems.filter((item) => item.id !== id);
     update({ costItems: next, costs: next.reduce((sum, item) => sum + item.amount, 0) });
   };
-  const rememberFiles = (files: File[]) => {
-    const entries = Object.fromEntries(
-      files.map((file) => [
-        file.name,
-        { url: URL.createObjectURL(file), type: file.type, size: file.size },
-      ]),
-    );
-    localFilesRef.current = { ...localFilesRef.current, ...entries };
-    setLocalFiles((current) => ({ ...current, ...entries }));
-  };
-  const addWorkFiles = (event: ChangeEvent<HTMLInputElement>) => {
+  const addWorkFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
     if (!selectedFiles.length) return;
-    rememberFiles(selectedFiles);
-    update({ attachments: [...work.attachments, ...selectedFiles.map((file) => file.name)] });
-    addActivity(`${selectedFiles.length} arquivo(s) anexado(s)`, "□");
+    try {
+      const uploaded: AppFileRef[] = [];
+      for (const file of selectedFiles) {
+        uploaded.push(await uploadAppFile(file, "work", String(work.id)));
+      }
+      update({ attachments: [...work.attachments, ...uploaded] });
+      addActivity(`${uploaded.length} arquivo(s) enviado(s) e sincronizado(s)`, "□");
+      toast("Arquivos salvos no trabalho");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível enviar os arquivos");
+    }
     event.target.value = "";
   };
-  const addStageFiles = (event: ChangeEvent<HTMLInputElement>) => {
+  const addStageFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!selectedStage) return;
     const selectedFiles = Array.from(event.target.files || []);
     if (!selectedFiles.length) return;
-    rememberFiles(selectedFiles);
-    updateStage(selectedStage.id, {
-      attachments: [
-        ...(selectedStage.attachments || []),
-        ...selectedFiles.map((file) => file.name),
-      ],
-    });
-    addActivity(`Arquivo anexado à etapa ${selectedStage.label}`, "□");
+    try {
+      const uploaded: AppFileRef[] = [];
+      for (const file of selectedFiles) {
+        uploaded.push(await uploadAppFile(file, "work-stage", `${work.id}:${selectedStage.id}`));
+      }
+      updateStage(selectedStage.id, {
+        attachments: [...(selectedStage.attachments || []), ...uploaded],
+      });
+      addActivity(`Arquivo salvo na etapa ${selectedStage.label}`, "□");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível enviar o arquivo");
+    }
     event.target.value = "";
+  };
+
+  const openAttachment = (file: string | AppFileRef) => {
+    if (isAppFileRef(file)) setPreviewStoredFile(file);
+    else setPreviewFile(file);
   };
   const whatsapp = linkedClients[0]?.whatsapp
     ? `https://wa.me/${normalizePhone(linkedClients[0].whatsapp)}`
@@ -629,7 +704,10 @@ export function WorkDetails({
                 .filter((reference) => reference.kind === "image")
                 .map((reference) => (
                   <article key={reference.id}>
-                    <img src={reference.value} alt={reference.title} />
+                    <img
+                      src={reference.file ? fileViewUrl(reference.file) : reference.value}
+                      alt={reference.title}
+                    />
                     <strong>{reference.title}</strong>
                   </article>
                 ))}
@@ -670,7 +748,7 @@ export function WorkDetails({
             </div>
             <div className="moodboard-reference-notes">
               {moodboard.references
-                .filter((reference) => reference.kind !== "image")
+                .filter((reference) => reference.kind !== "image" && reference.kind !== "pose")
                 .map((reference) => (
                   <article key={reference.id}>
                     <span>{reference.kind.toUpperCase()}</span>
@@ -679,6 +757,69 @@ export function WorkDetails({
                   </article>
                 ))}
             </div>
+            <section className="pose-ideas-section">
+              <div className="pose-ideas-heading">
+                <div>
+                  <span>REFERÊNCIAS E IDEIAS DE POSES</span>
+                  <p>Guarde imagens e instruções próprias para este ensaio.</p>
+                </div>
+                <button type="button" onClick={() => openPoseEditor()}>
+                  ＋ Adicionar pose
+                </button>
+              </div>
+              <div className="pose-ideas-grid">
+                {moodboard.references
+                  .filter((reference) => reference.kind === "pose")
+                  .map((reference) => (
+                    <article key={reference.id}>
+                      {reference.file || reference.value.startsWith("http") ? (
+                        <button
+                          className="pose-image-button"
+                          type="button"
+                          onClick={() => {
+                            if (reference.file) setPreviewStoredFile(reference.file);
+                            else window.open(reference.value, "_blank", "noopener,noreferrer");
+                          }}
+                        >
+                          <img
+                            src={reference.file ? fileViewUrl(reference.file) : reference.value}
+                            alt={reference.title}
+                          />
+                        </button>
+                      ) : (
+                        <div className="pose-placeholder">POSE</div>
+                      )}
+                      <div>
+                        <strong>{reference.title}</strong>
+                        <p>{reference.notes || "Sem observações."}</p>
+                      </div>
+                      <footer>
+                        <button type="button" onClick={() => openPoseEditor(reference)}>
+                          Editar
+                        </button>
+                        <button
+                          className="danger-action"
+                          type="button"
+                          onClick={() => void removePose(reference.id)}
+                        >
+                          Excluir
+                        </button>
+                      </footer>
+                    </article>
+                  ))}
+                {!moodboard.references.some((reference) => reference.kind === "pose") && (
+                  <button
+                    className="pose-empty-card"
+                    type="button"
+                    onClick={() => openPoseEditor()}
+                  >
+                    <span>＋</span>
+                    <strong>Adicionar a primeira ideia de pose</strong>
+                    <small>Pode usar uma foto, um link ou apenas uma descrição.</small>
+                  </button>
+                )}
+              </div>
+            </section>
           </section>
           <aside className="moodboard-side">
             <section className="card">
@@ -938,14 +1079,14 @@ export function WorkDetails({
                 >
                   ＋ Anexar arquivo
                 </button>
-                {selectedStage.attachments?.map((file) => (
+                {selectedStage.attachments?.map((file, index) => (
                   <button
                     className="mini-file"
                     type="button"
-                    key={file}
-                    onClick={() => setPreviewFile(file)}
+                    key={`${isAppFileRef(file) ? file.id : file}-${index}`}
+                    onClick={() => openAttachment(file)}
                   >
-                    <span>□ {file}</span>
+                    <span>□ {attachmentName(file)}</span>
                     <strong>Visualizar</strong>
                   </button>
                 ))}
@@ -1094,29 +1235,40 @@ export function WorkDetails({
           <input ref={workFileRef} type="file" multiple hidden onChange={addWorkFiles} />
           <div className="work-file-grid">
             {work.attachments.map((file, index) => (
-              <article key={`${file}-${index}`}>
+              <article key={`${isAppFileRef(file) ? file.id : file}-${index}`}>
                 <span>□</span>
                 <button
                   className="file-main-action"
                   type="button"
-                  onClick={() => setPreviewFile(file)}
+                  onClick={() => openAttachment(file)}
                 >
-                  <strong>{file}</strong>
-                  <small>{attachmentExtension(file).toUpperCase()} · clique para visualizar</small>
+                  <strong>{attachmentName(file)}</strong>
+                  <small>
+                    {attachmentExtension(attachmentName(file)).toUpperCase()}
+                    {isAppFileRef(file)
+                      ? ` · ${formatFileSize(file.size)} · sincronizado`
+                      : " · demonstrativo"}
+                  </small>
                 </button>
                 <span className="file-actions">
-                  <button type="button" onClick={() => setPreviewFile(file)}>
+                  <button type="button" onClick={() => openAttachment(file)}>
                     Visualizar
                   </button>
+                  {isAppFileRef(file) && (
+                    <a href={fileDownloadUrl(file)} download={file.name}>
+                      Baixar
+                    </a>
+                  )}
                   <button
                     className="remove-file"
                     type="button"
-                    aria-label={`Remover ${file}`}
-                    onClick={() =>
+                    aria-label={`Remover ${attachmentName(file)}`}
+                    onClick={() => {
+                      if (isAppFileRef(file)) void deleteAppFile(file).catch(() => undefined);
                       update({
                         attachments: work.attachments.filter((_, fileIndex) => fileIndex !== index),
-                      })
-                    }
+                      });
+                    }}
                   >
                     ×
                   </button>
@@ -1298,6 +1450,83 @@ export function WorkDetails({
             </div>
           </section>
         </div>
+      )}
+      {poseEditorOpen && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setPoseEditorOpen(false)}
+        >
+          <section
+            className="pose-editor-dialog"
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <p>{editingPoseId ? "EDITAR REFERÊNCIA" : "NOVA REFERÊNCIA"}</p>
+                <h2>Ideia de pose</h2>
+              </div>
+              <button type="button" onClick={() => setPoseEditorOpen(false)}>
+                ×
+              </button>
+            </header>
+            <div className="field-grid">
+              <label className="field full">
+                <span>Nome da pose *</span>
+                <input
+                  value={poseDraft.title}
+                  onChange={(event) => setPoseDraft({ ...poseDraft, title: event.target.value })}
+                  placeholder="Ex.: Caminhando e olhando um para o outro"
+                />
+              </label>
+              <label className="field full">
+                <span>Orientações e observações</span>
+                <textarea
+                  rows={4}
+                  value={poseDraft.notes}
+                  onChange={(event) => setPoseDraft({ ...poseDraft, notes: event.target.value })}
+                  placeholder="Movimento, enquadramento, posição das mãos, expressão…"
+                />
+              </label>
+              <label className="field full">
+                <span>Link de referência (opcional)</span>
+                <input
+                  type="url"
+                  value={poseDraft.link}
+                  onChange={(event) => setPoseDraft({ ...poseDraft, link: event.target.value })}
+                  placeholder="https://..."
+                />
+              </label>
+              <label className="field full pose-file-field">
+                <span>Imagem de referência (opcional)</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                  onChange={(event) => setPoseImage(event.target.files?.[0] || null)}
+                />
+                <small>{poseImage?.name || "JPG, PNG, WEBP ou SVG · fica salvo no trabalho"}</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" onClick={() => setPoseEditorOpen(false)}>
+                Cancelar
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={savingPose || !poseDraft.title.trim()}
+                onClick={() => void savePose()}
+              >
+                {savingPose ? "Salvando…" : "Salvar referência"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+      {previewStoredFile && (
+        <FileViewer file={previewStoredFile} onClose={() => setPreviewStoredFile(null)} />
       )}
       {previewFile && (
         <div
