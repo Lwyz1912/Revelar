@@ -48,6 +48,13 @@ export function createClientRecord(data: NewClientData, id: number): Client {
       : undefined,
     nextDateLabel: date ? dateLabel : undefined,
     tag: data.type === "company" ? "Empresa" : "Novo cliente",
+    birthday: data.birthday || undefined,
+    weddingDate: data.weddingDate || undefined,
+    otherDateLabel: data.otherDateLabel || undefined,
+    otherDate: data.otherDate || undefined,
+    notes: data.notes || undefined,
+    archived: false,
+    createdAt: new Date().toISOString(),
   };
 }
 

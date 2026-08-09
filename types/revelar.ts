@@ -8,12 +8,66 @@ export type AppSection =
   | "Clientes"
   | "Trabalhos"
   | "Galeria"
+  | "Presets e edição"
   | "Financeiro"
   | "Produtos"
   | "Orçamentos"
   | "Contratos"
   | "Locais";
 export type AvailableSection = Exclude<AppSection, "Locais">;
+
+export type EditingAdjustments = {
+  exposure: number;
+  contrast: number;
+  highlights: number;
+  shadows: number;
+  temperature: number;
+  tint: number;
+  saturation: number;
+  fade: number;
+  grain: number;
+  vignette: number;
+  halation: number;
+  chromatic: number;
+  dust: number;
+  lightLeak: number;
+};
+
+export type EditingPreset = {
+  id: string;
+  name: string;
+  camera: string;
+  description: string;
+  adjustments: EditingAdjustments;
+  builtIn: boolean;
+  source?: "xmp" | "dng" | "custom";
+};
+
+export type EditingAlbum = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  demo?: boolean;
+};
+
+export type EditingPhoto = {
+  id: string;
+  albumId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  width: number;
+  height: number;
+  previewUrl: string;
+  originalUrl: string;
+  editedUrl?: string;
+  presetId?: string;
+  adjustments: EditingAdjustments;
+  createdAt: string;
+  updatedAt: string;
+  demo?: boolean;
+};
 export type ClientType = "person" | "company";
 export type WorkStatus =
   | "planning"
@@ -41,6 +95,16 @@ export type ProductKind = "course" | "pdf" | "preset" | "photo" | "album" | "pac
 export type ProductPriceType = "fixed" | "from" | "consult";
 export type ProductAvailability = "unlimited" | "stock" | "capacity";
 export type ProductDiscountType = "none" | "fixed" | "percent";
+export type NotificationKind =
+  | "deadline"
+  | "work"
+  | "stage"
+  | "payment"
+  | "contract"
+  | "gallery"
+  | "birthday"
+  | "important-date";
+export type NotificationPriority = "normal" | "important" | "urgent";
 
 export type ProductOptionValue = { id: string; label: string; priceDelta: number };
 export type ProductOption = { id: string; name: string; values: ProductOptionValue[] };
@@ -141,6 +205,13 @@ export type Client = {
   nextDate?: string;
   nextDateLabel?: string;
   tag: string;
+  birthday?: string;
+  weddingDate?: string;
+  otherDateLabel?: string;
+  otherDate?: string;
+  notes?: string;
+  archived?: boolean;
+  createdAt?: string;
 };
 
 export type NewClientData = {
@@ -291,4 +362,37 @@ export type AgendaEvent = {
   reminder: string;
   external?: boolean;
   source: "work" | "custom";
+};
+
+export type AppNotification = {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  description: string;
+  createdAt: string;
+  dueAt?: string;
+  read: boolean;
+  snoozedUntil?: string;
+  priority: NotificationPriority;
+  clientId?: number;
+  workId?: number;
+  actionLabel?: string;
+};
+
+export type NotificationPreferences = {
+  browserEnabled: boolean;
+  reminderDays: number[];
+  categories: Record<NotificationKind, boolean>;
+};
+
+export type Automation = {
+  id: string;
+  title: string;
+  description: string;
+  trigger: string;
+  action: string;
+  enabled: boolean;
+  requiresConfirmation: boolean;
+  lastRun?: string;
+  runs: number;
 };

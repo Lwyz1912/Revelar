@@ -8,14 +8,20 @@ export function NewClientDrawer({
   clients,
   onClose,
   onSave,
+  initialData,
+  clientId,
 }: {
   clients: Client[];
   onClose: () => void;
   onSave: (client: NewClientData) => void;
+  initialData?: NewClientData;
+  clientId?: number;
 }) {
-  const [form, setForm] = useState<NewClientData>(emptyClient);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [form, setForm] = useState<NewClientData>(initialData || emptyClient);
+  const [detailsOpen, setDetailsOpen] = useState(Boolean(initialData));
   const [submitted, setSubmitted] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -32,20 +38,34 @@ export function NewClientDrawer({
     if (phone.length < 8 && !email) return undefined;
     return clients.find(
       (client) =>
-        (phone.length >= 8 && normalizePhone(client.whatsapp) === phone) ||
-        (!!email && client.email.toLowerCase() === email),
+        client.id !== clientId &&
+        ((phone.length >= 8 && normalizePhone(client.whatsapp) === phone) ||
+          (!!email && client.email.toLowerCase() === email)),
     );
-  }, [clients, form.email, form.whatsapp]);
+  }, [clientId, clients, form.email, form.whatsapp]);
 
   const update = (field: keyof NewClientData, value: string) =>
     setForm((current) => ({ ...current, [field]: value }));
 
-  const onPhoto = (event: ChangeEvent<HTMLInputElement>) => {
+  const onPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setForm((current) => ({ ...current, avatar: String(reader.result) }));
-    reader.readAsDataURL(file);
+    setPhotoUploading(true);
+    setPhotoError("");
+    const body = new FormData();
+    body.set("file", file);
+    try {
+      const response = await fetch("/api/client-avatar", { method: "POST", body });
+      const result = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !result.url)
+        throw new Error(result.error || "Não foi possível enviar a foto.");
+      setForm((current) => ({ ...current, avatar: result.url }));
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : "Não foi possível enviar a foto.");
+    } finally {
+      setPhotoUploading(false);
+      event.target.value = "";
+    }
   };
 
   const submit = (event: FormEvent) => {
@@ -73,9 +93,13 @@ export function NewClientDrawer({
       >
         <header className="drawer-header">
           <div>
-            <p>NOVO CADASTRO</p>
-            <h2 id="new-client-title">Adicionar cliente</h2>
-            <span>Comece pelo essencial. O restante pode ser preenchido depois.</span>
+            <p>{initialData ? "FICHA DO CLIENTE" : "NOVO CADASTRO"}</p>
+            <h2 id="new-client-title">{initialData ? "Editar cliente" : "Adicionar cliente"}</h2>
+            <span>
+              {initialData
+                ? "Atualize os dados de contato e as datas importantes."
+                : "Comece pelo essencial. O restante pode ser preenchido depois."}
+            </span>
           </div>
           <button type="button" onClick={onClose} aria-label="Fechar cadastro">
             ×
@@ -117,8 +141,8 @@ export function NewClientDrawer({
                     <img src={form.avatar} alt="Prévia do cliente" />
                   ) : (
                     <>
-                      <span>＋</span>
-                      <small>Foto opcional</small>
+                      <span>{photoUploading ? "…" : "＋"}</span>
+                      <small>{photoUploading ? "Enviando" : "Foto opcional"}</small>
                     </>
                   )}
                 </button>
@@ -139,6 +163,7 @@ export function NewClientDrawer({
                   )}
                 </label>
               </div>
+              {photoError && <p className="form-error">{photoError}</p>}
 
               <div className="field-grid">
                 <label className="field">
@@ -256,7 +281,7 @@ export function NewClientDrawer({
               Cancelar
             </button>
             <button className="primary-button" type="submit" disabled={!!duplicate}>
-              Salvar cliente
+              {initialData ? "Salvar alterações" : "Salvar cliente"}
             </button>
           </footer>
         </form>

@@ -106,3 +106,54 @@ export const galleryEvents = sqliteTable(
   },
   (table) => [index("gallery_events_gallery_idx").on(table.galleryId, table.createdAt)],
 );
+
+export const editingAlbums = sqliteTable(
+  "editing_albums",
+  {
+    id: text("id").primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    name: text("name").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("editing_albums_owner_idx").on(table.ownerEmail, table.updatedAt)],
+);
+
+export const editingPhotos = sqliteTable(
+  "editing_photos",
+  {
+    id: text("id").primaryKey(),
+    albumId: text("album_id")
+      .notNull()
+      .references(() => editingAlbums.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull(),
+    width: integer("width").notNull().default(0),
+    height: integer("height").notNull().default(0),
+    originalKey: text("original_key").notNull(),
+    previewKey: text("preview_key").notNull(),
+    editedKey: text("edited_key"),
+    presetId: text("preset_id"),
+    adjustmentsJson: text("adjustments_json").notNull().default("{}"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("editing_photos_album_idx").on(table.albumId, table.updatedAt)],
+);
+
+export const editingPresets = sqliteTable(
+  "editing_presets",
+  {
+    id: text("id").primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    name: text("name").notNull(),
+    camera: text("camera").notNull(),
+    description: text("description").notNull().default(""),
+    source: text("source").notNull().default("custom"),
+    adjustmentsJson: text("adjustments_json").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("editing_presets_owner_idx").on(table.ownerEmail, table.updatedAt)],
+);

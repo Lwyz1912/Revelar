@@ -1,4 +1,9 @@
-import type { Currency, ThemeMode } from "@/types/revelar";
+"use client";
+
+import { useState } from "react";
+
+import { NotificationPopover } from "@/components/notifications/NotificationPopover";
+import type { AppNotification, Currency, ThemeMode } from "@/types/revelar";
 
 type TopbarProps = {
   currency: Currency;
@@ -12,6 +17,10 @@ type TopbarProps = {
   onSearchChange: (value: string) => void;
   onOpenHelp: () => void;
   onToast: (message: string) => void;
+  notifications: AppNotification[];
+  onOpenNotification: (notification: AppNotification) => void;
+  onMarkAllNotificationsRead: () => void;
+  onShowAllNotifications: () => void;
 };
 
 export function Topbar({
@@ -26,7 +35,13 @@ export function Topbar({
   onSearchChange,
   onOpenHelp,
   onToast,
+  notifications,
+  onOpenNotification,
+  onMarkAllNotificationsRead,
+  onShowAllNotifications,
 }: TopbarProps) {
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
   const placeholder =
     searchContext === "clients"
       ? "Buscar clientes..."
@@ -86,15 +101,33 @@ export function Topbar({
         >
           <img src="/brand/revelar-icons-svg-monocromatico/14-temas.svg" alt="" />
         </button>
-        <button
-          className="icon-button notification"
-          type="button"
-          onClick={() => onToast("Você não tem novas notificações")}
-          aria-label="Notificações"
-        >
-          <img src="/brand/revelar-icons-svg-monocromatico/12-notificacoes.svg" alt="" />
-          <i />
-        </button>
+        <div className="notification-anchor">
+          <button
+            className="icon-button notification"
+            type="button"
+            onClick={() => setNotificationsOpen((open) => !open)}
+            aria-label={`Notificações${unreadCount ? `, ${unreadCount} não lidas` : ""}`}
+            aria-expanded={notificationsOpen}
+          >
+            <img src="/brand/revelar-icons-svg-monocromatico/12-notificacoes.svg" alt="" />
+            {unreadCount > 0 && <i>{unreadCount > 9 ? "9+" : unreadCount}</i>}
+          </button>
+          {notificationsOpen && (
+            <NotificationPopover
+              notifications={notifications}
+              onClose={() => setNotificationsOpen(false)}
+              onOpen={(notification) => {
+                setNotificationsOpen(false);
+                onOpenNotification(notification);
+              }}
+              onMarkAllRead={onMarkAllNotificationsRead}
+              onShowAll={() => {
+                setNotificationsOpen(false);
+                onShowAllNotifications();
+              }}
+            />
+          )}
+        </div>
       </div>
     </header>
   );

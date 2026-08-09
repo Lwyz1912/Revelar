@@ -19,15 +19,18 @@ export function ClientsView({
   setViewMode: (mode: ViewMode) => void;
   search: string;
   setSearch: (value: string) => void;
-  filter: "all" | ClientType;
-  setFilter: (value: "all" | ClientType) => void;
+  filter: "all" | ClientType | "archived";
+  setFilter: (value: "all" | ClientType | "archived") => void;
   onNewClient: () => void;
   onOpenClient: (client: Client) => void;
 }) {
   const filteredClients = useMemo(() => {
     const term = search.trim().toLowerCase();
     return clients.filter((client) => {
-      const matchesType = filter === "all" || client.type === filter;
+      const matchesType =
+        filter === "archived"
+          ? Boolean(client.archived)
+          : !client.archived && (filter === "all" || client.type === filter);
       const matchesSearch =
         !term ||
         [client.name, client.whatsapp, client.email, client.instagram].some((value) =>
@@ -108,6 +111,13 @@ export function ClientsView({
               onClick={() => setFilter("company")}
             >
               Empresas
+            </button>
+            <button
+              type="button"
+              className={filter === "archived" ? "active" : ""}
+              onClick={() => setFilter("archived")}
+            >
+              Arquivados
             </button>
           </div>
           <div className="view-switch" aria-label="Modo de visualização">

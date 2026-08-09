@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Revelar. — Gestão para fotógrafos",
   description: "Dashboard inteligente para organizar clientes, ensaios, entregas e financeiro.",
+  manifest: "/manifest.webmanifest",
   other: {
     "codex-preview": "development",
   },

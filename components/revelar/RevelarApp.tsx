@@ -9,8 +9,10 @@ import { Topbar } from "@/components/layout/Topbar";
 import { useRevelarData } from "@/hooks/use-revelar-data";
 import { useRevelarPreferences } from "@/hooks/use-revelar-preferences";
 import { useToast } from "@/hooks/use-toast";
+import { useNotifications } from "@/hooks/use-notifications";
 import { buildDashboardOverview } from "@/lib/dashboard";
 import { todayIso } from "@/lib/dates";
+import { visibleNotifications } from "@/lib/notifications";
 import {
   createClientRecord,
   createContractFromQuote as createContractRecord,
@@ -23,6 +25,7 @@ import {
 } from "@/lib/factories";
 import type {
   AgendaViewMode,
+  AppNotification,
   AppSection,
   AvailableSection,
   Client,
@@ -38,13 +41,16 @@ import type {
 } from "@/types/revelar";
 import { AgendaView } from "@/components/modules/agenda/AgendaView";
 import { ClientsView } from "@/components/modules/clients/ClientsView";
+import { ClientDetails } from "@/components/modules/clients/ClientDetails";
 import { NewClientDrawer } from "@/components/modules/clients/NewClientDrawer";
 import { ContractsView } from "@/components/modules/contracts/ContractsView";
 import { Dashboard } from "@/components/modules/dashboard/Dashboard";
 import { FinancialView } from "@/components/modules/finance/FinancialView";
+import { EditingStudioView } from "@/components/modules/editing/EditingStudioView";
 import { GalleryLibraryView } from "@/components/modules/gallery/GalleryLibraryView";
 import { ProductsView } from "@/components/modules/products/ProductsView";
 import { QuotesView } from "@/components/modules/quotes/QuotesView";
+import { NotificationsCenter } from "@/components/modules/notifications/NotificationsCenter";
 import { NewWorkDrawer } from "@/components/modules/works/NewWorkDrawer";
 import { WorkDetails } from "@/components/modules/works/WorkDetails";
 import { WorksView } from "@/components/modules/works/WorksView";
@@ -82,24 +88,41 @@ export function RevelarApp() {
     contracts,
     setContracts,
   } = useRevelarData();
+  const {
+    notifications,
+    setNotifications,
+    preferences: notificationPreferences,
+    setPreferences: setNotificationPreferences,
+    automations,
+    setAutomations,
+    requestBrowserPermission,
+  } = useNotifications();
   const { message: toast, showToast: setToast } = useToast();
   const [activeNav, setActiveNav] = useState<AvailableSection>("Visão geral");
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
-  const [clientFilter, setClientFilter] = useState<"all" | ClientType>("all");
+  const [clientFilter, setClientFilter] = useState<"all" | ClientType | "archived">("all");
   const [newClientOpen, setNewClientOpen] = useState(false);
+  const [editingClientId, setEditingClientId] = useState<number | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [workSearch, setWorkSearch] = useState("");
   const [workStatus, setWorkStatus] = useState<"all" | WorkStatus>("all");
   const [workCategory, setWorkCategory] = useState<"all" | WorkCategory>("all");
   const [newWorkOpen, setNewWorkOpen] = useState(false);
+  const [newWorkClientId, setNewWorkClientId] = useState<number | undefined>();
   const [selectedWorkId, setSelectedWorkId] = useState<number | null>(null);
+  const [notificationsCenterOpen, setNotificationsCenterOpen] = useState(false);
   const [agendaInitialView, setAgendaInitialView] = useState<AgendaViewMode>("month");
   const today = todayIso();
   const dashboardOverview = useMemo(
     () => buildDashboardOverview({ works, transactions, currency, today }),
     [currency, today, transactions, works],
+  );
+  const activeNotifications = useMemo(
+    () => visibleNotifications(notifications, notificationPreferences),
+    [notificationPreferences, notifications],
   );
 
   const navigate = (label: AppSection) => {
@@ -110,6 +133,8 @@ export function RevelarApp() {
         setAgendaInitialView(window.matchMedia("(max-width: 720px)").matches ? "list" : "month");
       }
       setSelectedWorkId(null);
+      setSelectedClientId(null);
+      setNotificationsCenterOpen(false);
       setActiveNav(label as AvailableSection);
       return;
     }
@@ -117,17 +142,51 @@ export function RevelarApp() {
   };
 
   const saveClient = (data: NewClientData) => {
+    if (editingClientId) {
+      const existing = clients.find((client) => client.id === editingClientId);
+      if (!existing) return;
+      const updated = {
+        ...existing,
+        ...createClientRecord(data, editingClientId),
+        workCount: existing.workCount,
+        lastWork: existing.lastWork,
+        tag: existing.tag,
+        archived: existing.archived,
+      };
+      setClients((current) =>
+        current.map((client) => (client.id === editingClientId ? updated : client)),
+      );
+      setEditingClientId(null);
+      setNewClientOpen(false);
+      setToast(`${updated.name} foi atualizado`);
+      return;
+    }
     const client = createClientRecord(data, nextNumericId(clients));
     setClients((current) => [client, ...current]);
     setNewClientOpen(false);
     setToast(`${data.name} foi adicionado aos clientes`);
   };
 
-  const openClient = (client: Client) => setToast(`Abrindo ficha de ${client.name}`);
+  const openClient = (client: Client) => {
+    setSelectedWorkId(null);
+    setNotificationsCenterOpen(false);
+    setSelectedClientId(client.id);
+  };
+  const updateClient = (updated: Client) =>
+    setClients((current) => current.map((client) => (client.id === updated.id ? updated : client)));
   const saveWork = (data: NewWorkData) => {
     const work = createWorkRecord(data, nextNumericId(works));
     setWorks((current) => [work, ...current]);
+    setClients((current) =>
+      current.map((client) =>
+        data.clientIds.includes(client.id)
+          ? { ...client, workCount: client.workCount + 1, lastWork: `${data.title} · agora` }
+          : client,
+      ),
+    );
     setNewWorkOpen(false);
+    setNewWorkClientId(undefined);
+    setSelectedClientId(null);
     setActiveNav("Trabalhos");
     setToast(`${data.title} foi criado com ${data.stages.length} etapas`);
   };
@@ -249,10 +308,36 @@ export function RevelarApp() {
   const isAgenda = activeNav === "Agenda";
   const isFinancial = activeNav === "Financeiro";
   const isGallery = activeNav === "Galeria";
+  const isEditing = activeNav === "Presets e edição";
   const isProducts = activeNav === "Produtos";
   const isQuotes = activeNav === "Orçamentos";
   const isContracts = activeNav === "Contratos";
   const selectedWork = works.find((work) => work.id === selectedWorkId);
+  const selectedClient = clients.find((client) => client.id === selectedClientId);
+  const editingClient = clients.find((client) => client.id === editingClientId);
+
+  const openNotification = (notification: AppNotification) => {
+    setNotifications((current) =>
+      current.map((item) => (item.id === notification.id ? { ...item, read: true } : item)),
+    );
+    if (notification.workId) {
+      const work = works.find((item) => item.id === notification.workId);
+      if (work) {
+        setNotificationsCenterOpen(false);
+        setSelectedClientId(null);
+        setSelectedWorkId(work.id);
+        setActiveNav("Trabalhos");
+        return;
+      }
+    }
+    if (notification.clientId) {
+      const client = clients.find((item) => item.id === notification.clientId);
+      if (client) {
+        setActiveNav("Clientes");
+        openClient(client);
+      }
+    }
+  };
 
   return (
     <div className={`revelar-app theme-${resolvedTheme} palette-${palette}`}>
@@ -279,6 +364,16 @@ export function RevelarApp() {
           }
           onOpenHelp={() => setHelpOpen(true)}
           onToast={setToast}
+          notifications={activeNotifications}
+          onOpenNotification={openNotification}
+          onMarkAllNotificationsRead={() =>
+            setNotifications((current) => current.map((item) => ({ ...item, read: true })))
+          }
+          onShowAllNotifications={() => {
+            setSelectedWorkId(null);
+            setSelectedClientId(null);
+            setNotificationsCenterOpen(true);
+          }}
         />
 
         {selectedWork ? (
@@ -292,6 +387,52 @@ export function RevelarApp() {
             onArchive={archiveWork}
             onCancel={cancelWork}
             onPhotoExtras={registerPhotoExtras}
+            toast={setToast}
+          />
+        ) : selectedClient ? (
+          <ClientDetails
+            client={selectedClient}
+            works={works}
+            transactions={transactions}
+            quotes={quotes}
+            contracts={contracts}
+            currency={currency}
+            onBack={() => setSelectedClientId(null)}
+            onEdit={() => {
+              setEditingClientId(selectedClient.id);
+              setNewClientOpen(true);
+            }}
+            onNewWork={() => {
+              setNewWorkClientId(selectedClient.id);
+              setNewWorkOpen(true);
+            }}
+            onOpenWork={(work) => {
+              setSelectedClientId(null);
+              openWork(work);
+            }}
+            onNavigate={(section) => {
+              setSelectedClientId(null);
+              setActiveNav(section);
+            }}
+            onUpdate={updateClient}
+            onArchive={() => {
+              updateClient({ ...selectedClient, archived: !selectedClient.archived });
+              setToast(
+                selectedClient.archived
+                  ? "Cliente restaurado"
+                  : "Cliente arquivado sem apagar o histórico",
+              );
+            }}
+            toast={setToast}
+          />
+        ) : notificationsCenterOpen ? (
+          <NotificationsCenter
+            notifications={notifications}
+            automations={automations}
+            onBack={() => setNotificationsCenterOpen(false)}
+            onNotificationsChange={setNotifications}
+            onAutomationsChange={setAutomations}
+            onOpenRelated={openNotification}
             toast={setToast}
           />
         ) : isAgenda ? (
@@ -343,6 +484,8 @@ export function RevelarApp() {
           />
         ) : isGallery ? (
           <GalleryLibraryView works={works} onOpenWork={openWork} toast={setToast} />
+        ) : isEditing ? (
+          <EditingStudioView toast={setToast} />
         ) : isProducts ? (
           <ProductsView
             products={products}
@@ -385,8 +528,11 @@ export function RevelarApp() {
       </main>
 
       {!selectedWork &&
+        !selectedClient &&
+        !notificationsCenterOpen &&
         !isAgenda &&
         !isGallery &&
+        !isEditing &&
         !isFinancial &&
         !isProducts &&
         !isQuotes &&
@@ -414,6 +560,9 @@ export function RevelarApp() {
           palette={palette}
           onThemeModeChange={setThemeMode}
           onPaletteChange={setPalette}
+          notificationPreferences={notificationPreferences}
+          onNotificationPreferencesChange={setNotificationPreferences}
+          onRequestBrowserPermission={requestBrowserPermission}
           onClose={() => setSettingsOpen(false)}
           onSave={() => {
             setSettingsOpen(false);
@@ -433,12 +582,41 @@ export function RevelarApp() {
       {newClientOpen && (
         <NewClientDrawer
           clients={clients}
-          onClose={() => setNewClientOpen(false)}
+          initialData={
+            editingClient
+              ? {
+                  type: editingClient.type,
+                  name: editingClient.name,
+                  whatsapp: editingClient.whatsapp,
+                  instagram: editingClient.instagram,
+                  email: editingClient.email,
+                  birthday: editingClient.birthday || "",
+                  weddingDate: editingClient.weddingDate || "",
+                  otherDateLabel: editingClient.otherDateLabel || "",
+                  otherDate: editingClient.otherDate || "",
+                  notes: editingClient.notes || "",
+                  avatar: editingClient.avatar,
+                }
+              : undefined
+          }
+          clientId={editingClient?.id}
+          onClose={() => {
+            setNewClientOpen(false);
+            setEditingClientId(null);
+          }}
           onSave={saveClient}
         />
       )}
       {newWorkOpen && (
-        <NewWorkDrawer clients={clients} onClose={() => setNewWorkOpen(false)} onSave={saveWork} />
+        <NewWorkDrawer
+          clients={clients}
+          initialClientId={newWorkClientId}
+          onClose={() => {
+            setNewWorkOpen(false);
+            setNewWorkClientId(undefined);
+          }}
+          onSave={saveWork}
+        />
       )}
       <Toast message={toast} />
     </div>
