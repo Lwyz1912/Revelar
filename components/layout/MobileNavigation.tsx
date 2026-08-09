@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { navItems } from "@/config/navigation";
+import { RevelarIcon } from "@/components/shared/RevelarIcon";
 import type { AppSection } from "@/types/revelar";
 
 type MobileNavigationProps = {
@@ -40,7 +41,7 @@ export function MobileNavigation({
             onClick={() => navigate(item.label)}
             aria-current={activeNav === item.label ? "page" : undefined}
           >
-            <img src={item.icon} alt="" />
+            <RevelarIcon name={item.icon} />
             {item.label === "Visão geral" ? "Início" : item.label}
           </button>
         ))}
@@ -50,7 +51,7 @@ export function MobileNavigation({
           onClick={() => setMoreOpen(true)}
           aria-expanded={moreOpen}
         >
-          <img src="/brand/revelar-icons-svg-monocromatico/13-configuracoes.svg" alt="" />
+          <RevelarIcon name="more" />
           Mais
         </button>
       </nav>
@@ -86,7 +87,7 @@ export function MobileNavigation({
                   onClick={() => navigate(item.label)}
                   aria-current={activeNav === item.label ? "page" : undefined}
                 >
-                  <img src={item.icon} alt="" />
+                  <RevelarIcon name={item.icon} />
                   <span>
                     <strong>{item.label}</strong>
                     <small>
@@ -131,7 +132,7 @@ export function MobileNavigation({
                 onOpenSettings();
               }}
             >
-              <img src="/brand/revelar-icons-svg-monocromatico/13-configuracoes.svg" alt="" />
+              <RevelarIcon name="settings" />
               Aparência e configurações
             </button>
           </section>
