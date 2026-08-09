@@ -88,15 +88,6 @@ export const sectionGuides: Record<AvailableSection, SectionGuide> = {
     ],
     tip: "Use Produtos para itens com preço recorrente; use Orçamentos para negociações específicas.",
   },
-  Contratos: {
-    purpose: "Organize documentos e acompanhe manualmente o envio e a assinatura.",
-    steps: [
-      "Crie a partir de um orçamento ou comece um contrato vazio.",
-      "Edite o modelo Revelar. ou envie seu PDF/DOCX.",
-      "Atualize o estado até chegar a “Assinado”.",
-    ],
-    tip: "Nesta fase, o arquivo e o estado ficam salvos neste navegador.",
-  },
   Locais: {
     purpose: "Visualize no mapa os lugares onde os trabalhos foram realizados.",
     steps: [
