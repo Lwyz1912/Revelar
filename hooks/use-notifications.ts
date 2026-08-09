@@ -5,7 +5,7 @@ import { useCallback, useEffect } from "react";
 import { defaultNotificationPreferences } from "@/config/notifications";
 import { initialAutomations, initialNotifications } from "@/data/notifications";
 import { useStoredJsonState } from "@/hooks/use-persisted-state";
-import { storageKeys } from "@/lib/storage";
+import { readJson, storageKeys, writeJson } from "@/lib/storage";
 import type { NotificationPreferences } from "@/types/revelar";
 
 export function useNotifications() {
@@ -27,6 +27,38 @@ export function useNotifications() {
       void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
   }, []);
+
+  useEffect(() => {
+    if (
+      !preferences.browserEnabled ||
+      !("Notification" in window) ||
+      Notification.permission !== "granted"
+    ) {
+      return;
+    }
+    const delivered = readJson<string[]>(
+      window.localStorage,
+      storageKeys.deliveredNotifications,
+      [],
+    );
+    const next = notifications.find(
+      (notification) =>
+        !notification.read &&
+        preferences.categories[notification.kind] &&
+        !delivered.includes(notification.id),
+    );
+    if (!next) return;
+    void navigator.serviceWorker?.ready.then(async (registration) => {
+      await registration.showNotification(next.title, {
+        body: next.description,
+        icon: "/brand/revelar-symbol.svg",
+        badge: "/brand/revelar-symbol.svg",
+        tag: next.id,
+        data: { url: "/" },
+      });
+      writeJson(window.localStorage, storageKeys.deliveredNotifications, [...delivered, next.id]);
+    });
+  }, [notifications, preferences]);
 
   const requestBrowserPermission = useCallback(async () => {
     if (!("Notification" in window)) return "unsupported" as const;

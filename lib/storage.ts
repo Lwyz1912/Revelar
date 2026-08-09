@@ -18,6 +18,7 @@ export const storageKeys = {
   contracts: "revelar-contracts",
   notifications: "revelar-notifications",
   notificationPreferences: "revelar-notification-preferences",
+  deliveredNotifications: "revelar-delivered-notifications",
   automations: "revelar-automations",
 } as const;
 
