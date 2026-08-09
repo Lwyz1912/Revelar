@@ -1,7 +1,7 @@
 import { type Dispatch, type FormEvent, type SetStateAction, useMemo, useState } from "react";
 
 import { agendaKindLabels } from "@/config/labels";
-import { statusForDate } from "@/lib/agenda";
+import { equivalentEventTime, otherEventTimezone, statusForDate } from "@/lib/agenda";
 import {
   addDays,
   agendaDateLabel,
@@ -46,6 +46,7 @@ export function AgendaView({
   const [selectedEvent, setSelectedEvent] = useState<AgendaEvent | null>(null);
   const [dayPanelOpen, setDayPanelOpen] = useState(false);
   const [newEventOpen, setNewEventOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [movedDates, setMovedDates] = useState<Record<string, string>>({});
   const [conflictWarning, setConflictWarning] = useState(false);
   const [draft, setDraft] = useState<Omit<AgendaEvent, "id" | "status" | "source">>({
@@ -53,6 +54,7 @@ export function AgendaView({
     date: today,
     start: "09:00",
     end: "10:00",
+    allDay: false,
     kind: "meeting",
     timezone: "America/Recife",
     recurrence: "none",
@@ -205,44 +207,111 @@ export function AgendaView({
     setDayPanelOpen(true);
   };
 
-  const openNewEvent = (date = focusDate) => {
+  const openNewEvent = (date = focusDate, kind: AgendaEventKind = "meeting") => {
     setDraft({
-      title: "",
+      title: kind === "blocked" ? "Indisponível" : "",
       date,
-      start: "09:00",
-      end: "10:00",
-      kind: "meeting",
+      start: kind === "blocked" ? "00:00" : "09:00",
+      end: kind === "blocked" ? "23:59" : "10:00",
+      allDay: kind === "blocked",
+      kind,
       timezone: "America/Recife",
       recurrence: "none",
       reminder: "1 dia antes",
       location: "",
       notes: "",
     });
+    setEditingEventId(null);
     setConflictWarning(false);
     setDayPanelOpen(false);
     setNewEventOpen(true);
   };
 
-  const hasConflict = allEvents.some(
-    (event) => event.date === draft.date && event.start < draft.end && event.end > draft.start,
-  );
+  const baseCustomEvent = (event: AgendaEvent) =>
+    customEvents.find((item) => event.id === item.id || event.id.startsWith(`${item.id}-r`));
+
+  const openEditEvent = (event: AgendaEvent) => {
+    const original = baseCustomEvent(event);
+    if (!original) return;
+    const { id, status, source, ...editable } = original;
+    void status;
+    void source;
+    setDraft({ ...editable, allDay: Boolean(editable.allDay) });
+    setEditingEventId(id);
+    setConflictWarning(false);
+    setSelectedEvent(null);
+    setNewEventOpen(true);
+  };
+
+  const hasConflict = allEvents.some((event) => {
+    const base = baseCustomEvent(event);
+    if (editingEventId && base?.id === editingEventId) return false;
+    if (event.date !== draft.date) return false;
+    if (draft.allDay || event.allDay) return true;
+    return event.start < draft.end && event.end > draft.start;
+  });
+  const invalidTime = !draft.allDay && draft.end <= draft.start;
   const saveEvent = (event: FormEvent) => {
     event.preventDefault();
-    if (!draft.title.trim()) return;
+    const normalizedDraft = {
+      ...draft,
+      title: draft.title.trim() || (draft.kind === "blocked" ? "Indisponível" : ""),
+      start: draft.allDay ? "00:00" : draft.start,
+      end: draft.allDay ? "23:59" : draft.end,
+    };
+    if (
+      !normalizedDraft.title ||
+      (!normalizedDraft.allDay && normalizedDraft.end <= normalizedDraft.start)
+    )
+      return;
     if (hasConflict && !conflictWarning) {
       setConflictWarning(true);
       return;
     }
-    setCustomEvents((current) => [
-      ...current,
-      { ...draft, id: `event-${Date.now()}`, status: statusForDate(draft.date), source: "custom" },
-    ]);
+    if (editingEventId) {
+      setCustomEvents((current) =>
+        current.map((item) =>
+          item.id === editingEventId
+            ? {
+                ...item,
+                ...normalizedDraft,
+                status: statusForDate(normalizedDraft.date),
+                source: "custom",
+              }
+            : item,
+        ),
+      );
+    } else {
+      setCustomEvents((current) => [
+        ...current,
+        {
+          ...normalizedDraft,
+          id: `event-${Date.now()}`,
+          status: statusForDate(normalizedDraft.date),
+          source: "custom",
+        },
+      ]);
+    }
     setNewEventOpen(false);
-    setFocusDate(draft.date);
+    setEditingEventId(null);
+    setFocusDate(normalizedDraft.date);
     toast(
-      hasConflict
-        ? "Compromisso salvo mesmo com conflito de horário"
-        : "Compromisso adicionado à agenda",
+      editingEventId
+        ? "Compromisso atualizado"
+        : hasConflict
+          ? "Compromisso salvo mesmo com conflito de horário"
+          : "Compromisso adicionado à agenda",
+    );
+  };
+
+  const deleteSelectedEvent = () => {
+    if (!selectedEvent) return;
+    const original = baseCustomEvent(selectedEvent);
+    if (!original || !window.confirm(`Excluir “${original.title}” da agenda?`)) return;
+    setCustomEvents((current) => current.filter((item) => item.id !== original.id));
+    setSelectedEvent(null);
+    toast(
+      original.recurrence === "none" ? "Compromisso excluído" : "Série de compromissos excluída",
     );
   };
 
@@ -271,9 +340,9 @@ export function AgendaView({
         setSelectedEvent(event);
         setDayPanelOpen(false);
       }}
-      title={`${event.start} · ${event.title}`}
+      title={`${event.allDay ? "Dia inteiro" : event.start} · ${event.title}`}
     >
-      <span>{event.start}</span>
+      <span>{event.allDay ? "Dia" : event.start}</span>
       <strong>{event.title}</strong>
     </button>
   );
@@ -307,9 +376,18 @@ export function AgendaView({
           <h1>Agenda</h1>
           <span>Sessões, prazos, pagamentos e compromissos em um só calendário.</span>
         </div>
-        <button className="primary-button" type="button" onClick={() => openNewEvent()}>
-          ＋ Novo compromisso
-        </button>
+        <div className="agenda-title-actions">
+          <button
+            className="outline-button"
+            type="button"
+            onClick={() => openNewEvent(focusDate, "blocked")}
+          >
+            Bloquear horário
+          </button>
+          <button className="primary-button" type="button" onClick={() => openNewEvent()}>
+            ＋ Novo compromisso
+          </button>
+        </div>
       </section>
 
       <section className="agenda-summary" aria-label="Resumo da agenda">
@@ -340,9 +418,9 @@ export function AgendaView({
           <small>prazos e eventos</small>
         </article>
         <article className="working-hours">
-          <span>HORÁRIO DE TRABALHO</span>
-          <strong>Seg–Sáb · 08h–18h</strong>
-          <small>Domingos indisponíveis</small>
+          <span>FUSO PADRÃO</span>
+          <strong>Recife · America/Recife</strong>
+          <small>Lisboa disponível em cada evento</small>
         </article>
       </section>
 
@@ -430,12 +508,14 @@ export function AgendaView({
             ))}
             {monthDays.map((date) => {
               const dayEvents = eventsForDay(date);
-              const sunday = new Date(`${date}T12:00:00`).getDay() === 0;
+              const unavailable = dayEvents.some(
+                (event) => event.kind === "blocked" && event.allDay,
+              );
               const dayClassName = [
                 "calendar-day",
                 date.slice(0, 7) !== currentMonth && "outside",
                 date === today && "today",
-                sunday && "unavailable",
+                unavailable && "unavailable",
               ]
                 .filter(Boolean)
                 .join(" ");
@@ -516,7 +596,11 @@ export function AgendaView({
             <aside>
               <strong>{new Date(`${focusDate}T12:00:00`).getDate()}</strong>
               <span>{agendaDateLabel(focusDate, { weekday: "long", month: "long" })}</span>
-              <small>Horário disponível · 08:00–18:00</small>
+              <small>
+                {eventsForDay(focusDate).some((event) => event.kind === "blocked" && event.allDay)
+                  ? "Dia marcado como indisponível"
+                  : "Disponibilidade definida pelos compromissos"}
+              </small>
             </aside>
             <div>
               {eventsForDay(focusDate).length ? (
@@ -527,8 +611,8 @@ export function AgendaView({
                     onClick={() => setSelectedEvent(event)}
                   >
                     <time>
-                      {event.start}
-                      <small>{event.end}</small>
+                      {event.allDay ? "Dia inteiro" : event.start}
+                      {!event.allDay && <small>{event.end}</small>}
                     </time>
                     <div>
                       <span>{agendaKindLabels[event.kind]}</span>
@@ -549,9 +633,9 @@ export function AgendaView({
                   <button
                     className="outline-button"
                     type="button"
-                    onClick={() => openNewEvent(focusDate)}
+                    onClick={() => openNewEvent(focusDate, "blocked")}
                   >
-                    ＋ Adicionar compromisso
+                    Marcar indisponível
                   </button>
                 </div>
               )}
@@ -587,8 +671,8 @@ export function AgendaView({
                     onClick={() => setSelectedEvent(event)}
                   >
                     <time>
-                      {event.start}
-                      <small>{event.end}</small>
+                      {event.allDay ? "Dia inteiro" : event.start}
+                      {!event.allDay && <small>{event.end}</small>}
                     </time>
                     <div>
                       <span>{agendaKindLabels[event.kind]}</span>
@@ -640,7 +724,7 @@ export function AgendaView({
                       setSelectedEvent(event);
                     }}
                   >
-                    <time>{event.start}</time>
+                    <time>{event.allDay ? "Dia" : event.start}</time>
                     <div>
                       <span>{agendaKindLabels[event.kind]}</span>
                       <strong>{event.title}</strong>
@@ -658,6 +742,13 @@ export function AgendaView({
               )}
             </div>
             <footer>
+              <button
+                className="outline-button"
+                type="button"
+                onClick={() => openNewEvent(focusDate, "blocked")}
+              >
+                Marcar indisponível
+              </button>
               <button
                 className="primary-button"
                 type="button"
@@ -717,7 +808,9 @@ export function AgendaView({
                 <div>
                   <dt>Horário</dt>
                   <dd>
-                    {selectedEvent.start}–{selectedEvent.end}
+                    {selectedEvent.allDay
+                      ? "Dia inteiro"
+                      : `${selectedEvent.start}–${selectedEvent.end}`}
                   </dd>
                 </div>
                 <div>
@@ -728,6 +821,22 @@ export function AgendaView({
                       : "Lisboa (Portugal)"}
                   </dd>
                 </div>
+                {!selectedEvent.allDay && (
+                  <div>
+                    <dt>No outro fuso</dt>
+                    <dd>
+                      {equivalentEventTime(
+                        selectedEvent.date,
+                        selectedEvent.start,
+                        selectedEvent.timezone,
+                      )}{" "}
+                      em{" "}
+                      {otherEventTimezone(selectedEvent.timezone) === "Europe/Lisbon"
+                        ? "Lisboa"
+                        : "Recife"}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt>Lembrete</dt>
                   <dd>{selectedEvent.reminder}</dd>
@@ -772,18 +881,38 @@ export function AgendaView({
                 </section>
               )}
             </div>
-            {selectedEvent.workId && (
+            {(selectedEvent.workId || baseCustomEvent(selectedEvent)) && (
               <footer>
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => {
-                    const work = works.find((item) => item.id === selectedEvent.workId);
-                    if (work) onOpenWork(work);
-                  }}
-                >
-                  Abrir trabalho completo
-                </button>
+                {baseCustomEvent(selectedEvent) && (
+                  <>
+                    <button
+                      className="danger-outline-button"
+                      type="button"
+                      onClick={deleteSelectedEvent}
+                    >
+                      Excluir
+                    </button>
+                    <button
+                      className="primary-button"
+                      type="button"
+                      onClick={() => openEditEvent(selectedEvent)}
+                    >
+                      {selectedEvent.recurrence === "none" ? "Editar" : "Editar série"}
+                    </button>
+                  </>
+                )}
+                {selectedEvent.workId && (
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => {
+                      const work = works.find((item) => item.id === selectedEvent.workId);
+                      if (work) onOpenWork(work);
+                    }}
+                  >
+                    Abrir trabalho completo
+                  </button>
+                )}
               </footer>
             )}
           </aside>
@@ -804,8 +933,20 @@ export function AgendaView({
           >
             <header>
               <div>
-                <p>NOVO COMPROMISSO</p>
-                <h2>Adicionar à agenda</h2>
+                <p>
+                  {editingEventId
+                    ? "EDITAR"
+                    : draft.kind === "blocked"
+                      ? "DISPONIBILIDADE"
+                      : "NOVO COMPROMISSO"}
+                </p>
+                <h2>
+                  {editingEventId
+                    ? "Atualizar compromisso"
+                    : draft.kind === "blocked"
+                      ? "Marcar como indisponível"
+                      : "Adicionar à agenda"}
+                </h2>
               </div>
               <button type="button" onClick={() => setNewEventOpen(false)}>
                 ×
@@ -838,9 +979,19 @@ export function AgendaView({
                     <span>Tipo</span>
                     <select
                       value={draft.kind}
-                      onChange={(event) =>
-                        setDraft({ ...draft, kind: event.target.value as AgendaEventKind })
-                      }
+                      onChange={(event) => {
+                        const kind = event.target.value as AgendaEventKind;
+                        setDraft({
+                          ...draft,
+                          kind,
+                          title:
+                            kind === "blocked" && !draft.title.trim()
+                              ? "Indisponível"
+                              : draft.title,
+                          allDay: kind === "blocked" ? draft.allDay : false,
+                        });
+                        setConflictWarning(false);
+                      }}
                     >
                       {(["meeting", "personal", "session", "blocked"] as AgendaEventKind[]).map(
                         (kind) => (
@@ -851,28 +1002,59 @@ export function AgendaView({
                       )}
                     </select>
                   </label>
-                  <label className="field">
-                    <span>Início</span>
-                    <input
-                      type="time"
-                      value={draft.start}
-                      onChange={(event) => {
-                        setDraft({ ...draft, start: event.target.value });
-                        setConflictWarning(false);
-                      }}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Fim</span>
-                    <input
-                      type="time"
-                      value={draft.end}
-                      onChange={(event) => {
-                        setDraft({ ...draft, end: event.target.value });
-                        setConflictWarning(false);
-                      }}
-                    />
-                  </label>
+                  {draft.kind === "blocked" && (
+                    <div className="field full availability-mode">
+                      <span>Duração da indisponibilidade</span>
+                      <div>
+                        <button
+                          type="button"
+                          className={draft.allDay ? "active" : ""}
+                          onClick={() => {
+                            setDraft({ ...draft, allDay: true });
+                            setConflictWarning(false);
+                          }}
+                        >
+                          Dia inteiro
+                        </button>
+                        <button
+                          type="button"
+                          className={!draft.allDay ? "active" : ""}
+                          onClick={() => {
+                            setDraft({ ...draft, allDay: false, start: "09:00", end: "10:00" });
+                            setConflictWarning(false);
+                          }}
+                        >
+                          Apenas um horário
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {!draft.allDay && (
+                    <>
+                      <label className="field">
+                        <span>Início</span>
+                        <input
+                          type="time"
+                          value={draft.start}
+                          onChange={(event) => {
+                            setDraft({ ...draft, start: event.target.value });
+                            setConflictWarning(false);
+                          }}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Fim</span>
+                        <input
+                          type="time"
+                          value={draft.end}
+                          onChange={(event) => {
+                            setDraft({ ...draft, end: event.target.value });
+                            setConflictWarning(false);
+                          }}
+                        />
+                      </label>
+                    </>
+                  )}
                   <label className="field">
                     <span>Fuso horário</span>
                     <select
@@ -885,6 +1067,17 @@ export function AgendaView({
                       <option value="Europe/Lisbon">Lisboa (Portugal)</option>
                     </select>
                   </label>
+                  {!draft.allDay && (
+                    <div className="timezone-preview field full">
+                      <span>HORÁRIO EQUIVALENTE</span>
+                      <strong>
+                        {equivalentEventTime(draft.date, draft.start, draft.timezone)} em{" "}
+                        {otherEventTimezone(draft.timezone) === "Europe/Lisbon"
+                          ? "Lisboa"
+                          : "Recife"}
+                      </strong>
+                    </div>
+                  )}
                   <label className="field">
                     <span>Repetição</span>
                     <select
@@ -974,6 +1167,15 @@ export function AgendaView({
                     </div>
                   </div>
                 )}
+                {invalidTime && (
+                  <div className="calendar-conflict">
+                    <span>!</span>
+                    <div>
+                      <strong>Revise o horário</strong>
+                      <p>O horário final precisa ser posterior ao horário inicial.</p>
+                    </div>
+                  </div>
+                )}
               </div>
               <footer>
                 <button
@@ -983,8 +1185,14 @@ export function AgendaView({
                 >
                   Cancelar
                 </button>
-                <button className="primary-button" type="submit">
-                  {hasConflict && conflictWarning ? "Salvar mesmo assim" : "Salvar compromisso"}
+                <button className="primary-button" type="submit" disabled={invalidTime}>
+                  {hasConflict && conflictWarning
+                    ? "Salvar mesmo assim"
+                    : editingEventId
+                      ? "Salvar alterações"
+                      : draft.kind === "blocked"
+                        ? "Salvar indisponibilidade"
+                        : "Salvar compromisso"}
                 </button>
               </footer>
             </form>

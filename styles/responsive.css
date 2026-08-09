@@ -995,8 +995,17 @@
     max-width: 250px;
     font-size: 12px;
   }
-  .agenda-title-row > .primary-button {
-    display: none;
+  .agenda-title-row {
+    flex-direction: column;
+  }
+  .agenda-title-actions {
+    width: 100%;
+  }
+  .agenda-title-actions button {
+    flex: 1;
+    min-width: 0;
+    padding-inline: 9px;
+    font-size: 10px;
   }
   .agenda-summary {
     gap: 8px;
@@ -1141,7 +1150,7 @@
     padding: 14px 17px 18px;
   }
   .agenda-side-panel > footer .primary-button {
-    width: 100%;
+    flex: 1;
   }
   .new-event-panel form > footer button {
     flex: 1;

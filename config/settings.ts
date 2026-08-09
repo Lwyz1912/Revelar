@@ -145,19 +145,6 @@ const initialBrands: BrandSettings[] = [
     document: "",
     signatureText: "Maryana Ferreira",
   },
-  {
-    id: "maryana-ferreira",
-    name: "Maryana Ferreira",
-    use: "Assinatura pessoal",
-    initials: "MA",
-    email: "",
-    phone: "",
-    instagram: "@maryfotografiaa__",
-    site: "",
-    address: "",
-    document: "",
-    signatureText: "Maryana Ferreira",
-  },
 ];
 
 export const defaultProfessionalSettings: ProfessionalSettings = {
@@ -213,7 +200,7 @@ export const defaultProfessionalSettings: ProfessionalSettings = {
     endTime: "19:00",
     breakStart: "12:00",
     breakEnd: "13:00",
-    timezone: "Europe/Lisbon",
+    timezone: "America/Recife",
     defaultReminderMinutes: [1440, 120, 30],
   },
   galleries: {
@@ -267,11 +254,15 @@ export function normalizeProfessionalSettings(value: unknown): ProfessionalSetti
   };
   const normalized = structuredClone(defaultProfessionalSettings);
   normalized.profile = { ...normalized.profile, ...(current.profile ?? {}) };
-  normalized.brands = Array.isArray(current.brands) ? current.brands : normalized.brands;
+  const savedBrands = Array.isArray(current.brands) ? current.brands : [];
+  normalized.brands = initialBrands.map((brand) => ({
+    ...brand,
+    ...(savedBrands.find((saved) => saved.id === brand.id) ?? {}),
+  }));
   normalized.activeBrandId =
-    current.activeBrandId ??
+    normalized.brands.find((brand) => brand.id === current.activeBrandId)?.id ??
     normalized.brands.find((brand) => brand.name === current.activeBrand)?.id ??
-    normalized.activeBrandId;
+    "mary-fotografia";
   normalized.watermarks = Array.isArray(current.watermarks)
     ? current.watermarks.filter((item): item is WatermarkSettings => typeof item !== "string")
     : [];
