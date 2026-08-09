@@ -24,6 +24,7 @@ export const storageKeys = {
   diary: "revelar-diary",
   achievementUnlocks: "revelar-achievement-unlocks",
   professionalSettings: "revelar-professional-settings",
+  whatsappDemoMessages: "revelar-whatsapp-demo-messages",
 } as const;
 
 export function readText<T extends string>(

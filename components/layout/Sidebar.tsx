@@ -1,4 +1,5 @@
 import { navItems } from "@/config/navigation";
+import { RevelarIcon } from "@/components/shared/RevelarIcon";
 import type { AppSection } from "@/types/revelar";
 
 type SidebarProps = {
@@ -32,7 +33,7 @@ export function Sidebar({
             type="button"
             aria-current={activeNav === item.label ? "page" : undefined}
           >
-            <img src={item.icon} alt="" />
+            <RevelarIcon name={item.icon} />
             {item.label}
           </button>
         ))}
@@ -45,7 +46,7 @@ export function Sidebar({
             type="button"
             aria-current={activeNav === item.label ? "page" : undefined}
           >
-            <img src={item.icon} alt="" />
+            <RevelarIcon name={item.icon} />
             <span>{item.label}</span>
             {!item.available && <small className="nav-status">Em breve</small>}
           </button>
@@ -59,7 +60,7 @@ export function Sidebar({
           Como usar o Revelar.
         </button>
         <button type="button" onClick={onOpenSettings}>
-          <img src="/brand/revelar-icons-svg-monocromatico/13-configuracoes.svg" alt="" />
+          <RevelarIcon name="settings" />
           Configurações
         </button>
         <button className="profile" type="button" onClick={() => onToast("Perfil da Maryana")}>
