@@ -13,8 +13,10 @@ export type AppSection =
   | "Produtos"
   | "Orçamentos"
   | "Contratos"
-  | "Locais";
-export type AvailableSection = Exclude<AppSection, "Locais">;
+  | "Locais"
+  | "Diário"
+  | "WhatsApp e IA";
+export type AvailableSection = AppSection;
 
 export type EditingAdjustments = {
   exposure: number;
@@ -41,6 +43,7 @@ export type EditingPreset = {
   adjustments: EditingAdjustments;
   builtIn: boolean;
   source?: "xmp" | "dng" | "custom";
+  category?: "Filme" | "Compacta" | "Flash" | "Experimental" | "Mono" | "Natural";
 };
 
 export type EditingAlbum = {
@@ -262,6 +265,49 @@ export type Work = {
   photos: { captured: number; selected: number; edited: number; delivered: number };
   stages: WorkStage[];
   attachments: string[];
+  moodboard?: WorkMoodboard;
+};
+
+export type MoodboardReference = {
+  id: string;
+  kind: "image" | "link" | "pose" | "lighting" | "equipment";
+  title: string;
+  value: string;
+};
+
+export type WorkMoodboard = {
+  style: string;
+  palette: string[];
+  notes: string;
+  shotList: Array<{ id: string; label: string; done: boolean }>;
+  references: MoodboardReference[];
+};
+
+export type PhotoLocation = {
+  id: string;
+  name: string;
+  city: string;
+  country: "Portugal" | "Brasil";
+  latitude: number;
+  longitude: number;
+  contact: string;
+  price: string;
+  parking: string;
+  accessibility: string;
+  bestTime: string;
+  notes: string;
+  cover: string;
+  workIds: number[];
+};
+
+export type DiaryEntry = {
+  id: string;
+  title: string;
+  body: string;
+  date: string;
+  mood: "inspirada" | "orgulhosa" | "tranquila" | "aprendizado";
+  clientId?: number;
+  workId?: number;
 };
 
 export type NewWorkData = Omit<Work, "id" | "status">;
