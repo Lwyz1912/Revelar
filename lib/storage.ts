@@ -16,6 +16,9 @@ export const storageKeys = {
   products: "revelar-products",
   quotes: "revelar-quotes",
   contracts: "revelar-contracts",
+  notifications: "revelar-notifications",
+  notificationPreferences: "revelar-notification-preferences",
+  automations: "revelar-automations",
 } as const;
 
 export function readText<T extends string>(

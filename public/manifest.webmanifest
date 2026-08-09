@@ -1,0 +1,17 @@
+{
+  "name": "Revelar. — Gestão para fotógrafos",
+  "short_name": "Revelar.",
+  "description": "Clientes, trabalhos, galerias, financeiro e prazos em um só lugar.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f4ef",
+  "theme_color": "#132b13",
+  "icons": [
+    {
+      "src": "/brand/revelar-symbol.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

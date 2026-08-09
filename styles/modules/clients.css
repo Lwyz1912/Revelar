@@ -4,6 +4,382 @@
   margin: 0 auto;
   padding: 42px 44px 70px;
 }
+
+/* Ficha do cliente */
+.client-details-page {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 32px 44px 70px;
+}
+.client-profile-hero {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 20px;
+  align-items: center;
+}
+.back-button {
+  align-self: start;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+}
+.client-profile-main {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.client-avatar.profile-large {
+  width: 62px;
+  height: 62px;
+  flex-basis: 62px;
+  font-size: 18px;
+}
+.client-profile-tag {
+  display: inline-block;
+  padding: 4px 7px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  color: var(--primary);
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.client-profile-main h1 {
+  margin: 5px 0 0;
+  font: 500 27px/1.2 var(--font-display);
+}
+.client-profile-main p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+.client-primary-actions {
+  display: flex;
+  gap: 8px;
+}
+.whatsapp-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, #2fa66a 42%, var(--border));
+  border-radius: 8px;
+  color: #27875a;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.client-profile-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  margin-top: 27px;
+  border-bottom: 1px solid var(--border);
+}
+.client-profile-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 12px 15px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+}
+.client-profile-tabs button.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+}
+.client-profile-tabs b {
+  padding: 2px 5px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  font-size: 8px;
+}
+.client-summary-layout {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 14px;
+  margin-top: 18px;
+}
+.client-profile-metrics {
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.client-profile-metrics article,
+.client-contact-card,
+.client-quick-actions,
+.client-recent-work,
+.client-tab-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.client-profile-metrics article {
+  min-height: 100px;
+  padding: 17px;
+}
+.client-profile-metrics span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.client-profile-metrics strong {
+  display: block;
+  margin-top: 8px;
+  font: 500 20px var(--font-display);
+}
+.client-profile-metrics small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.client-contact-card,
+.client-quick-actions,
+.client-recent-work {
+  padding: 18px;
+}
+.client-contact-card > header,
+.client-recent-work > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.client-contact-card h2,
+.client-quick-actions h2,
+.client-recent-work h2 {
+  margin: 0;
+  font: 500 15px var(--font-display);
+}
+.client-contact-card header button,
+.client-recent-work header button,
+.client-files-list article header button {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 700;
+}
+.client-contact-card dl {
+  display: grid;
+  gap: 11px;
+  margin: 16px 0 0;
+}
+.client-contact-card dl div {
+  display: grid;
+  grid-template-columns: 75px 1fr;
+  gap: 8px;
+}
+.client-contact-card dt {
+  color: var(--muted);
+  font-size: 9px;
+}
+.client-contact-card dd {
+  margin: 0;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.client-quick-actions > div {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: 15px;
+}
+.client-quick-actions button {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 12px 5px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 8px;
+}
+.client-quick-actions button span {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--primary);
+  font-size: 14px;
+}
+.client-recent-work {
+  grid-column: 1/-1;
+}
+.client-recent-work > button,
+.client-work-list > button {
+  display: grid;
+  grid-template-columns: 1fr auto 15px;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 13px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.client-recent-work > button:last-child {
+  border-bottom: 0;
+}
+.client-recent-work strong,
+.client-recent-work small,
+.client-work-list strong,
+.client-work-list small {
+  display: block;
+}
+.client-recent-work strong,
+.client-work-list strong {
+  font-size: 10px;
+}
+.client-recent-work small,
+.client-work-list small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.client-recent-work > button > b,
+.client-work-list > button > b {
+  font-size: 10px;
+}
+.client-recent-work i,
+.client-work-list i {
+  color: var(--muted);
+  font-size: 16px;
+  font-style: normal;
+}
+.client-tab-panel {
+  margin-top: 18px;
+  overflow: hidden;
+}
+.client-tab-panel > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.client-tab-panel > header h2 {
+  margin: 0;
+  font: 500 17px var(--font-display);
+}
+.client-work-list > button {
+  grid-template-columns: 1fr 0.8fr auto 15px;
+  padding: 14px 18px;
+}
+.client-finance-list > article {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.client-finance-list strong,
+.client-finance-list small {
+  display: block;
+}
+.client-finance-list strong {
+  font-size: 10px;
+}
+.client-finance-list small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.client-finance-list article > b {
+  font-size: 11px;
+}
+.client-files-list > article {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.client-files-list article header {
+  display: flex;
+  justify-content: space-between;
+}
+.client-files-list article header strong {
+  font-size: 11px;
+}
+.client-files-list article > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+.client-files-list article > div span {
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 8px;
+}
+.client-timeline-list > article {
+  display: grid;
+  grid-template-columns: 10px 90px 1fr;
+  gap: 12px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.client-timeline-list > article > i {
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.client-timeline-list > article > span {
+  color: var(--muted);
+  font-size: 8px;
+}
+.client-timeline-list strong {
+  font-size: 10px;
+}
+.client-timeline-list p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+.client-notes-panel {
+  padding-bottom: 18px;
+}
+.client-notes-panel textarea {
+  width: calc(100% - 36px);
+  min-height: 190px;
+  margin: 18px;
+  padding: 14px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: 0;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 11px/1.6 inherit;
+}
+.client-notes-panel textarea:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+}
+.client-notes-panel footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 18px;
+}
 .clients-title-row {
   display: flex;
   align-items: flex-end;

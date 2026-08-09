@@ -31,12 +31,17 @@ export function NewWorkDrawer({
   clients,
   onClose,
   onSave,
+  initialClientId,
 }: {
   clients: Client[];
   onClose: () => void;
   onSave: (work: NewWorkData) => void;
+  initialClientId?: number;
 }) {
-  const [form, setForm] = useState<NewWorkData>(() => makeEmptyWork());
+  const [form, setForm] = useState<NewWorkData>(() => ({
+    ...makeEmptyWork(),
+    clientIds: initialClientId ? [initialClientId] : [],
+  }));
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [customStage, setCustomStage] = useState("");
