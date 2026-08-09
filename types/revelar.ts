@@ -112,6 +112,23 @@ export type NotificationKind =
   | "birthday"
   | "important-date";
 export type NotificationPriority = "normal" | "important" | "urgent";
+export type AchievementTier = "Bronze" | "Prata" | "Ouro" | "Platina" | "Diamante";
+export type AchievementCategory =
+  | "Clientes"
+  | "Trabalhos"
+  | "Casamentos"
+  | "Prazos"
+  | "Financeiro"
+  | "Galerias"
+  | "Criatividade"
+  | "Organização"
+  | "Locais"
+  | "Marcos especiais";
+export type AchievementUnlock = {
+  id: string;
+  unlockedAt: string;
+  retroactive: boolean;
+};
 
 export type ProductOptionValue = { id: string; label: string; priceDelta: number };
 export type ProductOption = { id: string; name: string; values: ProductOptionValue[] };
