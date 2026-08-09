@@ -16,7 +16,14 @@ import type {
 } from "@/types/revelar";
 import { WorkFilesHub } from "@/components/modules/works/WorkFilesHub";
 
-type WorkDetailTab = "overview" | "timeline" | "finance" | "gallery" | "files" | "costs";
+type WorkDetailTab =
+  | "overview"
+  | "moodboard"
+  | "timeline"
+  | "finance"
+  | "gallery"
+  | "files"
+  | "costs";
 
 type LocalAttachment = { url: string; type: string; size: number };
 
@@ -34,6 +41,7 @@ function attachmentKind(name: string, type = "") {
 
 const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> = [
   { id: "overview", label: "Visão geral", icon: "◇" },
+  { id: "moodboard", label: "Moodboard", icon: "✦" },
   { id: "timeline", label: "Timeline", icon: "⌁" },
   { id: "finance", label: "Financeiro", icon: "＄" },
   { id: "gallery", label: "Galeria", icon: "▧" },
@@ -129,6 +137,43 @@ export function WorkDetails({
   const currentPreviewKind = previewFile
     ? attachmentKind(previewFile, currentPreview?.type)
     : "other";
+  const moodboard = work.moodboard ?? {
+    style: work.category === "Casamento" ? "Romântico documental" : "Natural e espontâneo",
+    palette: ["#EEE4D4", "#B8906D", "#6F7860", "#302D29"],
+    notes: "Priorizar movimento, luz natural e momentos espontâneos.",
+    shotList: [
+      { id: "shot-1", label: "Retratos principais", done: false },
+      { id: "shot-2", label: "Detalhes do ambiente", done: false },
+      { id: "shot-3", label: "Momentos espontâneos", done: false },
+    ],
+    references: [
+      {
+        id: "ref-1",
+        kind: "image" as const,
+        title: "Luz e movimento",
+        value: "/demo/gallery/casamento.webp",
+      },
+      {
+        id: "ref-2",
+        kind: "image" as const,
+        title: "Composição",
+        value: "/demo/gallery/ensaio-pessoal.webp",
+      },
+      {
+        id: "ref-3",
+        kind: "lighting" as const,
+        title: "Iluminação",
+        value: "Luz lateral suave na hora dourada",
+      },
+      {
+        id: "ref-4",
+        kind: "equipment" as const,
+        title: "Equipamento",
+        value: "35 mm + 85 mm · flash de apoio",
+      },
+    ],
+  };
+  const updateMoodboard = (next: typeof moodboard) => onUpdate({ ...work, moodboard: next });
 
   const syncGalleryStats = useCallback(
     (photos: Work["photos"]) => {
@@ -565,6 +610,136 @@ export function WorkDetails({
                 </div>
               ))}
             </div>
+          </aside>
+        </div>
+      )}
+
+      {tab === "moodboard" && (
+        <div className="moodboard-layout">
+          <section className="moodboard-main card">
+            <div className="detail-section-heading">
+              <div>
+                <p>DIREÇÃO VISUAL</p>
+                <h2>Referências do trabalho</h2>
+              </div>
+              <span>Somente interno</span>
+            </div>
+            <div className="moodboard-reference-grid">
+              {moodboard.references
+                .filter((reference) => reference.kind === "image")
+                .map((reference) => (
+                  <article key={reference.id}>
+                    <img src={reference.value} alt={reference.title} />
+                    <strong>{reference.title}</strong>
+                  </article>
+                ))}
+              <button
+                type="button"
+                onClick={() => {
+                  const value = window.prompt("Cole o link da imagem de referência");
+                  if (!value) return;
+                  updateMoodboard({
+                    ...moodboard,
+                    references: [
+                      ...moodboard.references,
+                      { id: crypto.randomUUID(), kind: "image", title: "Nova referência", value },
+                    ],
+                  });
+                  toast("Referência adicionada ao moodboard");
+                }}
+              >
+                ＋<span>Adicionar imagem ou link</span>
+              </button>
+            </div>
+            <div className="moodboard-notes-grid">
+              <label>
+                <span>ESTILO DESEJADO</span>
+                <input
+                  value={moodboard.style}
+                  onChange={(event) => updateMoodboard({ ...moodboard, style: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>OBSERVAÇÕES CRIATIVAS</span>
+                <textarea
+                  rows={4}
+                  value={moodboard.notes}
+                  onChange={(event) => updateMoodboard({ ...moodboard, notes: event.target.value })}
+                />
+              </label>
+            </div>
+            <div className="moodboard-reference-notes">
+              {moodboard.references
+                .filter((reference) => reference.kind !== "image")
+                .map((reference) => (
+                  <article key={reference.id}>
+                    <span>{reference.kind.toUpperCase()}</span>
+                    <strong>{reference.title}</strong>
+                    <p>{reference.value}</p>
+                  </article>
+                ))}
+            </div>
+          </section>
+          <aside className="moodboard-side">
+            <section className="card">
+              <span>PALETA</span>
+              <div className="moodboard-palette">
+                {moodboard.palette.map((color, index) => (
+                  <label key={`${color}-${index}`} style={{ background: color }}>
+                    <input
+                      type="color"
+                      value={color}
+                      onChange={(event) =>
+                        updateMoodboard({
+                          ...moodboard,
+                          palette: moodboard.palette.map((item, itemIndex) =>
+                            itemIndex === index ? event.target.value : item,
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            </section>
+            <section className="card">
+              <span>FOTOS OBRIGATÓRIAS</span>
+              <div className="moodboard-shots">
+                {moodboard.shotList.map((shot) => (
+                  <label key={shot.id}>
+                    <input
+                      type="checkbox"
+                      checked={shot.done}
+                      onChange={() =>
+                        updateMoodboard({
+                          ...moodboard,
+                          shotList: moodboard.shotList.map((item) =>
+                            item.id === shot.id ? { ...item, done: !item.done } : item,
+                          ),
+                        })
+                      }
+                    />
+                    <span>{shot.label}</span>
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const label = window.prompt("Qual foto não pode faltar?");
+                    if (label)
+                      updateMoodboard({
+                        ...moodboard,
+                        shotList: [
+                          ...moodboard.shotList,
+                          { id: crypto.randomUUID(), label, done: false },
+                        ],
+                      });
+                  }}
+                >
+                  ＋ Adicionar foto
+                </button>
+              </div>
+            </section>
           </aside>
         </div>
       )}
