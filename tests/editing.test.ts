@@ -9,10 +9,15 @@ import {
 } from "../lib/editing";
 
 test("oferece estilos de câmera próprios com receitas completas", () => {
-  assert.ok(builtInPresets.length >= 20);
+  assert.equal(builtInPresets.length, 19);
+  assert.equal(builtInPresets.filter((preset) => preset.category === "Mono").length, 3);
+  assert.equal(builtInPresets.filter((preset) => preset.category !== "Mono").length, 16);
   assert.ok(builtInPresets.every((preset) => preset.builtIn));
   assert.ok(new Set(builtInPresets.map((preset) => preset.category)).size >= 6);
-  assert.equal(Object.keys(builtInPresets[0].adjustments).length, 14);
+  assert.equal(Object.keys(builtInPresets[0].adjustments).length, 18);
+  assert.ok(builtInPresets.some((preset) => preset.adjustments.motionTrail > 0));
+  assert.ok(builtInPresets.some((preset) => preset.adjustments.coolShadows > 0));
+  assert.ok(builtInPresets.some((preset) => preset.adjustments.warmHighlights > 0));
 });
 
 test("limita ajustes importados à faixa segura do editor", () => {
