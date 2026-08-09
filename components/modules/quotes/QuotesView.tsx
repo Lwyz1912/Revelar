@@ -1,4 +1,4 @@
-import { type Dispatch, type FormEvent, type SetStateAction, useState } from "react";
+import { type Dispatch, type FormEvent, type SetStateAction, useEffect, useState } from "react";
 
 import { quoteItemKindLabels, quoteStatusLabels } from "@/config/labels";
 import { addDays, todayIso } from "@/lib/dates";
@@ -11,19 +11,21 @@ export function QuotesView({
   setQuotes,
   clients,
   currency,
-  onConvert,
-  onCreateContract,
+  onApprove,
   toast,
 }: {
   quotes: Quote[];
   setQuotes: Dispatch<SetStateAction<Quote[]>>;
   clients: Client[];
   currency: Currency;
-  onConvert: (quote: Quote) => void;
-  onCreateContract: (quote: Quote) => void;
+  onApprove: (quote: Quote, contractNeeded: boolean) => number | undefined;
   toast: (message: string) => void;
 }) {
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState<Quote | null>(null);
+  const [contractNeeded, setContractNeeded] = useState(true);
+  const [showTrash, setShowTrash] = useState(false);
+  const [declinedTrashDays, setDeclinedTrashDays] = useState(7);
   const [draft, setDraft] = useState<Omit<Quote, "id" | "status">>({
     title: "",
     clientId: clients[0]?.id,
@@ -57,10 +59,98 @@ export function QuotesView({
     setBuilderOpen(false);
     toast("Orçamento salvo como rascunho");
   };
-  const setStatus = (quote: Quote, status: QuoteStatus) =>
+  useEffect(() => {
+    void fetch("/api/professional-settings", { cache: "no-store" })
+      .then(async (response) =>
+        response.ok
+          ? ((await response.json()) as { data?: { quotes?: { declinedTrashDays?: number } } })
+          : null,
+      )
+      .then((result) => setDeclinedTrashDays(result?.data?.quotes?.declinedTrashDays ?? 7))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const now = Date.now();
+    setQuotes((current) => {
+      let changed = false;
+      const next = current
+        .map((quote) => {
+          if (quote.status !== "declined" || declinedTrashDays === 0) return quote;
+          if (!quote.declinedAt) {
+            changed = true;
+            return { ...quote, declinedAt: new Date(now).toISOString() };
+          }
+          if (
+            !quote.trashedAt &&
+            now - new Date(quote.declinedAt).getTime() >= declinedTrashDays * 86_400_000
+          ) {
+            changed = true;
+            return { ...quote, trashedAt: new Date(now).toISOString() };
+          }
+          return quote;
+        })
+        .filter((quote) => {
+          const expired =
+            quote.trashedAt && now - new Date(quote.trashedAt).getTime() >= 30 * 86_400_000;
+          if (expired) changed = true;
+          return !expired;
+        });
+      return changed ? next : current;
+    });
+  }, [declinedTrashDays, setQuotes]);
+
+  const setStatus = (quote: Quote, status: QuoteStatus) => {
+    if (status === "approved" && !quote.workId) {
+      setContractNeeded(true);
+      setPendingApproval(quote);
+      return;
+    }
     setQuotes((current) =>
-      current.map((item) => (item.id === quote.id ? { ...item, status } : item)),
+      current.map((item) =>
+        item.id === quote.id
+          ? {
+              ...item,
+              status,
+              declinedAt: status === "declined" ? new Date().toISOString() : undefined,
+              trashedAt: status === "declined" ? item.trashedAt : undefined,
+            }
+          : item,
+      ),
     );
+    toast(
+      status === "declined"
+        ? `Orçamento recusado · irá para a lixeira em ${declinedTrashDays || "∞"} dias`
+        : "Status atualizado",
+    );
+  };
+
+  const confirmApproval = () => {
+    if (!pendingApproval) return;
+    const approvedAt = new Date().toISOString();
+    const snapshot = {
+      approvedAt,
+      title: pendingApproval.title,
+      currency: pendingApproval.currency,
+      items: structuredClone(pendingApproval.items),
+      discount: pendingApproval.discount,
+      total: quoteTotal(pendingApproval),
+    };
+    const approvedQuote: Quote = {
+      ...pendingApproval,
+      status: "approved",
+      approvedSnapshot: snapshot,
+    };
+    const workId = onApprove(approvedQuote, contractNeeded);
+    if (!workId) return;
+    setQuotes((current) =>
+      current.map((item) => (item.id === pendingApproval.id ? { ...approvedQuote, workId } : item)),
+    );
+    setPendingApproval(null);
+    toast("Orçamento aprovado e trabalho criado automaticamente");
+  };
+
+  const displayedQuotes = quotes.filter((quote) => Boolean(quote.trashedAt) === showTrash);
 
   return (
     <div className="documents-page">
@@ -111,8 +201,24 @@ export function QuotesView({
           <small>Na moeda selecionada</small>
         </article>
       </section>
+      <div className="quote-view-switch" role="tablist" aria-label="Orçamentos ativos e lixeira">
+        <button
+          className={!showTrash ? "active" : ""}
+          type="button"
+          onClick={() => setShowTrash(false)}
+        >
+          Ativos
+        </button>
+        <button
+          className={showTrash ? "active" : ""}
+          type="button"
+          onClick={() => setShowTrash(true)}
+        >
+          Lixeira ({quotes.filter((quote) => quote.trashedAt).length})
+        </button>
+      </div>
       <section className="quote-grid">
-        {quotes.map((quote) => {
+        {displayedQuotes.map((quote) => {
           const client = clients.find((item) => item.id === quote.clientId);
           return (
             <article className="card quote-card" key={quote.id}>
@@ -141,6 +247,7 @@ export function QuotesView({
               <div className="quote-actions">
                 <select
                   value={quote.status}
+                  disabled={Boolean(quote.trashedAt)}
                   onChange={(event) => setStatus(quote, event.target.value as QuoteStatus)}
                 >
                   <option value="draft">Rascunho</option>
@@ -151,19 +258,22 @@ export function QuotesView({
                 <button type="button" onClick={() => window.print()}>
                   PDF / imprimir
                 </button>
-                {quote.status === "approved" && (
-                  <>
-                    <button type="button" onClick={() => onConvert(quote)}>
-                      Criar trabalho
-                    </button>
-                    <button
-                      className="primary-mini"
-                      type="button"
-                      onClick={() => onCreateContract(quote)}
-                    >
-                      Criar contrato
-                    </button>
-                  </>
+                {quote.workId && (
+                  <span className="quote-linked-work">✓ Trabalho #{quote.workId} criado</span>
+                )}
+                {quote.trashedAt && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuotes((current) =>
+                        current.map((item) =>
+                          item.id === quote.id ? { ...item, trashedAt: undefined } : item,
+                        ),
+                      )
+                    }
+                  >
+                    Restaurar
+                  </button>
                 )}
               </div>
             </article>
@@ -362,6 +472,66 @@ export function QuotesView({
               </div>
             </form>
           </aside>
+        </div>
+      )}
+      {pendingApproval && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setPendingApproval(null)}
+        >
+          <section
+            className="quote-approval-dialog"
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <span>APROVAR ORÇAMENTO</span>
+            <h2>Criar o trabalho automaticamente?</h2>
+            <p>
+              O Revelar. copiará cliente, itens, valores, observações e arquivos para um único
+              trabalho vinculado.
+            </p>
+            <dl>
+              <div>
+                <dt>Cliente</dt>
+                <dd>
+                  {clients.find((client) => client.id === pendingApproval.clientId)?.name ||
+                    "Não vinculado"}
+                </dd>
+              </div>
+              <div>
+                <dt>Total</dt>
+                <dd>{formatMoney(quoteTotal(pendingApproval), pendingApproval.currency)}</dd>
+              </div>
+              <div>
+                <dt>Itens</dt>
+                <dd>{pendingApproval.items.length}</dd>
+              </div>
+            </dl>
+            <label className="quote-contract-choice">
+              <input
+                type="checkbox"
+                checked={contractNeeded}
+                onChange={(event) => setContractNeeded(event.target.checked)}
+              />
+              <span>
+                <strong>Este serviço precisa de contrato</strong>
+                <small>
+                  Cria a aba Contrato como pendente dentro do trabalho. Se desligado, ficará como
+                  “Não necessário”.
+                </small>
+              </span>
+            </label>
+            <footer>
+              <button type="button" onClick={() => setPendingApproval(null)}>
+                Voltar
+              </button>
+              <button className="primary-button" type="button" onClick={confirmApproval}>
+                Aprovar e criar trabalho
+              </button>
+            </footer>
+          </section>
         </div>
       )}
     </div>
