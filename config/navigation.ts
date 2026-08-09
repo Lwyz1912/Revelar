@@ -60,6 +60,16 @@ export const navItems = [
   {
     icon: "/brand/revelar-icons-svg-monocromatico/05-calendario.svg",
     label: "Locais",
-    available: false,
+    available: true,
+  },
+  {
+    icon: "/brand/revelar-icons-svg-monocromatico/01-visao-geral.svg",
+    label: "Diário",
+    available: true,
+  },
+  {
+    icon: "/brand/revelar-icons-svg-monocromatico/12-notificacoes.svg",
+    label: "WhatsApp e IA",
+    available: true,
   },
 ] satisfies readonly NavigationItem[];
