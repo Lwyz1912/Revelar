@@ -110,7 +110,11 @@ export function Topbar({
             aria-expanded={notificationsOpen}
           >
             <img src="/brand/revelar-icons-svg-monocromatico/12-notificacoes.svg" alt="" />
-            {unreadCount > 0 && <i>{unreadCount > 9 ? "9+" : unreadCount}</i>}
+            {unreadCount > 0 && (
+              <span className="notification-count" aria-hidden="true">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
           {notificationsOpen && (
             <NotificationPopover
