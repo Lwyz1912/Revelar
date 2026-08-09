@@ -49,7 +49,10 @@ export async function POST(request: Request, context: RouteContext) {
     return Response.json({ error: "Foto não encontrada." }, { status: 404 });
   }
   if (gallery.phase === "approval") {
-    await setPhotoApproval(gallery.id, input.photoId, Boolean(input.value), input.comment);
+    const nextComment = input.comment?.trim()
+      ? [String(photo.comment || "").trim(), input.comment.trim()].filter(Boolean).join("\n")
+      : input.comment;
+    await setPhotoApproval(gallery.id, input.photoId, Boolean(input.value), nextComment);
     await recordGalleryEvent(
       gallery.id,
       input.comment?.trim() ? "edit_comment" : "edit_approval",
@@ -59,7 +62,10 @@ export async function POST(request: Request, context: RouteContext) {
       input.photoId,
     );
   } else if (gallery.phase === "selection") {
-    await setPhotoSelection(gallery.id, input.photoId, Boolean(input.value), input.comment);
+    const nextComment = input.comment?.trim()
+      ? [String(photo.comment || "").trim(), input.comment.trim()].filter(Boolean).join("\n")
+      : input.comment;
+    await setPhotoSelection(gallery.id, input.photoId, Boolean(input.value), nextComment);
     await recordGalleryEvent(
       gallery.id,
       input.comment?.trim() ? "selection_comment" : "photo_selected",
@@ -71,5 +77,6 @@ export async function POST(request: Request, context: RouteContext) {
   } else {
     return Response.json({ error: "A entrega não aceita novas seleções." }, { status: 409 });
   }
-  return Response.json({ ok: true });
+  const latest = await galleryPhoto(input.photoId);
+  return Response.json({ ok: true, comment: String(latest?.comment || "") });
 }

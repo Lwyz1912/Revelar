@@ -2415,3 +2415,206 @@
   color: #a54b45;
   background: color-mix(in srgb, #b6544c 10%, var(--surface));
 }
+
+.reference-library-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 12px 0 18px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-2);
+}
+.reference-library-picker article {
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.reference-library-picker img,
+.reference-library-picker article > span {
+  display: grid;
+  width: 54px;
+  height: 45px;
+  place-items: center;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+}
+.reference-library-picker strong,
+.reference-library-picker small {
+  display: block;
+}
+.reference-library-picker strong {
+  font-size: 10px;
+}
+.reference-library-picker small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.reference-library-picker button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 800;
+}
+.reference-library-picker > p {
+  grid-column: 1 / -1;
+  margin: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.work-contract-panel {
+  padding: 23px;
+}
+.work-contract-status {
+  display: grid;
+  gap: 5px;
+}
+.work-contract-status span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+.work-contract-status select {
+  min-height: 38px;
+  padding: 0 34px 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 800;
+}
+.contract-not-required {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-2);
+}
+.contract-not-required > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  color: var(--primary);
+}
+.contract-not-required strong {
+  font-size: 11px;
+}
+.contract-not-required p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+.contract-not-required button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 800;
+}
+.work-contract-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+.work-contract-editor label {
+  display: grid;
+  gap: 6px;
+}
+.work-contract-editor label > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+.work-contract-editor input,
+.work-contract-editor textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 11px 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.work-contract-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.work-contract-file > div {
+  min-width: 0;
+  margin-right: auto;
+}
+.work-contract-file strong,
+.work-contract-file small {
+  display: block;
+}
+.work-contract-file strong {
+  font-size: 10px;
+}
+.work-contract-file small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.work-contract-file > button,
+.work-contract-file > a {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 9px;
+}
+
+@media (max-width: 700px) {
+  .reference-library-picker {
+    grid-template-columns: 1fr;
+  }
+  .contract-not-required {
+    grid-template-columns: auto 1fr;
+  }
+  .contract-not-required button {
+    grid-column: 1 / -1;
+  }
+  .work-contract-file {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .work-contract-file > div {
+    margin-right: 0;
+  }
+}

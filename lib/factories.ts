@@ -93,7 +93,13 @@ export function duplicateWorkRecord(work: Work, id: number): Work {
   };
 }
 
-export function createWorkFromQuote(quote: Quote, id: number): Work {
+export function createWorkFromQuote(
+  quote: Quote,
+  id: number,
+  clientName = "{{cliente}}",
+  contractNeeded = true,
+): Work {
+  const total = quoteTotal(quote);
   return {
     id,
     title: quote.title,
@@ -111,7 +117,7 @@ export function createWorkFromQuote(quote: Quote, id: number): Work {
       .filter(Boolean)
       .join(" + "),
     currency: quote.currency,
-    totalValue: quoteTotal(quote),
+    totalValue: total,
     entryValue: 0,
     installments: 1,
     costs: 0,
@@ -119,6 +125,19 @@ export function createWorkFromQuote(quote: Quote, id: number): Work {
     photos: { captured: 0, selected: 0, edited: 0, delivered: 0 },
     stages: createStages(`w${id}`, 2),
     attachments: [`orcamento-${quote.id}.pdf`],
+    sourceQuoteId: quote.id,
+    contract: {
+      status: contractNeeded ? "pending" : "not_required",
+      title: `Contrato · ${quote.title}`,
+      content: contractNeeded
+        ? buildContractFromQuote({
+            clientName,
+            quoteTitle: quote.title,
+            formattedTotal: formatMoney(total, quote.currency),
+          })
+        : "",
+      updatedAt: new Date().toISOString(),
+    },
   };
 }
 

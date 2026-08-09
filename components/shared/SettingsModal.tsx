@@ -84,6 +84,7 @@ const settingsGroups: Array<{
     title: "DOCUMENTOS E FINANÇAS",
     items: [
       { id: "finance", label: "Financeiro", icon: "◉", hint: "Moedas e contas" },
+      { id: "quotes", label: "Orçamentos", icon: "▤", hint: "Validade e lixeira" },
       { id: "contracts", label: "Contratos", icon: "▱", hint: "Modelos e campos" },
     ],
   },
@@ -1336,6 +1337,27 @@ export function SettingsModal({
               }))
             }
           />
+        </label>
+        <label>
+          Enviar recusados à lixeira após
+          <select
+            value={draft.quotes.declinedTrashDays}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                quotes: {
+                  ...current.quotes,
+                  declinedTrashDays: Number(event.target.value) as 0 | 7 | 15 | 30 | 60,
+                },
+              }))
+            }
+          >
+            <option value="0">Nunca</option>
+            <option value="7">7 dias</option>
+            <option value="15">15 dias</option>
+            <option value="30">30 dias</option>
+            <option value="60">60 dias</option>
+          </select>
         </label>
         <label>
           Limite de seleção

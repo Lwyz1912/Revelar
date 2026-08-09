@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LayerGroup, Map as LeafletMap, Marker } from "leaflet";
 
 import type { PhotoLocation } from "@/types/revelar";
@@ -28,6 +28,7 @@ export function OpenMap({
   const editableMarker = useRef<Marker | null>(null);
   const latestOnSelect = useRef(onSelect);
   const latestOnPositionChange = useRef(onPositionChange);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     latestOnSelect.current = onSelect;
@@ -55,7 +56,13 @@ export function OpenMap({
       });
       map.current = instance;
       markerLayer.current = L.layerGroup().addTo(instance);
-      window.setTimeout(() => instance.invalidateSize(), 0);
+      setReady(true);
+      const refreshSize = () => instance.invalidateSize({ pan: false });
+      window.requestAnimationFrame(refreshSize);
+      window.setTimeout(refreshSize, 180);
+      const observer = new ResizeObserver(refreshSize);
+      observer.observe(root.current);
+      instance.once("unload", () => observer.disconnect());
     });
     return () => {
       active = false;
@@ -63,6 +70,7 @@ export function OpenMap({
       map.current = null;
       markerLayer.current = null;
       editableMarker.current = null;
+      setReady(false);
     };
   }, []);
 
@@ -94,13 +102,14 @@ export function OpenMap({
     return () => {
       cancelled = true;
     };
-  }, [editablePosition, locations, selectedId]);
+  }, [editablePosition, locations, ready, selectedId]);
 
   useEffect(() => {
     if (!map.current || !editablePosition) return;
     let cancelled = false;
     void import("leaflet").then((L) => {
       if (cancelled || !map.current) return;
+      const shouldCenter = !editableMarker.current;
       editableMarker.current?.remove();
       const icon = L.divIcon({
         className: "revelar-map-marker-wrap",
@@ -117,12 +126,14 @@ export function OpenMap({
         latestOnPositionChange.current?.({ latitude: next.lat, longitude: next.lng });
       });
       editableMarker.current = marker;
-      map.current.setView([editablePosition.latitude, editablePosition.longitude], 15);
+      map.current.invalidateSize({ pan: false });
+      if (shouldCenter)
+        map.current.setView([editablePosition.latitude, editablePosition.longitude], 15);
     });
     return () => {
       cancelled = true;
     };
-  }, [editablePosition]);
+  }, [editablePosition, ready]);
 
   return <div ref={root} className={`open-map ${compact ? "compact" : ""}`} />;
 }
