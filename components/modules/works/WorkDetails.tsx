@@ -1,4 +1,11 @@
-import { type ChangeEvent, useCallback, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 
 import { FileViewer } from "@/components/shared/FileViewer";
 import { workStatusLabels } from "@/config/labels";
@@ -18,7 +25,9 @@ import type {
   Client,
   GalleryEvent,
   AppFileRef,
+  MoodboardReference,
   Work,
+  WorkContractStatus,
   WorkCost,
   WorkGallery,
   WorkStage,
@@ -31,6 +40,7 @@ type WorkDetailTab =
   | "moodboard"
   | "timeline"
   | "finance"
+  | "contract"
   | "gallery"
   | "files"
   | "costs";
@@ -58,6 +68,7 @@ const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> 
   { id: "moodboard", label: "Moodboard", icon: "✦" },
   { id: "timeline", label: "Timeline", icon: "⌁" },
   { id: "finance", label: "Financeiro", icon: "＄" },
+  { id: "contract", label: "Contrato", icon: "▱" },
   { id: "gallery", label: "Galeria", icon: "▧" },
   { id: "files", label: "Documentos", icon: "□" },
   { id: "costs", label: "Custos", icon: "−" },
@@ -72,6 +83,8 @@ export function WorkDetails({
   onArchive,
   onCancel,
   onPhotoExtras,
+  referenceLibrary,
+  setReferenceLibrary,
   toast,
 }: {
   work: Work;
@@ -82,6 +95,8 @@ export function WorkDetails({
   onArchive: (work: Work) => void;
   onCancel: (work: Work) => void;
   onPhotoExtras: (work: Work, gallery: WorkGallery) => void;
+  referenceLibrary: MoodboardReference[];
+  setReferenceLibrary: Dispatch<SetStateAction<MoodboardReference[]>>;
   toast: (message: string) => void;
 }) {
   const today = todayIso();
@@ -109,6 +124,8 @@ export function WorkDetails({
   const [poseDraft, setPoseDraft] = useState({ title: "", notes: "", link: "" });
   const [poseImage, setPoseImage] = useState<File | null>(null);
   const [savingPose, setSavingPose] = useState(false);
+  const [savePoseToLibrary, setSavePoseToLibrary] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const localFiles: Record<string, LocalAttachment> = {};
   const [activities, setActivities] = useState<
     Array<{ id: string | number; icon: string; title: string; meta: string }>
@@ -130,6 +147,7 @@ export function WorkDetails({
   ]);
   const stageFileRef = useRef<HTMLInputElement>(null);
   const workFileRef = useRef<HTMLInputElement>(null);
+  const contractFileRef = useRef<HTMLInputElement>(null);
   const linkedClients = clients.filter((client) => work.clientIds.includes(client.id));
   const costItems: WorkCost[] = work.costItems?.length
     ? work.costItems
@@ -192,6 +210,14 @@ export function WorkDetails({
       },
     ],
   };
+  const contract = work.contract ?? {
+    status: (work.stages.find((stage) => stage.label === "Contrato")?.done
+      ? "signed"
+      : "pending") as WorkContractStatus,
+    title: `Contrato · ${work.title}`,
+    content: "",
+    updatedAt: new Date().toISOString(),
+  };
   const updateMoodboard = (next: typeof moodboard) => onUpdate({ ...work, moodboard: next });
 
   const openPoseEditor = (reference?: (typeof moodboard.references)[number]) => {
@@ -202,6 +228,7 @@ export function WorkDetails({
       link: reference?.file ? "" : reference?.kind === "pose" ? "" : reference?.value || "",
     });
     setPoseImage(null);
+    setSavePoseToLibrary(false);
     setPoseEditorOpen(true);
   };
 
@@ -230,6 +257,15 @@ export function WorkDetails({
           ? moodboard.references.map((item) => (item.id === previous.id ? reference : item))
           : [...moodboard.references, reference],
       });
+      if (savePoseToLibrary) {
+        setReferenceLibrary((current) => {
+          const libraryReference = { ...reference, id: `library-${reference.id}` };
+          const exists = current.some((item) => item.id === libraryReference.id);
+          return exists
+            ? current.map((item) => (item.id === libraryReference.id ? libraryReference : item))
+            : [libraryReference, ...current];
+        });
+      }
       setPoseEditorOpen(false);
       setPoseImage(null);
       toast(previous ? "Ideia de pose atualizada" : "Ideia de pose adicionada ao trabalho");
@@ -237,6 +273,28 @@ export function WorkDetails({
       toast(error instanceof Error ? error.message : "Não foi possível salvar a pose");
     } finally {
       setSavingPose(false);
+    }
+  };
+
+  const updateContract = (changes: Partial<typeof contract>) => {
+    onUpdate({
+      ...work,
+      contract: { ...contract, ...changes, updatedAt: new Date().toISOString() },
+    });
+  };
+
+  const uploadContractFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const uploaded = await uploadAppFile(file, "contract", String(work.id));
+      if (contract.file) await deleteAppFile(contract.file).catch(() => undefined);
+      updateContract({
+        file: uploaded,
+        status: contract.status === "not_required" ? "pending" : contract.status,
+      });
+      toast("Contrato enviado e vinculado ao trabalho");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível enviar o contrato");
     }
   };
 
@@ -761,12 +819,77 @@ export function WorkDetails({
               <div className="pose-ideas-heading">
                 <div>
                   <span>REFERÊNCIAS E IDEIAS DE POSES</span>
-                  <p>Guarde imagens e instruções próprias para este ensaio.</p>
+                  <p>
+                    Envie referências próprias, pesquise na internet ou reutilize sua biblioteca.
+                  </p>
                 </div>
-                <button type="button" onClick={() => openPoseEditor()}>
-                  ＋ Adicionar pose
-                </button>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.open(
+                        `https://unsplash.com/s/photos/${encodeURIComponent(`${work.category} photography poses`)}`,
+                        "_blank",
+                        "noopener,noreferrer",
+                      )
+                    }
+                  >
+                    Pesquisar na internet
+                  </button>
+                  <button type="button" onClick={() => setLibraryOpen((current) => !current)}>
+                    Biblioteca ({referenceLibrary.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      toast("Geração com IA preparada; falta conectar o serviço de imagens")
+                    }
+                  >
+                    Gerar com IA
+                  </button>
+                  <button type="button" onClick={() => openPoseEditor()}>
+                    ＋ Enviar referência
+                  </button>
+                </div>
               </div>
+              {libraryOpen && (
+                <div className="reference-library-picker">
+                  {referenceLibrary.map((reference) => (
+                    <article key={reference.id}>
+                      {reference.file || reference.value.startsWith("http") ? (
+                        <img
+                          src={reference.file ? fileViewUrl(reference.file) : reference.value}
+                          alt=""
+                        />
+                      ) : (
+                        <span>POSE</span>
+                      )}
+                      <div>
+                        <strong>{reference.title}</strong>
+                        <small>{reference.notes || "Sem observações"}</small>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateMoodboard({
+                            ...moodboard,
+                            references: [
+                              ...moodboard.references,
+                              { ...reference, id: crypto.randomUUID() },
+                            ],
+                          });
+                          toast("Referência adicionada a este trabalho");
+                        }}
+                      >
+                        Usar
+                      </button>
+                    </article>
+                  ))}
+                  {referenceLibrary.length === 0 && (
+                    <p>Salve uma referência na biblioteca para reutilizá-la aqui.</p>
+                  )}
+                </div>
+              )}
               <div className="pose-ideas-grid">
                 {moodboard.references
                   .filter((reference) => reference.kind === "pose")
@@ -1217,6 +1340,112 @@ export function WorkDetails({
         />
       )}
 
+      {tab === "contract" && (
+        <section className="work-contract-panel card">
+          <div className="detail-section-heading">
+            <div>
+              <p>CONTRATO DO TRABALHO</p>
+              <h2>{contract.title}</h2>
+            </div>
+            <label className={`work-contract-status status-${contract.status}`}>
+              <span>Situação</span>
+              <select
+                value={contract.status}
+                onChange={(event) =>
+                  updateContract({ status: event.target.value as WorkContractStatus })
+                }
+              >
+                <option value="not_required">Não necessário</option>
+                <option value="pending">Pendente</option>
+                <option value="sent">Enviado</option>
+                <option value="signed">Assinado</option>
+              </select>
+            </label>
+          </div>
+          {contract.status === "not_required" ? (
+            <div className="contract-not-required">
+              <span>✓</span>
+              <div>
+                <strong>Este trabalho foi marcado como sem contrato</strong>
+                <p>
+                  Se a necessidade mudar, crie o contrato sem perder nenhuma informação do trabalho.
+                </p>
+              </div>
+              <button type="button" onClick={() => updateContract({ status: "pending" })}>
+                Criar contrato
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="work-contract-editor">
+                <label>
+                  <span>Nome do documento</span>
+                  <input
+                    value={contract.title}
+                    onChange={(event) => updateContract({ title: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Conteúdo editável</span>
+                  <textarea
+                    rows={16}
+                    value={contract.content}
+                    onChange={(event) => updateContract({ content: event.target.value })}
+                    placeholder="Escreva ou cole aqui o conteúdo do contrato."
+                  />
+                </label>
+              </div>
+              <div className="work-contract-file">
+                <div>
+                  <strong>{contract.file?.name || "Nenhum arquivo anexado"}</strong>
+                  <small>
+                    {contract.file
+                      ? `${formatFileSize(contract.file.size)} · sincronizado`
+                      : "PDF ou DOCX pode ser visualizado dentro do Revelar."}
+                  </small>
+                </div>
+                {contract.file && (
+                  <>
+                    <button type="button" onClick={() => setPreviewStoredFile(contract.file!)}>
+                      Visualizar
+                    </button>
+                    <a href={fileDownloadUrl(contract.file)} download={contract.file.name}>
+                      Baixar
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void deleteAppFile(contract.file!).catch(() => undefined);
+                        updateContract({ file: undefined });
+                      }}
+                    >
+                      Excluir
+                    </button>
+                  </>
+                )}
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => contractFileRef.current?.click()}
+                >
+                  {contract.file ? "Substituir" : "Enviar contrato"}
+                </button>
+                <input
+                  ref={contractFileRef}
+                  hidden
+                  type="file"
+                  accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(event) => {
+                    void uploadContractFile(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
       {tab === "files" && (
         <section className="tab-single card">
           <div className="detail-section-heading">
@@ -1507,6 +1736,17 @@ export function WorkDetails({
                   onChange={(event) => setPoseImage(event.target.files?.[0] || null)}
                 />
                 <small>{poseImage?.name || "JPG, PNG, WEBP ou SVG · fica salvo no trabalho"}</small>
+              </label>
+              <label className="checkbox-field full">
+                <input
+                  type="checkbox"
+                  checked={savePoseToLibrary}
+                  onChange={(event) => setSavePoseToLibrary(event.target.checked)}
+                />
+                <span>
+                  <strong>Salvar também na Biblioteca de referências</strong>
+                  <small>Permite reutilizar esta ideia em outros trabalhos.</small>
+                </span>
               </label>
             </div>
             <footer>
