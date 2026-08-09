@@ -20,7 +20,6 @@ export type AppSection =
   | "Financeiro"
   | "Produtos"
   | "Orçamentos"
-  | "Contratos"
   | "Locais"
   | "Diário"
   | "WhatsApp e IA";
@@ -110,6 +109,8 @@ export type ProductKind = "course" | "pdf" | "preset" | "photo" | "album" | "pac
 export type ProductPriceType = "fixed" | "from" | "consult";
 export type ProductAvailability = "unlimited" | "stock" | "capacity";
 export type ProductDiscountType = "none" | "fixed" | "percent";
+export type ProductStatus = "active" | "draft" | "hidden" | "archived" | "deleted";
+export type ProductBadge = "Novo" | "Promoção" | "Últimas unidades" | "Destaque";
 export type NotificationKind =
   | "deadline"
   | "work"
@@ -159,9 +160,43 @@ export type Product = {
   discountValue: number;
   discountStart?: string;
   discountEnd?: string;
-  status: "active" | "draft" | "archived";
+  status: ProductStatus;
   publicReady: boolean;
+  sku?: string;
+  badges?: ProductBadge[];
+  coverFile?: AppFileRef;
+  galleryFiles?: AppFileRef[];
+  hideWhenSoldOut?: boolean;
+  allowBackorder?: boolean;
+  deletedAt?: string;
   sales: number;
+};
+
+export type StoreSettings = {
+  enabled: boolean;
+  title: string;
+  description: string;
+  whatsapp: string;
+};
+
+export type StoreOrderStatus = "new" | "confirmed" | "completed" | "cancelled";
+
+export type StoreOrder = {
+  id: string;
+  customerName: string;
+  customerWhatsapp: string;
+  note: string;
+  items: Array<{
+    productId: number;
+    name: string;
+    quantity: number;
+    options: string[];
+    unitPrice: number;
+    currency: Currency;
+  }>;
+  totals: Partial<Record<Currency, number>>;
+  status: StoreOrderStatus;
+  createdAt: string;
 };
 
 export type WorkCost = {
@@ -211,6 +246,17 @@ export type Quote = {
   validUntil: string;
   notes: string;
   status: QuoteStatus;
+  declinedAt?: string;
+  trashedAt?: string;
+  workId?: number;
+  approvedSnapshot?: {
+    approvedAt: string;
+    title: string;
+    currency: Currency;
+    items: QuoteItem[];
+    discount: number;
+    total: number;
+  };
 };
 export type Contract = {
   id: number;
@@ -295,6 +341,18 @@ export type Work = {
   stages: WorkStage[];
   attachments: Array<string | AppFileRef>;
   moodboard?: WorkMoodboard;
+  sourceQuoteId?: number;
+  contract?: WorkContract;
+};
+
+export type WorkContractStatus = "not_required" | "pending" | "sent" | "signed";
+
+export type WorkContract = {
+  status: WorkContractStatus;
+  title: string;
+  content: string;
+  updatedAt: string;
+  file?: AppFileRef;
 };
 
 export type MoodboardReference = {
