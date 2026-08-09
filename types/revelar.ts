@@ -418,6 +418,7 @@ export type AgendaEvent = {
   date: string;
   start: string;
   end: string;
+  allDay?: boolean;
   kind: AgendaEventKind;
   status: AgendaEventStatus;
   clientId?: number;
