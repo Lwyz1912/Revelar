@@ -252,14 +252,14 @@
 .wa-conversation-list strong {
   padding-right: 25px;
   color: var(--text);
-  font-size: 10px;
+  font-size: 14px;
 }
 
 .wa-conversation-list small {
   margin-top: 4px;
   overflow: hidden;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 12px;
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -273,14 +273,14 @@
   border-radius: 999px;
   color: var(--primary);
   background: var(--surface-2);
-  font-size: 7px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 700;
 }
 
 .wa-conversation-list time {
   color: var(--muted);
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .wa-conversation-list b {
@@ -518,13 +518,13 @@
 
 .ai-title strong {
   color: var(--text);
-  font-size: 10px;
+  font-size: 16px;
 }
 
 .ai-title small {
   margin-top: 3px;
   color: var(--muted);
-  font-size: 7px;
+  font-size: 15px;
 }
 
 .ai-summary {
@@ -539,7 +539,7 @@
 .ai-summary span,
 .ai-actions em {
   color: var(--accent);
-  font-size: 6.5px;
+  font-size: 12px;
   font-weight: 850;
   letter-spacing: 0.09em;
 }
@@ -549,7 +549,7 @@
   margin: 4px 0 0;
   overflow: hidden;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 15px;
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -599,7 +599,7 @@
 .ai-actions strong {
   overflow: hidden;
   color: var(--text);
-  font-size: 8px;
+  font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -608,7 +608,7 @@
   margin-top: 2px;
   overflow: hidden;
   color: var(--muted);
-  font-size: 6.5px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -624,7 +624,7 @@
   border-radius: 6px;
   color: var(--on-primary);
   background: var(--primary);
-  font-size: 6.5px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -640,7 +640,7 @@
 .ai-privacy {
   grid-column: 1 / -1;
   color: var(--muted);
-  font-size: 7px;
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -774,14 +774,15 @@
   }
 
   .wa-conversation-list > button {
-    min-height: 84px;
-    padding: 13px 14px;
-    grid-template-columns: 44px minmax(0, 1fr) auto;
+    min-height: 106px;
+    padding: 16px;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
   }
 
   .wa-conversation-list i {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
   }
 
   .wa-chat {
@@ -864,7 +865,7 @@
 
   .ai-summary p {
     display: block;
-    font-size: 9px;
+    font-size: 15px;
   }
 
   .ai-actions {
@@ -872,8 +873,9 @@
   }
 
   .ai-actions article {
-    min-height: 65px;
-    grid-template-columns: 30px minmax(0, 1fr) auto;
+    min-height: 82px;
+    padding: 12px;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
   }
 
   .ai-actions article > button,
