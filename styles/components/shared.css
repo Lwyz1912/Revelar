@@ -1500,16 +1500,11 @@ html[data-high-contrast="true"] {
   border-color: var(--primary);
   background: color-mix(in srgb, var(--primary) 7%, var(--surface));
 }
-.mobile-more-grid img,
-.mobile-settings-link img {
+.mobile-more-grid .revelar-icon,
+.mobile-settings-link .revelar-icon {
   width: 20px;
   height: 20px;
-  object-fit: contain;
   opacity: 0.72;
-}
-.theme-dark .mobile-more-grid img,
-.theme-dark .mobile-settings-link img {
-  filter: invert(1);
 }
 .mobile-more-grid span {
   min-width: 0;
