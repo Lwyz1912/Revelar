@@ -20,6 +20,8 @@ export const storageKeys = {
   notificationPreferences: "revelar-notification-preferences",
   deliveredNotifications: "revelar-delivered-notifications",
   automations: "revelar-automations",
+  locations: "revelar-locations",
+  diary: "revelar-diary",
 } as const;
 
 export function readText<T extends string>(
