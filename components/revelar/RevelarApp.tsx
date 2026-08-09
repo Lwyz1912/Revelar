@@ -663,7 +663,7 @@ export function RevelarApp() {
           onClose={() => setSettingsOpen(false)}
           onSave={() => {
             setSettingsOpen(false);
-            setToast("Configurações salvas neste dispositivo");
+            setToast("Configurações salvas e sincronizadas");
           }}
         />
       )}

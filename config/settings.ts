@@ -1,9 +1,6 @@
-export type SettingsFileRef = {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-};
+import type { AppFileRef } from "@/types/revelar";
+
+export type SettingsFileRef = AppFileRef;
 
 export type BrandSettings = {
   id: string;

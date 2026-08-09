@@ -1,6 +1,7 @@
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 
 import { formatDate, formatMoney, initials } from "@/lib/format";
+import { deleteAppFile, isAppFileRef, uploadAppFile } from "@/lib/app-files.client";
 import { createStages, stageChecklist } from "@/lib/workflow";
 import type { Client, Currency, NewWorkData, WorkCategory } from "@/types/revelar";
 
@@ -106,9 +107,17 @@ export function NewWorkDrawer({
     ]);
     setCustomStage("");
   };
-  const onFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const names = Array.from(event.target.files || []).map((file) => file.name);
-    update("attachments", [...form.attachments, ...names]);
+  const onFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    try {
+      const uploaded = [];
+      for (const file of files) uploaded.push(await uploadAppFile(file, "work", "new"));
+      update("attachments", [...form.attachments, ...uploaded]);
+    } catch {
+      window.alert("Não foi possível enviar um dos arquivos.");
+    }
+    event.target.value = "";
   };
   const save = () =>
     onSave({
@@ -499,17 +508,18 @@ export function NewWorkDrawer({
                 </button>
                 {form.attachments.length > 0 && (
                   <div className="attachment-list">
-                    {form.attachments.map((name, index) => (
-                      <span key={`${name}-${index}`}>
-                        ▧ {name}
+                    {form.attachments.map((file, index) => (
+                      <span key={`${isAppFileRef(file) ? file.id : file}-${index}`}>
+                        ▧ {isAppFileRef(file) ? file.name : file}
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
+                            if (isAppFileRef(file)) void deleteAppFile(file).catch(() => undefined);
                             update(
                               "attachments",
                               form.attachments.filter((_, fileIndex) => fileIndex !== index),
-                            )
-                          }
+                            );
+                          }}
                         >
                           ×
                         </button>

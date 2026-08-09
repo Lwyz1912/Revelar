@@ -16,4 +16,6 @@
 @import "../styles/modules/editing.css";
 @import "../styles/modules/story.css";
 @import "../styles/modules/whatsapp.css";
+@import "leaflet/dist/leaflet.css";
+@import "../styles/components/file-viewer.css";
 @import "../styles/responsive.css";

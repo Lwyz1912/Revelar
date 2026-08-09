@@ -1,6 +1,13 @@
 import { type Dispatch, type FormEvent, type SetStateAction, useState } from "react";
 
+import { FileViewer } from "@/components/shared/FileViewer";
 import { catalogKindLabels, productPriceLabels } from "@/config/labels";
+import {
+  deleteAppFile,
+  fileDownloadUrl,
+  isAppFileRef,
+  uploadAppFile,
+} from "@/lib/app-files.client";
 import { formatMoney } from "@/lib/format";
 import {
   calculateProductSaleTotal,
@@ -18,6 +25,7 @@ import type {
   ProductOption,
   ProductOptionValue,
   ProductPriceType,
+  AppFileRef,
 } from "@/types/revelar";
 
 export function ProductsView({
@@ -52,6 +60,7 @@ export function ProductsView({
   const [saleClientId, setSaleClientId] = useState<number | undefined>(clients[0]?.id);
   const [saleQuantity, setSaleQuantity] = useState(1);
   const [saleOptions, setSaleOptions] = useState<Record<string, string>>({});
+  const [previewFile, setPreviewFile] = useState<AppFileRef | null>(null);
 
   const visible = products.filter(
     (product) =>
@@ -70,6 +79,20 @@ export function ProductsView({
     : { unitPrice: 0, total: 0 };
   const saleUnitPrice = saleTotals.unitPrice;
   const saleTotal = saleTotals.total;
+  const deliveryFileName = (file: Product["deliveryFile"]) =>
+    isAppFileRef(file) ? file.name : file || "";
+  const uploadDeliveryFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const uploaded = await uploadAppFile(file, "product", editingId ? String(editingId) : "new");
+      if (isAppFileRef(draft.deliveryFile))
+        await deleteAppFile(draft.deliveryFile).catch(() => undefined);
+      setDraft({ ...draft, deliveryFile: uploaded });
+      toast("Arquivo do produto salvo no Revelar.");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível enviar o arquivo");
+    }
+  };
 
   const openNew = () => {
     setEditingId(null);
@@ -303,7 +326,7 @@ export function ProductsView({
                 </span>
                 <span>
                   {product.deliveryType === "file"
-                    ? `Arquivo · ${product.deliveryFile || "não anexado"}`
+                    ? `Arquivo · ${deliveryFileName(product.deliveryFile) || "não anexado"}`
                     : product.deliveryType === "link"
                       ? "Entrega por link"
                       : "Entrega manual"}
@@ -599,11 +622,38 @@ export function ProductsView({
                       <span>Arquivo</span>
                       <input
                         type="file"
-                        onChange={(event) =>
-                          setDraft({ ...draft, deliveryFile: event.target.files?.[0]?.name })
-                        }
+                        onChange={(event) => void uploadDeliveryFile(event.target.files?.[0])}
                       />
-                      <small>{draft.deliveryFile || "Nenhum arquivo selecionado"}</small>
+                      <small>
+                        {deliveryFileName(draft.deliveryFile) || "Nenhum arquivo selecionado"}
+                      </small>
+                      {isAppFileRef(draft.deliveryFile) && (
+                        <span className="product-file-actions">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewFile(draft.deliveryFile as AppFileRef)}
+                          >
+                            Visualizar
+                          </button>
+                          <a
+                            href={fileDownloadUrl(draft.deliveryFile)}
+                            download={draft.deliveryFile.name}
+                          >
+                            Baixar
+                          </a>
+                          <button
+                            type="button"
+                            className="danger-action"
+                            onClick={() => {
+                              if (!isAppFileRef(draft.deliveryFile)) return;
+                              void deleteAppFile(draft.deliveryFile).catch(() => undefined);
+                              setDraft({ ...draft, deliveryFile: undefined });
+                            }}
+                          >
+                            Excluir
+                          </button>
+                        </span>
+                      )}
                     </label>
                   )}
                   {draft.deliveryType === "link" && (
@@ -810,7 +860,7 @@ export function ProductsView({
                     <strong>Entrega vinculada</strong>
                     <span>
                       {saleProduct.deliveryType === "file"
-                        ? saleProduct.deliveryFile || "Arquivo ainda não anexado"
+                        ? deliveryFileName(saleProduct.deliveryFile) || "Arquivo ainda não anexado"
                         : saleProduct.deliveryLink || "Link ainda não informado"}
                     </span>
                   </div>
@@ -832,6 +882,7 @@ export function ProductsView({
           </aside>
         </div>
       )}
+      {previewFile && <FileViewer file={previewFile} onClose={() => setPreviewFile(null)} />}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { formatMoney, initials } from "@/lib/format";
+import { isAppFileRef } from "@/lib/app-files.client";
 import type { Client, Contract, Currency, FinanceTransaction, Quote, Work } from "@/types/revelar";
 
 type ClientTab = "summary" | "works" | "finance" | "files" | "timeline" | "notes";
@@ -75,7 +76,7 @@ export function ClientDetails({
   const sortedWorks = [...clientWorks].sort((a, b) => b.date.localeCompare(a.date));
   const lastWork = sortedWorks[0];
   const files = clientWorks.flatMap((work) =>
-    work.attachments.map((filename) => ({ filename, work })),
+    work.attachments.map((file) => ({ filename: isAppFileRef(file) ? file.name : file, work })),
   );
   const whatsappUrl = `https://wa.me/${client.whatsapp.replace(/\D/g, "")}`;
   const timeline = [
@@ -323,8 +324,10 @@ export function ClientDetails({
                 </button>
               </header>
               <div>
-                {work.attachments.map((file) => (
-                  <span key={file}>▱ {file}</span>
+                {work.attachments.map((file, index) => (
+                  <span key={`${isAppFileRef(file) ? file.id : file}-${index}`}>
+                    ▱ {isAppFileRef(file) ? file.name : file}
+                  </span>
                 ))}
                 <span>▦ Galeria · {work.photos.selected} selecionadas</span>
               </div>

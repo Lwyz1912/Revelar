@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { FileViewer } from "@/components/shared/FileViewer";
 import {
   defaultProfessionalSettings,
   normalizeProfessionalSettings,
@@ -14,11 +15,14 @@ import {
 import { notificationCategoryOptions } from "@/config/notifications";
 import { palettes } from "@/config/themes";
 import { useStoredJsonState } from "@/hooks/use-persisted-state";
+import { deleteSettingsFile, readSettingsFile } from "@/lib/settings-files.client";
 import {
-  deleteSettingsFile,
-  readSettingsFile,
-  saveSettingsFile,
-} from "@/lib/settings-files.client";
+  deleteAppFile,
+  fileDownloadUrl,
+  fileViewUrl,
+  formatFileSize,
+  uploadAppFile,
+} from "@/lib/app-files.client";
 import { storageKeys } from "@/lib/storage";
 import type { NotificationPreferences, Palette, ThemeMode } from "@/types/revelar";
 
@@ -107,15 +111,6 @@ const contractCategories: ContractTemplateSettings["category"][] = [
   "Geral",
 ];
 
-function createFileRef(file: File): SettingsFileRef {
-  return {
-    id: `${Date.now()}-${crypto.randomUUID()}`,
-    name: file.name,
-    type: file.type,
-    size: file.size,
-  };
-}
-
 function collectFileIds(settings: ProfessionalSettings) {
   const ids = new Set<string>();
   if (settings.profile.avatar) ids.add(settings.profile.avatar.id);
@@ -138,6 +133,30 @@ function collectFileIds(settings: ProfessionalSettings) {
     });
   });
   return ids;
+}
+
+function collectFiles(settings: ProfessionalSettings) {
+  const files = new Map<string, SettingsFileRef>();
+  const add = (file?: SettingsFileRef) => {
+    if (file) files.set(file.id, file);
+  };
+  add(settings.profile.avatar);
+  settings.watermarks.forEach((watermark) => add(watermark.file));
+  settings.contractTemplates.forEach((template) => add(template.file));
+  settings.brands.forEach((brand) => {
+    (
+      [
+        "logoLight",
+        "logoDark",
+        "logoMono",
+        "symbolLight",
+        "symbolDark",
+        "symbolMono",
+        "signature",
+      ] as BrandAssetKey[]
+    ).forEach((key) => add(brand[key]));
+  });
+  return files;
 }
 
 function Toggle({
@@ -199,11 +218,14 @@ function LocalImage({
     let active = true;
     let objectUrl = "";
     if (!file) return;
-    void readSettingsFile(file.id).then((stored) => {
-      if (!active || !stored) return;
-      objectUrl = URL.createObjectURL(stored);
-      setPreview({ id: file.id, url: objectUrl });
-    });
+    void fetch(fileViewUrl(file), { cache: "no-store" })
+      .then((response) => (response.ok ? response.blob() : null))
+      .then(async (stored) => stored || (await readSettingsFile(file.id)))
+      .then((stored) => {
+        if (!active || !stored) return;
+        objectUrl = URL.createObjectURL(stored);
+        setPreview({ id: file.id, url: objectUrl });
+      });
     return () => {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
@@ -298,6 +320,10 @@ export function SettingsModal({
   const [listInputs, setListInputs] = useState<Record<string, string>>({});
   const [editingBrandId, setEditingBrandId] = useState<string | null>(null);
   const [fileNotice, setFileNotice] = useState("");
+  const [previewTemplate, setPreviewTemplate] = useState<SettingsFileRef | null>(null);
+  const [replaceTemplateId, setReplaceTemplateId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const templateReplaceInput = useRef<HTMLInputElement>(null);
   const [savedValue, setSavedValue] = useStoredJsonState<unknown>(
     storageKeys.professionalSettings,
     defaultProfessionalSettings,
@@ -305,19 +331,30 @@ export function SettingsModal({
   const [draft, setDraft] = useState<ProfessionalSettings>(defaultProfessionalSettings);
   const [loaded, setLoaded] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const pendingFileIds = useRef(new Set<string>());
+  const pendingFiles = useRef(new Map<string, SettingsFileRef>());
   const initialTheme = useRef(themeMode);
   const initialPalette = useRef(palette);
   const initialNotifications = useRef(notificationPreferences);
 
   useEffect(() => {
     if (loaded) return;
-    const timeout = window.setTimeout(() => {
-      setDraft(normalizeProfessionalSettings(savedValue));
-      setLoaded(true);
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [loaded, savedValue]);
+    let cancelled = false;
+    void fetch("/api/professional-settings", { cache: "no-store" })
+      .then(async (response) =>
+        response.ok ? ((await response.json()) as { data?: unknown } | null) : null,
+      )
+      .catch(() => null)
+      .then((result) => {
+        if (cancelled) return;
+        const value = result?.data ?? savedValue;
+        setSavedValue(value);
+        setDraft(normalizeProfessionalSettings(value));
+        setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loaded, savedValue, setSavedValue]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -357,15 +394,14 @@ export function SettingsModal({
       .filter((group) => group.items.length > 0);
   }, [query]);
 
-  const storeFile = async (file: File) => {
-    const ref = createFileRef(file);
-    await saveSettingsFile(ref.id, file);
-    pendingFileIds.current.add(ref.id);
+  const storeFile = async (file: File, scope: string, relatedId?: string) => {
+    const ref = await uploadAppFile(file, scope, relatedId);
+    pendingFiles.current.set(ref.id, ref);
     return ref;
   };
 
   const handleFileError = () => {
-    setFileNotice("Não foi possível guardar esse arquivo neste dispositivo.");
+    setFileNotice("Não foi possível enviar esse arquivo ao Revelar.");
     window.setTimeout(() => setFileNotice(""), 3500);
   };
 
@@ -373,7 +409,7 @@ export function SettingsModal({
     const file = files?.[0];
     if (!file) return;
     try {
-      const ref = await storeFile(file);
+      const ref = await storeFile(file, "profile");
       updateDraft((current) => ({ ...current, profile: { ...current.profile, avatar: ref } }));
     } catch {
       handleFileError();
@@ -391,7 +427,7 @@ export function SettingsModal({
     const file = files?.[0];
     if (!file) return;
     try {
-      const ref = await storeFile(file);
+      const ref = await storeFile(file, "brand", brandId);
       updateBrand(brandId, { [key]: ref });
     } catch {
       handleFileError();
@@ -403,7 +439,7 @@ export function SettingsModal({
     try {
       const added: WatermarkSettings[] = [];
       for (const file of Array.from(files)) {
-        const ref = await storeFile(file);
+        const ref = await storeFile(file, "watermark");
         added.push({ id: ref.id, name: file.name.replace(/\.[^.]+$/, ""), file: ref });
       }
       updateDraft((current) => ({
@@ -421,7 +457,7 @@ export function SettingsModal({
     try {
       const added: ContractTemplateSettings[] = [];
       for (const file of Array.from(files)) {
-        const ref = await storeFile(file);
+        const ref = await storeFile(file, "contract-template");
         added.push({ id: ref.id, file: ref, category: "Geral", brandId: draft.activeBrandId });
       }
       updateDraft((current) => ({
@@ -433,10 +469,28 @@ export function SettingsModal({
     }
   };
 
+  const replaceContractTemplate = async (templateId: string, file?: File) => {
+    if (!file) return;
+    try {
+      const ref = await storeFile(file, "contract-template", templateId);
+      const previous = draft.contractTemplates.find((item) => item.id === templateId)?.file;
+      removeFileFromDraft(previous);
+      updateDraft((current) => ({
+        ...current,
+        contractTemplates: current.contractTemplates.map((item) =>
+          item.id === templateId ? { ...item, file: ref } : item,
+        ),
+      }));
+      if (previewTemplate?.id === previous?.id) setPreviewTemplate(ref);
+    } catch {
+      handleFileError();
+    }
+  };
+
   const removeFileFromDraft = (ref?: SettingsFileRef) => {
-    if (ref && pendingFileIds.current.has(ref.id)) {
-      void deleteSettingsFile(ref.id);
-      pendingFileIds.current.delete(ref.id);
+    if (ref && pendingFiles.current.has(ref.id)) {
+      void deleteAppFile(ref).catch(() => deleteSettingsFile(ref.id));
+      pendingFiles.current.delete(ref.id);
     }
   };
 
@@ -449,8 +503,10 @@ export function SettingsModal({
   };
 
   const cancel = () => {
-    pendingFileIds.current.forEach((id) => void deleteSettingsFile(id));
-    pendingFileIds.current.clear();
+    pendingFiles.current.forEach(
+      (file) => void deleteAppFile(file).catch(() => deleteSettingsFile(file.id)),
+    );
+    pendingFiles.current.clear();
     restoreImmediatePreferences();
     onClose();
   };
@@ -460,15 +516,28 @@ export function SettingsModal({
     cancel();
   };
 
-  const save = () => {
-    const previousIds = collectFileIds(savedSettings);
+  const save = async () => {
+    setSaving(true);
+    const response = await fetch("/api/professional-settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(draft),
+    }).catch(() => null);
+    if (!response?.ok) {
+      setSaving(false);
+      setFileNotice("Não foi possível sincronizar as configurações. Tente novamente.");
+      window.setTimeout(() => setFileNotice(""), 4000);
+      return;
+    }
+    const previousFiles = collectFiles(savedSettings);
     const nextIds = collectFileIds(draft);
-    previousIds.forEach((id) => {
-      if (!nextIds.has(id)) void deleteSettingsFile(id);
+    previousFiles.forEach((file, id) => {
+      if (!nextIds.has(id)) void deleteAppFile(file).catch(() => deleteSettingsFile(id));
     });
     setSavedValue(draft);
-    pendingFileIds.current.clear();
+    pendingFiles.current.clear();
     setDirty(false);
+    setSaving(false);
     onSave();
   };
 
@@ -1559,7 +1628,7 @@ export function SettingsModal({
       <SectionHeading
         eyebrow="DOCUMENTOS"
         title="Modelos de contrato"
-        description="Arquivos PDF e DOCX salvos neste dispositivo e organizados por categoria."
+        description="Arquivos PDF e DOCX sincronizados, visíveis no computador e no celular."
       />
       <label className="file-drop wide-drop">
         <strong>＋ Importar modelo</strong>
@@ -1580,7 +1649,7 @@ export function SettingsModal({
               </span>
               <div>
                 <strong>{template.file.name}</strong>
-                <small>Salvo neste dispositivo</small>
+                <small>{formatFileSize(template.file.size)} · salvo no Revelar.</small>
               </div>
               <select
                 aria-label={`Categoria de ${template.file.name}`}
@@ -1637,6 +1706,26 @@ export function SettingsModal({
                   ? "Padrão"
                   : "Usar como padrão"}
               </button>
+              <div className="template-file-actions">
+                <button type="button" onClick={() => setPreviewTemplate(template.file)}>
+                  Visualizar
+                </button>
+                <a href={fileDownloadUrl(template.file)} download={template.file.name}>
+                  Baixar
+                </a>
+                <label className="template-replace-button">
+                  Substituir
+                  <input
+                    hidden
+                    type="file"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(event) => {
+                      void replaceContractTemplate(template.id, event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
               <button
                 type="button"
                 className="icon-remove"
@@ -2152,88 +2241,135 @@ export function SettingsModal({
   };
 
   return (
-    <div
-      className="modal-backdrop settings-backdrop"
-      role="presentation"
-      onMouseDown={requestClose}
-    >
-      <section
-        className="settings-modal settings-workspace"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-        onMouseDown={(event) => event.stopPropagation()}
+    <>
+      <div
+        className="modal-backdrop settings-backdrop"
+        role="presentation"
+        onMouseDown={requestClose}
       >
-        <header className="settings-workspace-header">
-          <div>
-            <p>CONFIGURAÇÕES</p>
-            <h1 id="settings-title">Personalize seu Revelar.</h1>
-          </div>
-          <div className="settings-search">
-            <span>⌕</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Pesquisar configuração..."
-              aria-label="Pesquisar configurações"
-            />
-          </div>
-          <button
-            type="button"
-            className="settings-close"
-            onClick={requestClose}
-            aria-label="Fechar"
-          >
-            ×
-          </button>
-        </header>
-        {fileNotice && (
-          <div className="settings-inline-error" role="alert">
-            {fileNotice}
-          </div>
-        )}
-        <div className="settings-workspace-body">
-          <aside className="settings-sidebar" aria-label="Áreas das configurações">
-            {visibleGroups.length > 0 ? (
-              visibleGroups.map((group) => (
-                <div key={group.title}>
-                  <p>{group.title}</p>
-                  {group.items.map((item) => (
-                    <button
-                      type="button"
-                      key={item.id}
-                      className={section === item.id ? "active" : ""}
-                      onClick={() => setSection(item.id)}
-                    >
-                      <i>{item.icon}</i>
-                      <span>
-                        <strong>{item.label}</strong>
-                        <small>{item.hint}</small>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ))
-            ) : (
-              <div className="settings-no-results">Nenhuma configuração encontrada.</div>
-            )}
-          </aside>
-          <main className="settings-content">{renderContent()}</main>
-        </div>
-        <footer className="settings-workspace-footer">
-          <span className={dirty ? "dirty" : ""}>
-            {dirty ? "● Alterações ainda não salvas" : "✓ Tudo salvo neste dispositivo"}
-          </span>
-          <div>
-            <button type="button" className="outline-button" onClick={requestClose}>
-              Cancelar
+        <section
+          className="settings-modal settings-workspace"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <header className="settings-workspace-header">
+            <div>
+              <p>CONFIGURAÇÕES</p>
+              <h1 id="settings-title">Personalize seu Revelar.</h1>
+            </div>
+            <div className="settings-search">
+              <span>⌕</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Pesquisar configuração..."
+                aria-label="Pesquisar configurações"
+              />
+            </div>
+            <button
+              type="button"
+              className="settings-close"
+              onClick={requestClose}
+              aria-label="Fechar"
+            >
+              ×
             </button>
-            <button className="primary-button" type="button" onClick={save} disabled={!loaded}>
-              Salvar configurações
-            </button>
+          </header>
+          {fileNotice && (
+            <div className="settings-inline-error" role="alert">
+              {fileNotice}
+            </div>
+          )}
+          <div className="settings-workspace-body">
+            <aside className="settings-sidebar" aria-label="Áreas das configurações">
+              {visibleGroups.length > 0 ? (
+                visibleGroups.map((group) => (
+                  <div key={group.title}>
+                    <p>{group.title}</p>
+                    {group.items.map((item) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        className={section === item.id ? "active" : ""}
+                        onClick={() => setSection(item.id)}
+                      >
+                        <i>{item.icon}</i>
+                        <span>
+                          <strong>{item.label}</strong>
+                          <small>{item.hint}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                <div className="settings-no-results">Nenhuma configuração encontrada.</div>
+              )}
+            </aside>
+            <main className="settings-content">{renderContent()}</main>
           </div>
-        </footer>
-      </section>
-    </div>
+          <footer className="settings-workspace-footer">
+            <span className={dirty ? "dirty" : ""}>
+              {dirty ? "● Alterações ainda não salvas" : "✓ Tudo sincronizado no Revelar."}
+            </span>
+            <div>
+              <button type="button" className="outline-button" onClick={requestClose}>
+                Cancelar
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => void save()}
+                disabled={!loaded || saving}
+              >
+                {saving ? "Salvando…" : "Salvar configurações"}
+              </button>
+            </div>
+          </footer>
+        </section>
+      </div>
+      <input
+        ref={templateReplaceInput}
+        hidden
+        type="file"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        onChange={(event) => {
+          if (replaceTemplateId)
+            void replaceContractTemplate(replaceTemplateId, event.target.files?.[0]);
+          event.target.value = "";
+          setReplaceTemplateId(null);
+        }}
+      />
+      {previewTemplate && (
+        <FileViewer
+          file={previewTemplate}
+          onClose={() => setPreviewTemplate(null)}
+          onReplace={() => {
+            const template = draft.contractTemplates.find(
+              (item) => item.file.id === previewTemplate.id,
+            );
+            if (!template) return;
+            setReplaceTemplateId(template.id);
+            window.setTimeout(() => templateReplaceInput.current?.click(), 0);
+          }}
+          onDelete={() => {
+            const template = draft.contractTemplates.find(
+              (item) => item.file.id === previewTemplate.id,
+            );
+            if (!template) return;
+            removeFileFromDraft(template.file);
+            updateDraft((current) => ({
+              ...current,
+              contractTemplates: current.contractTemplates.filter(
+                (item) => item.id !== template.id,
+              ),
+            }));
+            setPreviewTemplate(null);
+          }}
+        />
+      )}
+    </>
   );
 }

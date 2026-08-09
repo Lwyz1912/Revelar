@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   initialAgendaEvents,
@@ -60,6 +60,7 @@ export function useRevelarData() {
     [],
   );
   const [cloudReady, setCloudReady] = useState(false);
+  const locatingWorks = useRef(new Set<number>());
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +148,101 @@ export function useRevelarData() {
     diaryEntries,
     achievementUnlocks,
   ]);
+
+  useEffect(() => {
+    const normalize = (value: string) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLocaleLowerCase("pt-BR");
+    const missing = works.filter(
+      (work) =>
+        work.location.trim().length >= 3 &&
+        !locations.some((location) => location.workIds.includes(work.id)) &&
+        !locatingWorks.current.has(work.id),
+    );
+    if (!missing.length) return;
+    let cancelled = false;
+    const activeLocatingWorks = locatingWorks.current;
+    missing.forEach((work) => activeLocatingWorks.add(work.id));
+    void (async () => {
+      for (const work of missing) {
+        if (cancelled) break;
+        const direct = locations.find((location) => {
+          const saved = normalize(`${location.name} ${location.city}`);
+          const requested = normalize(work.location);
+          return saved.includes(requested) || requested.includes(normalize(location.name));
+        });
+        if (direct) {
+          setLocations((current) =>
+            current.map((location) =>
+              location.id === direct.id && !location.workIds.includes(work.id)
+                ? { ...location, workIds: [...location.workIds, work.id] }
+                : location,
+            ),
+          );
+          activeLocatingWorks.delete(work.id);
+          continue;
+        }
+        const response = await fetch(`/api/geocode?q=${encodeURIComponent(work.location)}`).catch(
+          () => null,
+        );
+        const data = response?.ok
+          ? ((await response.json()) as {
+              results?: Array<{
+                latitude: number;
+                longitude: number;
+                city: string;
+                country: PhotoLocation["country"] | null;
+              }>;
+            })
+          : null;
+        const found = data?.results?.find((item) => item.country);
+        if (found && !cancelled) {
+          setLocations((current) => {
+            const existing = current.find((location) => {
+              const near =
+                Math.abs(location.latitude - found.latitude) < 0.0008 &&
+                Math.abs(location.longitude - found.longitude) < 0.0008;
+              return near || normalize(location.name) === normalize(work.location);
+            });
+            if (existing) {
+              return current.map((location) =>
+                location.id === existing.id && !location.workIds.includes(work.id)
+                  ? { ...location, workIds: [...location.workIds, work.id] }
+                  : location,
+              );
+            }
+            return [
+              {
+                id: crypto.randomUUID(),
+                name: work.location,
+                city: found.city || work.location,
+                country: found.country!,
+                latitude: found.latitude,
+                longitude: found.longitude,
+                contact: "",
+                price: "",
+                parking: "",
+                accessibility: "",
+                bestTime: "",
+                notes: `Adicionado automaticamente pelo trabalho “${work.title}”.`,
+                cover: "/demo/gallery/ensaio-pessoal.webp",
+                workIds: [work.id],
+              },
+              ...current,
+            ];
+          });
+        }
+        activeLocatingWorks.delete(work.id);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      missing.forEach((work) => activeLocatingWorks.delete(work.id));
+    };
+  }, [locations, setLocations, works]);
 
   return {
     clients,

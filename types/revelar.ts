@@ -2,6 +2,14 @@ export type ThemeMode = "light" | "dark" | "system";
 export type Palette = "essencia" | "terracota" | "rose" | "mono" | "lune";
 export type Currency = "BRL" | "EUR";
 export type ViewMode = "list" | "cards";
+export type AppFileRef = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  uploadedAt?: string;
+  storage?: "cloud" | "local";
+};
 export type AppSection =
   | "Visão geral"
   | "Agenda"
@@ -145,7 +153,7 @@ export type Product = {
   availableQuantity?: number;
   availabilityLabel?: string;
   deliveryType: "manual" | "file" | "link";
-  deliveryFile?: string;
+  deliveryFile?: string | AppFileRef;
   deliveryLink?: string;
   discountType: ProductDiscountType;
   discountValue: number;
@@ -211,7 +219,7 @@ export type Contract = {
   quoteId?: number;
   status: ContractStatus;
   template: "standard" | "custom";
-  templateFile?: string;
+  templateFile?: string | AppFileRef;
   content: string;
   updatedAt: string;
 };
@@ -260,7 +268,7 @@ export type WorkStage = {
   responsible?: string;
   notes?: string;
   checklist?: Array<{ id: string; label: string; done: boolean }>;
-  attachments?: string[];
+  attachments?: Array<string | AppFileRef>;
   custom?: boolean;
 };
 
@@ -285,7 +293,7 @@ export type Work = {
   costItems?: WorkCost[];
   photos: { captured: number; selected: number; edited: number; delivered: number };
   stages: WorkStage[];
-  attachments: string[];
+  attachments: Array<string | AppFileRef>;
   moodboard?: WorkMoodboard;
 };
 
@@ -294,6 +302,8 @@ export type MoodboardReference = {
   kind: "image" | "link" | "pose" | "lighting" | "equipment";
   title: string;
   value: string;
+  notes?: string;
+  file?: AppFileRef;
 };
 
 export type WorkMoodboard = {
