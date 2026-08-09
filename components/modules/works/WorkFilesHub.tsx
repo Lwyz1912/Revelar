@@ -19,17 +19,17 @@ const folders: Array<{
   icon: string;
   accent: string;
 }> = [
-  { id: "preview", label: "Prévia", icon: "◫", accent: "Fotos para escolher" },
-  { id: "selection", label: "Seleção", icon: "♡", accent: "Escolhas do cliente" },
-  { id: "edited", label: "Editadas", icon: "✦", accent: "Aprovação e ajustes" },
-  { id: "delivered", label: "Entregues", icon: "⇩", accent: "Alta e redes sociais" },
+  { id: "preview", label: "Fotos enviadas", icon: "◫", accent: "Provas que o cliente verá" },
+  { id: "selection", label: "Escolhidas", icon: "♡", accent: "Seleção feita pelo cliente" },
+  { id: "edited", label: "Para aprovação", icon: "✦", accent: "Fotos editadas em revisão" },
+  { id: "delivered", label: "Entrega final", icon: "⇩", accent: "Alta e redes sociais" },
   { id: "originals", label: "Originais", icon: "▣", accent: "Backup opcional" },
 ];
 
 const phaseLabels: Record<GalleryPhase, string> = {
-  selection: "Seleção",
-  approval: "Aprovação",
-  delivery: "Entrega",
+  selection: "Cliente escolhendo",
+  approval: "Cliente aprovando",
+  delivery: "Entrega liberada",
 };
 
 function formatSize(bytes: number) {
@@ -77,6 +77,7 @@ export function WorkFilesHub({
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [watermarkFile, setWatermarkFile] = useState<File | null>(null);
   const [pinTouched, setPinTouched] = useState(false);
   const [settings, setSettings] = useState({
@@ -128,6 +129,11 @@ export function WorkFilesHub({
   useEffect(() => {
     const timer = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(timer);
+  }, [refresh]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void refresh(), 15_000);
+    return () => window.clearInterval(timer);
   }, [refresh]);
 
   useEffect(() => {
@@ -299,6 +305,7 @@ export function WorkFilesHub({
     if (folder === "selection") return gallery.photos.filter((photo) => photo.selected);
     return gallery.photos.filter((photo) => photo.folder === folder);
   }, [folder, gallery]);
+  const activePhoto = gallery?.photos.find((photo) => photo.id === activePhotoId) || null;
 
   if (loading) return <div className="gallery-manager-loading">Preparando arquivos…</div>;
 
@@ -346,11 +353,15 @@ export function WorkFilesHub({
     <section className="work-gallery-manager">
       <header className="gallery-manager-header">
         <div>
-          <span>ARQUIVOS E GALERIA</span>
+          <span>ÁREA COMPARTILHADA COM O CLIENTE</span>
           <h2>
             {clientName} ({work.title})
           </h2>
-          <div className="gallery-stage-switch" aria-label="Etapa da galeria">
+          <p className="gallery-phase-help">
+            Escolha o que o cliente pode fazer agora. As pastas abaixo continuam sendo apenas a
+            organização interna dos arquivos.
+          </p>
+          <div className="gallery-stage-switch" aria-label="Etapa visível para o cliente">
             {(Object.keys(phaseLabels) as GalleryPhase[]).map((phase) => (
               <button
                 key={phase}
@@ -402,6 +413,10 @@ export function WorkFilesHub({
       </div>
 
       <div className="gallery-folder-tabs">
+        <div className="gallery-folders-heading">
+          <strong>Arquivos do fluxo</strong>
+          <span>Organização da fotógrafa · não muda a etapa do cliente</span>
+        </div>
         {folders.map((item) => (
           <button
             key={item.id}
@@ -425,6 +440,9 @@ export function WorkFilesHub({
             {photos.length} arquivo{photos.length === 1 ? "" : "s"}
           </span>
         </div>
+        <button className="gallery-refresh" type="button" onClick={() => void refresh()}>
+          ↻ Atualizar atividade do cliente
+        </button>
         {folder !== "selection" && (
           <button type="button" disabled={busy} onClick={() => photoInput.current?.click()}>
             ＋ Enviar {folder === "originals" ? "originais" : "fotos"}
@@ -501,18 +519,25 @@ export function WorkFilesHub({
 
       <div className="gallery-admin-grid">
         {photos.map((photo) => (
-          <article key={photo.id}>
-            {photo.hasPreview ? (
-              <img
-                src={`/api/galleries/${gallery.id}/photos/${photo.id}`}
-                alt={photo.filename}
-                loading="lazy"
-              />
-            ) : (
-              <span className="raw-file-icon">
-                {photo.mimeType.includes("zip") ? "ZIP" : "RAW"}
-              </span>
-            )}
+          <article key={photo.id} className={photo.comment ? "has-client-comment" : ""}>
+            <button
+              className="gallery-admin-photo-open"
+              type="button"
+              onClick={() => setActivePhotoId(photo.id)}
+              aria-label={`Abrir detalhes de ${photo.filename}`}
+            >
+              {photo.hasPreview ? (
+                <img
+                  src={`/api/galleries/${gallery.id}/photos/${photo.id}`}
+                  alt={photo.filename}
+                  loading="lazy"
+                />
+              ) : (
+                <span className="raw-file-icon">
+                  {photo.mimeType.includes("zip") ? "ZIP" : "RAW"}
+                </span>
+              )}
+            </button>
             <div>
               <strong>{photo.filename}</strong>
               <small>{formatSize(photo.size)}</small>
@@ -522,6 +547,15 @@ export function WorkFilesHub({
               {photo.approved && <b>✓</b>}
               {photo.comment && <b>●</b>}
             </span>
+            {photo.comment && (
+              <button
+                className="client-comment-preview"
+                type="button"
+                onClick={() => setActivePhotoId(photo.id)}
+              >
+                “{photo.comment.split("\n").at(-1)}”
+              </button>
+            )}
           </article>
         ))}
         {photos.length === 0 && (
@@ -545,12 +579,70 @@ export function WorkFilesHub({
       )}
 
       <div className="gallery-activity-list">
+        <strong>Atividade recente do cliente</strong>
         {gallery.events.slice(0, 5).map((event) => (
           <span key={event.id}>
             <i /> {event.detail}
           </span>
         ))}
       </div>
+
+      {activePhoto && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={() => setActivePhotoId(null)}
+        >
+          <section
+            className="gallery-client-activity-dialog"
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <span>RETORNO DO CLIENTE</span>
+                <h2>{activePhoto.filename}</h2>
+              </div>
+              <button type="button" onClick={() => setActivePhotoId(null)}>
+                ×
+              </button>
+            </header>
+            {activePhoto.hasPreview ? (
+              <img
+                src={`/api/galleries/${gallery.id}/photos/${activePhoto.id}`}
+                alt={activePhoto.filename}
+              />
+            ) : (
+              <div className="raw-file-icon">ARQUIVO</div>
+            )}
+            <div className="gallery-client-statuses">
+              <span className={activePhoto.selected ? "active" : ""}>
+                {activePhoto.selected ? "♥ Escolhida pelo cliente" : "Não escolhida"}
+              </span>
+              <span className={activePhoto.approved ? "active" : ""}>
+                {activePhoto.approved ? "✓ Edição aprovada" : "Aguardando aprovação"}
+              </span>
+            </div>
+            <section>
+              <strong>Comentários do cliente</strong>
+              {activePhoto.comment ? (
+                activePhoto.comment
+                  .split("\n")
+                  .filter(Boolean)
+                  .map((comment, index) => <p key={`${comment}-${index}`}>{comment}</p>)
+              ) : (
+                <p>Nenhum comentário nesta foto.</p>
+              )}
+            </section>
+            <footer>
+              <button type="button" onClick={() => setActivePhotoId(null)}>
+                Fechar
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       {settingsOpen && (
         <div className="gallery-settings-drawer" role="dialog" aria-modal="true">
