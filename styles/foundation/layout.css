@@ -237,16 +237,6 @@
 .theme-dark .icon-button > img {
   filter: invert(1);
 }
-.notification i {
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--rose);
-  right: 8px;
-  top: 7px;
-  border: 1px solid var(--surface);
-}
 .mobile-logo,
 .mobile-search {
   display: none;

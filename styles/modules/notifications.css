@@ -1,19 +1,30 @@
 .notification-anchor {
   position: relative;
 }
-.notification i {
-  display: grid;
-  place-items: center;
-  width: auto;
-  min-width: 16px;
-  height: 16px;
+.notification .notification-count {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
   padding: 0 4px;
-  right: -5px;
-  top: -6px;
+  right: -6px;
+  top: -7px;
   border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--rose);
   color: #fff;
-  font: 800 8px/1 inherit;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
   font-style: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
 }
 .notification-popover {
   position: absolute;
