@@ -454,21 +454,14 @@
     align-content: center;
     gap: 3px;
   }
-  .mobile-nav button img {
+  .mobile-nav button .revelar-icon {
     width: 18px;
     height: 18px;
-    object-fit: contain;
-    opacity: 0.62;
+    opacity: 0.7;
   }
-  .theme-dark .mobile-nav button img {
-    filter: invert(1);
-  }
-  .mobile-nav button.active img {
+  .mobile-nav button.active .revelar-icon {
     opacity: 1;
-    filter: sepia(1) saturate(5) hue-rotate(64deg) brightness(0.46);
-  }
-  .theme-dark .mobile-nav button.active img {
-    filter: invert(82%) sepia(23%) saturate(666%) hue-rotate(356deg) brightness(92%);
+    color: var(--primary);
   }
   .mobile-nav button.active {
     color: var(--primary);
