@@ -1,19 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
+import { OpenMap } from "@/components/modules/locations/OpenMap";
 import type { PhotoLocation, Work } from "@/types/revelar";
 
-const regionBounds = {
-  Portugal: { minLat: 36.8, maxLat: 42.2, minLng: -9.6, maxLng: -6.1 },
-  Brasil: { minLat: -34, maxLat: 5, minLng: -74, maxLng: -34 },
+type LocationDraft = Omit<PhotoLocation, "id" | "workIds" | "cover">;
+type SearchResult = {
+  id: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+  city: string;
+  country: PhotoLocation["country"] | null;
 };
 
-function markerPosition(location: PhotoLocation) {
-  const bounds = regionBounds[location.country];
+const initialCoordinates: Record<PhotoLocation["country"], [number, number]> = {
+  Brasil: [-8.0522, -34.9286],
+  Portugal: [38.7223, -9.1393],
+};
+
+function blankDraft(country: PhotoLocation["country"]): LocationDraft {
   return {
-    left: `${Math.max(5, Math.min(95, ((location.longitude - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100))}%`,
-    top: `${Math.max(5, Math.min(95, (1 - (location.latitude - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * 100))}%`,
+    name: "",
+    city: "",
+    country,
+    latitude: initialCoordinates[country][0],
+    longitude: initialCoordinates[country][1],
+    contact: "",
+    price: "",
+    parking: "",
+    accessibility: "",
+    bestTime: "",
+    notes: "",
   };
 }
 
@@ -29,11 +48,102 @@ export function LocationsView({
   toast: (message: string) => void;
 }) {
   const [country, setCountry] = useState<PhotoLocation["country"]>("Brasil");
-  const visible = locations.filter((location) => location.country === country);
+  const visible = useMemo(
+    () => locations.filter((location) => location.country === country),
+    [country, locations],
+  );
   const [selectedId, setSelectedId] = useState(visible[0]?.id || locations[0]?.id || "");
-  const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<LocationDraft>(() => blankDraft("Brasil"));
+  const [search, setSearch] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const selected = locations.find((location) => location.id === selectedId) || visible[0];
   const selectedWorks = works.filter((work) => selected?.workIds.includes(work.id));
+  const dialogOpen = editingId !== null;
+
+  const openCreate = () => {
+    setEditingId("new");
+    setDraft(blankDraft(country));
+    setSearch("");
+    setResults([]);
+  };
+
+  const openEdit = (location: PhotoLocation) => {
+    setEditingId(location.id);
+    setDraft({
+      name: location.name,
+      city: location.city,
+      country: location.country,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      contact: location.contact,
+      price: location.price,
+      parking: location.parking,
+      accessibility: location.accessibility,
+      bestTime: location.bestTime,
+      notes: location.notes,
+    });
+    setSearch(location.name);
+    setResults([]);
+  };
+
+  const findAddress = async () => {
+    if (search.trim().length < 3) return;
+    setSearching(true);
+    const response = await fetch(`/api/geocode?q=${encodeURIComponent(search.trim())}`);
+    const data = (await response.json().catch(() => ({ results: [] }))) as {
+      results?: SearchResult[];
+      error?: string;
+    };
+    setSearching(false);
+    setResults(data.results || []);
+    if (!response.ok) toast(data.error || "Não foi possível pesquisar este endereço");
+  };
+
+  const selectResult = (result: SearchResult) => {
+    const firstPart = result.label.split(",")[0]?.trim() || search.trim();
+    setDraft((current) => ({
+      ...current,
+      name: current.name || firstPart,
+      city: result.city || current.city,
+      country: result.country || current.country,
+      latitude: result.latitude,
+      longitude: result.longitude,
+    }));
+    if (result.country) setCountry(result.country);
+    setSearch(result.label);
+    setResults([]);
+  };
+
+  const saveLocation = () => {
+    if (!draft.name.trim() || !draft.city.trim()) return;
+    if (editingId === "new") {
+      const location: PhotoLocation = {
+        id: crypto.randomUUID(),
+        ...draft,
+        name: draft.name.trim(),
+        city: draft.city.trim(),
+        cover: "/demo/gallery/ensaio-pessoal.webp",
+        workIds: [],
+      };
+      setLocations((current) => [location, ...current]);
+      setSelectedId(location.id);
+      setCountry(location.country);
+      toast("Local salvo no mapa");
+    } else {
+      setLocations((current) =>
+        current.map((location) =>
+          location.id === editingId
+            ? { ...location, ...draft, name: draft.name.trim(), city: draft.city.trim() }
+            : location,
+        ),
+      );
+      setCountry(draft.country);
+      toast("Local atualizado");
+    }
+    setEditingId(null);
+  };
 
   return (
     <div className="places-view">
@@ -41,9 +151,9 @@ export function LocationsView({
         <div>
           <p>MEMÓRIAS NO MAPA</p>
           <h1>Locais</h1>
-          <span>{locations.length} lugares fotografados</span>
+          <span>{locations.length} lugares fotografados · sincronizados pelos trabalhos</span>
         </div>
-        <button className="primary-button" type="button" onClick={() => setCreating(true)}>
+        <button className="primary-button" type="button" onClick={openCreate}>
           ＋ Novo local
         </button>
       </header>
@@ -64,25 +174,9 @@ export function LocationsView({
         ))}
       </div>
       <div className="places-layout">
-        <section
-          className={`places-map map-${country.toLowerCase()}`}
-          aria-label={`Mapa de ${country}`}
-        >
-          <div className="map-land">
-            <span>{country}</span>
-          </div>
-          {visible.map((location) => (
-            <button
-              key={location.id}
-              className={selected?.id === location.id ? "active" : ""}
-              style={markerPosition(location)}
-              onClick={() => setSelectedId(location.id)}
-              aria-label={location.name}
-            >
-              <i>●</i>
-              <span>{location.name}</span>
-            </button>
-          ))}
+        <section className="places-map-shell" aria-label={`Mapa de ${country}`}>
+          <OpenMap locations={visible} selectedId={selected?.id} onSelect={setSelectedId} />
+          <div className="map-provider-note">Mapa aberto · OpenStreetMap</div>
         </section>
         <aside className="place-panel">
           {selected ? (
@@ -93,28 +187,45 @@ export function LocationsView({
                   {selected.city} · {selected.country}
                 </small>
                 <h2>{selected.name}</h2>
-                <p>{selected.notes}</p>
+                <p>{selected.notes || "Sem observações cadastradas."}</p>
+              </div>
+              <div className="place-panel-actions">
+                <button type="button" onClick={() => openEdit(selected)}>
+                  Editar local
+                </button>
+                <button
+                  className="danger-action"
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm(`Excluir ${selected.name} do mapa?`)) return;
+                    setLocations((current) => current.filter((item) => item.id !== selected.id));
+                    setSelectedId(visible.find((item) => item.id !== selected.id)?.id || "");
+                    toast("Local removido do mapa");
+                  }}
+                >
+                  Excluir
+                </button>
               </div>
               <dl>
                 <div>
                   <dt>Melhor horário</dt>
-                  <dd>{selected.bestTime}</dd>
+                  <dd>{selected.bestTime || "Não informado"}</dd>
                 </div>
                 <div>
                   <dt>Preço</dt>
-                  <dd>{selected.price}</dd>
+                  <dd>{selected.price || "Não informado"}</dd>
                 </div>
                 <div>
                   <dt>Estacionamento</dt>
-                  <dd>{selected.parking}</dd>
+                  <dd>{selected.parking || "Não informado"}</dd>
                 </div>
                 <div>
                   <dt>Acessibilidade</dt>
-                  <dd>{selected.accessibility}</dd>
+                  <dd>{selected.accessibility || "Não informada"}</dd>
                 </div>
                 <div>
                   <dt>Contato</dt>
-                  <dd>{selected.contact}</dd>
+                  <dd>{selected.contact || "Não informado"}</dd>
                 </div>
               </dl>
               <div className="place-work-list">
@@ -134,94 +245,161 @@ export function LocationsView({
               </div>
             </>
           ) : (
-            <div className="places-empty">Adicione o primeiro local.</div>
+            <div className="places-empty">
+              Os locais dos trabalhos aparecerão aqui automaticamente.
+            </div>
           )}
         </aside>
       </div>
-      {creating && (
-        <div className="drawer-backdrop" onMouseDown={() => setCreating(false)}>
+      {dialogOpen && (
+        <div className="drawer-backdrop" onMouseDown={() => setEditingId(null)}>
           <form
-            className="place-dialog"
+            className="place-dialog place-map-dialog"
             onMouseDown={(event) => event.stopPropagation()}
             onSubmit={(event) => {
               event.preventDefault();
-              const form = new FormData(event.currentTarget);
-              const newLocation: PhotoLocation = {
-                id: crypto.randomUUID(),
-                name: String(form.get("name")),
-                city: String(form.get("city")),
-                country: String(form.get("country")) as PhotoLocation["country"],
-                latitude: Number(form.get("latitude")),
-                longitude: Number(form.get("longitude")),
-                contact: String(form.get("contact")),
-                price: String(form.get("price")),
-                parking: String(form.get("parking")),
-                accessibility: String(form.get("accessibility")),
-                bestTime: String(form.get("bestTime")),
-                notes: String(form.get("notes")),
-                cover: "/demo/gallery/ensaio-pessoal.webp",
-                workIds: [],
-              };
-              setLocations((current) => [newLocation, ...current]);
-              setCountry(newLocation.country);
-              setSelectedId(newLocation.id);
-              setCreating(false);
-              toast("Local salvo no mapa");
+              saveLocation();
             }}
           >
-            <button className="close" type="button" onClick={() => setCreating(false)}>
+            <button className="close" type="button" onClick={() => setEditingId(null)}>
               ×
             </button>
-            <span>NOVO LOCAL</span>
-            <h2>Guardar um lugar</h2>
+            <span>{editingId === "new" ? "NOVO LOCAL" : "EDITAR LOCAL"}</span>
+            <h2>{editingId === "new" ? "Guardar um lugar" : draft.name}</h2>
+            <div className="location-search-box">
+              <label>
+                Pesquisar endereço ou lugar
+                <span>
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void findAddress();
+                      }
+                    }}
+                    placeholder="Ex.: Praia de Pajuçara, Maceió"
+                  />
+                  <button type="button" onClick={() => void findAddress()} disabled={searching}>
+                    {searching ? "Buscando…" : "Buscar"}
+                  </button>
+                </span>
+              </label>
+              {results.length > 0 && (
+                <div className="location-search-results">
+                  {results.map((result) => (
+                    <button type="button" key={result.id} onClick={() => selectResult(result)}>
+                      <strong>{result.label.split(",")[0]}</strong>
+                      <small>{result.label}</small>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <OpenMap
+              compact
+              locations={[]}
+              editablePosition={{ latitude: draft.latitude, longitude: draft.longitude }}
+              onPositionChange={(position) => setDraft((current) => ({ ...current, ...position }))}
+            />
+            <small className="map-edit-hint">
+              Arraste o pino ou toque no mapa para ajustar o ponto exato.
+            </small>
             <div className="place-form-grid">
               <label>
                 Nome
-                <input name="name" required />
+                <input
+                  value={draft.name}
+                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                  required
+                />
               </label>
               <label>
                 Cidade
-                <input name="city" required />
+                <input
+                  value={draft.city}
+                  onChange={(event) => setDraft({ ...draft, city: event.target.value })}
+                  required
+                />
               </label>
               <label>
                 País
-                <select name="country">
+                <select
+                  value={draft.country}
+                  onChange={(event) =>
+                    setDraft({ ...draft, country: event.target.value as PhotoLocation["country"] })
+                  }
+                >
                   <option>Brasil</option>
                   <option>Portugal</option>
                 </select>
               </label>
               <label>
                 Melhor horário
-                <input name="bestTime" />
+                <input
+                  value={draft.bestTime}
+                  onChange={(event) => setDraft({ ...draft, bestTime: event.target.value })}
+                />
               </label>
               <label>
                 Latitude
-                <input name="latitude" type="number" step="any" required />
+                <input
+                  value={draft.latitude}
+                  onChange={(event) => setDraft({ ...draft, latitude: Number(event.target.value) })}
+                  type="number"
+                  step="any"
+                  required
+                />
               </label>
               <label>
                 Longitude
-                <input name="longitude" type="number" step="any" required />
+                <input
+                  value={draft.longitude}
+                  onChange={(event) =>
+                    setDraft({ ...draft, longitude: Number(event.target.value) })
+                  }
+                  type="number"
+                  step="any"
+                  required
+                />
               </label>
               <label>
                 Contato
-                <input name="contact" />
+                <input
+                  value={draft.contact}
+                  onChange={(event) => setDraft({ ...draft, contact: event.target.value })}
+                />
               </label>
               <label>
                 Preço
-                <input name="price" />
+                <input
+                  value={draft.price}
+                  onChange={(event) => setDraft({ ...draft, price: event.target.value })}
+                />
               </label>
               <label>
                 Estacionamento
-                <input name="parking" />
+                <input
+                  value={draft.parking}
+                  onChange={(event) => setDraft({ ...draft, parking: event.target.value })}
+                />
               </label>
               <label>
                 Acessibilidade
-                <input name="accessibility" />
+                <input
+                  value={draft.accessibility}
+                  onChange={(event) => setDraft({ ...draft, accessibility: event.target.value })}
+                />
               </label>
             </div>
             <label>
               Observações
-              <textarea name="notes" rows={3} />
+              <textarea
+                value={draft.notes}
+                onChange={(event) => setDraft({ ...draft, notes: event.target.value })}
+                rows={3}
+              />
             </label>
             <button className="primary-button" type="submit">
               Salvar local
