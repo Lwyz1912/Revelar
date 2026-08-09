@@ -1,0 +1,867 @@
+.editing-studio {
+  min-height: calc(100vh - 72px);
+  padding: 34px 44px 50px;
+}
+.editing-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+.editing-heading p,
+.editing-heading > div > span,
+.editing-section-title span,
+.editing-album-dialog > span {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+}
+.editing-heading h1,
+.editing-section-title h2,
+.editing-album-dialog h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+.editing-heading h1 {
+  font-size: clamp(32px, 4vw, 48px);
+  letter-spacing: -0.035em;
+}
+.editing-heading > div > span {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.editing-heading-actions {
+  display: flex;
+  gap: 10px;
+}
+.editing-heading-actions button,
+.editing-editor-actions > button,
+.editing-editor-actions summary {
+  min-height: 41px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+.editing-heading-actions .primary-button {
+  color: white;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.editing-section-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.editing-section-title h2 {
+  font-size: 24px;
+}
+.editing-section-title small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.editing-camera-shelf {
+  margin-bottom: 36px;
+}
+.editing-camera-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.editing-camera-grid > button {
+  min-width: 0;
+  padding: 0 0 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--surface);
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(20, 35, 23, 0.035);
+  transition: 0.2s ease;
+}
+.editing-camera-grid > button:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: var(--shadow);
+}
+.editing-camera-preview {
+  position: relative;
+  display: block;
+  height: 164px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.editing-camera-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+.editing-camera-grid > button:hover img {
+  transform: scale(1.035);
+}
+.editing-camera-preview i {
+  position: absolute;
+  left: 10px;
+  bottom: 9px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  color: #fff;
+  background: rgba(15, 14, 11, 0.62);
+  backdrop-filter: blur(8px);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+.editing-camera-grid > button > strong,
+.editing-camera-grid > button > small {
+  display: block;
+  margin: 0 13px;
+}
+.editing-camera-grid > button > strong {
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+.editing-camera-grid > button > small {
+  min-height: 30px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.editing-album-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.editing-album-grid > button {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--surface);
+  display: grid;
+  grid-template-columns: 112px 1fr 18px;
+  align-items: center;
+  gap: 13px;
+  text-align: left;
+  transition: 0.18s ease;
+}
+.editing-album-grid > button:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+}
+.editing-album-cover {
+  position: relative;
+  width: 112px;
+  height: 82px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-2);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.editing-album-cover img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+}
+.editing-album-cover img:only-of-type {
+  grid-column: 1/-1;
+}
+.editing-album-cover i {
+  grid-column: 1/-1;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 25px;
+  font-style: normal;
+}
+.editing-album-cover em {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  color: white;
+  background: rgba(15, 20, 15, 0.7);
+  font-size: 6px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.editing-album-grid > button > span:nth-child(2) {
+  min-width: 0;
+}
+.editing-album-grid > button strong,
+.editing-album-grid > button small {
+  display: block;
+}
+.editing-album-grid > button strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editing-album-grid > button small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.editing-album-grid > button > b {
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 400;
+}
+.editing-album-grid > .editing-new-album {
+  min-height: 104px;
+  grid-template-columns: 40px 1fr;
+  align-content: center;
+  border-style: dashed;
+}
+.editing-new-album > span:first-child {
+  grid-row: 1/3;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--primary);
+  background: var(--accent-soft);
+  font-size: 20px;
+}
+.editing-new-album > small {
+  margin: 0 !important;
+}
+.editing-private-presets {
+  margin-top: 35px;
+}
+.editing-private-presets > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.editing-private-presets article {
+  min-width: 180px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.editing-private-presets article span,
+.editing-private-presets article strong,
+.editing-private-presets article small {
+  display: block;
+}
+.editing-private-presets article span {
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 800;
+}
+.editing-private-presets article strong {
+  margin-top: 5px;
+  font-size: 12px;
+}
+.editing-private-presets article small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.editing-crumb {
+  margin: 0 0 5px;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 11px;
+}
+.editing-crumb span {
+  margin-left: 4px;
+}
+.editing-demo-banner {
+  margin-bottom: 16px;
+  padding: 11px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface));
+}
+.editing-demo-banner > span {
+  padding: 4px 7px;
+  border-radius: 4px;
+  color: white;
+  background: var(--primary);
+  font-size: 8px;
+  font-weight: 800;
+}
+.editing-demo-banner p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.editing-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.editing-photo-grid > button {
+  min-width: 0;
+  padding: 0 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text);
+  background: var(--surface);
+  text-align: left;
+}
+.editing-photo-thumb {
+  position: relative;
+  display: block;
+  height: 210px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.editing-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s ease;
+}
+.editing-photo-grid > button:hover img {
+  transform: scale(1.03);
+}
+.editing-photo-thumb i {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: white;
+  background: var(--primary);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 800;
+}
+.editing-photo-grid > button > span:last-child {
+  display: block;
+  padding: 11px 12px 0;
+}
+.editing-photo-grid strong,
+.editing-photo-grid small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editing-photo-grid strong {
+  font-size: 11px;
+}
+.editing-photo-grid small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.editing-empty {
+  min-height: 350px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  background: var(--surface);
+}
+.editing-empty > span {
+  color: var(--muted);
+  font-size: 35px;
+}
+.editing-empty h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+.editing-album-dialog {
+  position: relative;
+  width: min(420px, calc(100vw - 28px));
+  padding: 30px;
+  border-radius: 15px;
+  background: var(--surface);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.22);
+}
+.editing-album-dialog .close {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 24px;
+}
+.editing-album-dialog h2 {
+  margin-bottom: 20px;
+  font-size: 29px;
+}
+.editing-album-dialog label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.editing-album-dialog input {
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.editing-album-dialog .primary-button {
+  width: 100%;
+  margin-top: 18px;
+}
+
+/* Editor */
+.editing-studio.editor-open {
+  padding: 0;
+  background: #161815;
+}
+.editing-editor-bar {
+  min-height: 62px;
+  padding: 9px 17px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #f7f4ec;
+  background: #1e211d;
+}
+.editing-editor-bar .back-button {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+.editing-editor-bar > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+.editing-editor-bar span,
+.editing-editor-bar strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editing-editor-bar span {
+  color: #aeb5aa;
+  font-size: 9px;
+}
+.editing-editor-bar strong {
+  margin-top: 3px;
+  font-size: 12px;
+}
+.editing-editor-actions {
+  display: flex;
+  gap: 8px;
+}
+.editing-editor-actions > button,
+.editing-editor-actions summary {
+  min-height: 36px;
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+.editing-editor-actions > button:first-child {
+  color: #142116;
+  background: #eee7d7;
+}
+.editing-editor-actions details {
+  position: relative;
+}
+.editing-editor-actions summary {
+  cursor: pointer;
+  list-style: none;
+}
+.editing-editor-actions details > div {
+  position: absolute;
+  right: 0;
+  top: 43px;
+  width: 210px;
+  padding: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  display: grid;
+  gap: 4px;
+  background: #282b27;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+  z-index: 20;
+}
+.editing-editor-actions details button {
+  padding: 10px;
+  border: 0;
+  border-radius: 6px;
+  color: #f2eee4;
+  background: transparent;
+  text-align: left;
+  font-size: 10px;
+}
+.editing-editor-actions details button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.editing-workspace {
+  min-height: calc(100vh - 134px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+}
+.editing-canvas-area {
+  min-width: 0;
+  padding: 18px 18px 12px;
+  display: grid;
+  grid-template-rows: minmax(360px, 1fr) auto;
+  gap: 14px;
+  background: #111310;
+}
+.editing-photo-stage {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+.editing-photo-effects {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  max-height: calc(100vh - 275px);
+  overflow: hidden;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.36);
+}
+.editing-photo-effects img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 275px);
+  object-fit: contain;
+}
+.editing-photo-effects::before,
+.editing-photo-effects::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.editing-photo-effects::before {
+  opacity: calc(var(--edit-grain) * 0.42 + var(--edit-dust) * 0.3);
+  background-image:
+    repeating-radial-gradient(
+      circle at 20% 40%,
+      transparent 0 2px,
+      rgba(255, 255, 255, 0.34) 3px,
+      transparent 4px
+    ),
+    radial-gradient(
+      circle at 0 40%,
+      rgba(255, 96, 42, calc(var(--edit-leak) * 0.56)),
+      transparent 48%
+    ),
+    radial-gradient(
+      circle at 68% 22%,
+      rgba(255, 121, 69, calc(var(--edit-halation) * 0.28)),
+      transparent 43%
+    );
+  background-size:
+    7px 7px,
+    100% 100%,
+    100% 100%;
+  mix-blend-mode: screen;
+}
+.editing-photo-effects::after {
+  box-shadow: inset 0 0 calc(120px * var(--edit-vignette)) calc(35px * var(--edit-vignette))
+    rgba(0, 0, 0, 0.88);
+}
+.compare-button {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  padding: 8px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 99px;
+  color: white;
+  background: rgba(16, 17, 14, 0.6);
+  backdrop-filter: blur(10px);
+  font-size: 9px;
+  font-weight: 700;
+  touch-action: none;
+}
+.editing-preset-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.editing-preset-strip > button {
+  width: 72px;
+  flex: 0 0 72px;
+  padding: 0;
+  border: 0;
+  color: #a9afa5;
+  background: transparent;
+  font-size: 8px;
+  text-align: center;
+}
+.editing-preset-strip > button span {
+  display: block;
+  height: 54px;
+  margin-bottom: 5px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 6px;
+}
+.editing-preset-strip > button.active span {
+  border-color: #e4c882;
+}
+.editing-preset-strip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.editing-controls {
+  padding: 18px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f3f0e8;
+  background: #20231f;
+}
+.editing-control-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.editing-control-tabs button {
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: #92998f;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+}
+.editing-control-tabs button.active {
+  border-color: #d8bd7d;
+  color: #f4f0e6;
+}
+.editing-sliders {
+  display: grid;
+  gap: 17px;
+}
+.editing-sliders label > span {
+  margin-bottom: 7px;
+  display: flex;
+  justify-content: space-between;
+  color: #bbc1b7;
+  font-size: 9px;
+}
+.editing-sliders label b {
+  color: #e6e1d7;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.editing-sliders input {
+  width: 100%;
+  height: 3px;
+  accent-color: #d8bd7d;
+}
+.editing-reset {
+  width: 100%;
+  margin-top: 24px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 7px;
+  color: #b9beb5;
+  background: transparent;
+  font-size: 9px;
+}
+.editing-original-note {
+  margin-top: 18px;
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  gap: 9px;
+  color: #d9c995;
+  background: rgba(217, 201, 149, 0.08);
+}
+.editing-original-note p,
+.editing-original-note strong,
+.editing-original-note small {
+  display: block;
+  margin: 0;
+}
+.editing-original-note strong {
+  font-size: 9px;
+}
+.editing-original-note small {
+  margin-top: 3px;
+  color: #999f96;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1150px) {
+  .editing-camera-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .editing-camera-grid > button:nth-child(n + 4) {
+    display: none;
+  }
+  .editing-album-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .editing-photo-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .editing-studio {
+    min-height: calc(100vh - 137px);
+    padding: 23px 14px 35px;
+  }
+  .editing-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 23px;
+  }
+  .editing-heading h1 {
+    font-size: 34px;
+  }
+  .editing-heading-actions {
+    width: 100%;
+  }
+  .editing-heading-actions button {
+    flex: 1;
+    padding: 0 10px;
+  }
+  .editing-camera-grid {
+    display: flex;
+    margin-right: -14px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+  .editing-camera-grid > button,
+  .editing-camera-grid > button:nth-child(n + 4) {
+    display: block;
+    width: 168px;
+    flex: 0 0 168px;
+    scroll-snap-align: start;
+  }
+  .editing-camera-preview {
+    height: 145px;
+  }
+  .editing-album-grid {
+    grid-template-columns: 1fr;
+  }
+  .editing-album-grid > button {
+    grid-template-columns: 96px 1fr 15px;
+  }
+  .editing-album-cover {
+    width: 96px;
+    height: 72px;
+  }
+  .editing-photo-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+  .editing-photo-thumb {
+    height: 185px;
+  }
+  .editing-photo-grid > button > span:last-child {
+    padding: 9px 9px 0;
+  }
+  .editing-demo-banner {
+    align-items: flex-start;
+  }
+  .editing-studio.editor-open {
+    padding: 0;
+    min-height: calc(100vh - 61px);
+  }
+  .editing-editor-bar {
+    min-height: 58px;
+    padding: 8px 10px;
+  }
+  .editing-editor-bar > div:nth-child(2) span {
+    display: none;
+  }
+  .editing-editor-actions > button {
+    width: 41px;
+    padding: 0;
+    overflow: hidden;
+    color: transparent;
+  }
+  .editing-editor-actions > button::after {
+    content: "✓";
+    color: #142116;
+    font-size: 16px;
+  }
+  .editing-editor-actions summary {
+    padding: 0 11px;
+  }
+  .editing-workspace {
+    min-height: calc(100vh - 119px);
+    display: flex;
+    flex-direction: column;
+  }
+  .editing-canvas-area {
+    min-height: 56vh;
+    padding: 10px 10px 8px;
+    grid-template-rows: minmax(330px, 1fr) auto;
+  }
+  .editing-photo-effects,
+  .editing-photo-effects img {
+    max-height: 47vh;
+  }
+  .editing-controls {
+    padding: 14px 15px 90px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 0;
+  }
+  .editing-control-tabs {
+    position: sticky;
+    top: 60px;
+    z-index: 3;
+    background: #20231f;
+  }
+  .editing-sliders {
+    grid-template-columns: 1fr;
+  }
+  .editing-album-dialog {
+    padding: 25px 20px;
+  }
+}

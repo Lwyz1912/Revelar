@@ -46,6 +46,7 @@ import { NewClientDrawer } from "@/components/modules/clients/NewClientDrawer";
 import { ContractsView } from "@/components/modules/contracts/ContractsView";
 import { Dashboard } from "@/components/modules/dashboard/Dashboard";
 import { FinancialView } from "@/components/modules/finance/FinancialView";
+import { EditingStudioView } from "@/components/modules/editing/EditingStudioView";
 import { GalleryLibraryView } from "@/components/modules/gallery/GalleryLibraryView";
 import { ProductsView } from "@/components/modules/products/ProductsView";
 import { QuotesView } from "@/components/modules/quotes/QuotesView";
@@ -307,6 +308,7 @@ export function RevelarApp() {
   const isAgenda = activeNav === "Agenda";
   const isFinancial = activeNav === "Financeiro";
   const isGallery = activeNav === "Galeria";
+  const isEditing = activeNav === "Presets e edição";
   const isProducts = activeNav === "Produtos";
   const isQuotes = activeNav === "Orçamentos";
   const isContracts = activeNav === "Contratos";
@@ -482,6 +484,8 @@ export function RevelarApp() {
           />
         ) : isGallery ? (
           <GalleryLibraryView works={works} onOpenWork={openWork} toast={setToast} />
+        ) : isEditing ? (
+          <EditingStudioView toast={setToast} />
         ) : isProducts ? (
           <ProductsView
             products={products}
@@ -528,6 +532,7 @@ export function RevelarApp() {
         !notificationsCenterOpen &&
         !isAgenda &&
         !isGallery &&
+        !isEditing &&
         !isFinancial &&
         !isProducts &&
         !isQuotes &&

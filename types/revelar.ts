@@ -8,12 +8,66 @@ export type AppSection =
   | "Clientes"
   | "Trabalhos"
   | "Galeria"
+  | "Presets e edição"
   | "Financeiro"
   | "Produtos"
   | "Orçamentos"
   | "Contratos"
   | "Locais";
 export type AvailableSection = Exclude<AppSection, "Locais">;
+
+export type EditingAdjustments = {
+  exposure: number;
+  contrast: number;
+  highlights: number;
+  shadows: number;
+  temperature: number;
+  tint: number;
+  saturation: number;
+  fade: number;
+  grain: number;
+  vignette: number;
+  halation: number;
+  chromatic: number;
+  dust: number;
+  lightLeak: number;
+};
+
+export type EditingPreset = {
+  id: string;
+  name: string;
+  camera: string;
+  description: string;
+  adjustments: EditingAdjustments;
+  builtIn: boolean;
+  source?: "xmp" | "dng" | "custom";
+};
+
+export type EditingAlbum = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  demo?: boolean;
+};
+
+export type EditingPhoto = {
+  id: string;
+  albumId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  width: number;
+  height: number;
+  previewUrl: string;
+  originalUrl: string;
+  editedUrl?: string;
+  presetId?: string;
+  adjustments: EditingAdjustments;
+  createdAt: string;
+  updatedAt: string;
+  demo?: boolean;
+};
 export type ClientType = "person" | "company";
 export type WorkStatus =
   | "planning"

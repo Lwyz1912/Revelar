@@ -33,6 +33,11 @@ export const navItems = [
     available: true,
   },
   {
+    icon: "/brand/revelar-icons-svg-monocromatico/14-temas.svg",
+    label: "Presets e edição",
+    available: true,
+  },
+  {
     icon: "/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg",
     label: "Financeiro",
     available: true,

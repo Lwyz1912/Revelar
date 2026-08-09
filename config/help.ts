@@ -52,6 +52,15 @@ export const sectionGuides: Record<AvailableSection, SectionGuide> = {
     ],
     tip: "Os dados de demonstração são separados e podem ser restaurados a qualquer momento.",
   },
+  "Presets e edição": {
+    purpose: "Edite fotos com estilos de câmera sem alterar o arquivo original.",
+    steps: [
+      "Crie um álbum e importe fotos JPG, PNG ou WebP.",
+      "Abra a foto, escolha um estilo e ajuste luz, cor e textura.",
+      "Salve a receita ou exporte em JPG/PNG.",
+    ],
+    tip: "Use o álbum de demonstração para experimentar todos os controles sem enviar fotos.",
+  },
   Financeiro: {
     purpose: "Entenda de onde o dinheiro veio, para onde foi e o que ainda está pendente.",
     steps: [
