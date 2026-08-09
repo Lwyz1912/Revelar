@@ -1100,7 +1100,7 @@
   display: grid;
   grid-template-columns:
     auto minmax(120px, 1fr) minmax(100px, 0.65fr) minmax(120px, 0.75fr)
-    auto auto;
+    auto minmax(190px, auto) auto;
   align-items: center;
   gap: 11px;
   padding: 11px;
@@ -1144,6 +1144,26 @@
   border-color: transparent;
   color: var(--muted);
   font-size: 15px;
+}
+.template-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.template-file-actions button,
+.template-file-actions a,
+.template-file-actions label {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 8px;
+  cursor: pointer;
 }
 .empty-setting {
   margin-top: 12px;
@@ -1367,7 +1387,8 @@ html[data-high-contrast="true"] {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .template-list article select,
-  .template-list article > button:not(.icon-remove) {
+  .template-list article > button:not(.icon-remove),
+  .template-file-actions {
     grid-column: 1 / -1;
   }
 }
@@ -1410,7 +1431,8 @@ html[data-high-contrast="true"] {
   .template-list article {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
-  .template-list article > button:not(.icon-remove) {
+  .template-list article > button:not(.icon-remove),
+  .template-file-actions {
     grid-column: 1 / -1;
   }
   .settings-row-card {
