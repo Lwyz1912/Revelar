@@ -95,6 +95,7 @@ export type ProfessionalSettings = {
     prefix: string;
     nextNumber: number;
     validityDays: number;
+    declinedTrashDays: 0 | 7 | 15 | 30 | 60;
     defaultNotes: string;
     brandId: string;
   };
@@ -221,6 +222,7 @@ export const defaultProfessionalSettings: ProfessionalSettings = {
     prefix: "ORC",
     nextNumber: 1,
     validityDays: 15,
+    declinedTrashDays: 7,
     defaultNotes: "Valores sujeitos à disponibilidade da data.",
     brandId: "mary-fotografia",
   },
