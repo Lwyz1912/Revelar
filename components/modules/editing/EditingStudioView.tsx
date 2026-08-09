@@ -29,7 +29,7 @@ type LibraryResponse = {
 const demo = buildDemoEditingData();
 const adjustmentGroups: Array<{
   label: string;
-  fields: Array<{ key: keyof EditingAdjustments; label: string }>;
+  fields: Array<{ key: keyof EditingAdjustments; label: string; min?: number }>;
 }> = [
   {
     label: "Luz e cor",
@@ -44,15 +44,19 @@ const adjustmentGroups: Array<{
     ],
   },
   {
-    label: "Filme",
+    label: "Lente e filme",
     fields: [
-      { key: "fade", label: "Desbotado" },
-      { key: "grain", label: "Grão" },
-      { key: "vignette", label: "Vinheta" },
-      { key: "halation", label: "Halation" },
-      { key: "chromatic", label: "Aberração" },
-      { key: "dust", label: "Poeira" },
-      { key: "lightLeak", label: "Vazamento de luz" },
+      { key: "fade", label: "Desbotado", min: 0 },
+      { key: "grain", label: "Grão", min: 0 },
+      { key: "softness", label: "Foco suave", min: 0 },
+      { key: "motionTrail", label: "Rastro de movimento", min: 0 },
+      { key: "coolShadows", label: "Sombras frias", min: 0 },
+      { key: "warmHighlights", label: "Luzes quentes", min: 0 },
+      { key: "vignette", label: "Vinheta", min: 0 },
+      { key: "halation", label: "Halation", min: 0 },
+      { key: "chromatic", label: "Aberração", min: 0 },
+      { key: "dust", label: "Poeira", min: 0 },
+      { key: "lightLeak", label: "Vazamento de luz", min: 0 },
     ],
   },
 ];
@@ -74,7 +78,48 @@ function effectVariables(adjustments: EditingAdjustments, original = false) {
     "--edit-leak": original ? 0 : adjustments.lightLeak / 100,
     "--edit-dust": original ? 0 : adjustments.dust / 100,
     "--edit-chromatic": original ? 0 : adjustments.chromatic / 100,
+    "--edit-motion": original ? 0 : adjustments.motionTrail / 100,
+    "--edit-cool-shadows": original ? 0 : adjustments.coolShadows / 100,
+    "--edit-warm-highlights": original ? 0 : adjustments.warmHighlights / 100,
   } as CSSProperties;
+}
+
+function FilteredImage({
+  src,
+  alt,
+  adjustments,
+  original = false,
+}: {
+  src: string;
+  alt: string;
+  adjustments: EditingAdjustments;
+  original?: boolean;
+}) {
+  const filter = original ? "none" : editingCssFilter(adjustments);
+  const hasTrail = !original && adjustments.motionTrail > 0;
+  return (
+    <>
+      {hasTrail && (
+        <>
+          <img
+            className="editing-motion-layer editing-motion-layer-one"
+            src={src}
+            alt=""
+            aria-hidden="true"
+            style={{ filter }}
+          />
+          <img
+            className="editing-motion-layer editing-motion-layer-two"
+            src={src}
+            alt=""
+            aria-hidden="true"
+            style={{ filter }}
+          />
+        </>
+      )}
+      <img className="editing-effect-main" src={src} alt={alt} style={{ filter }} />
+    </>
+  );
 }
 
 export function EditingStudioView({ toast }: { toast: (message: string) => void }) {
@@ -298,9 +343,6 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
   };
 
   if (activePhoto) {
-    const effectStyle = {
-      filter: showOriginal ? "none" : editingCssFilter(adjustments),
-    };
     const effectVars = effectVariables(adjustments, showOriginal);
     return (
       <div className="editing-studio editor-open">
@@ -339,7 +381,12 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
           <section className="editing-canvas-area">
             <div className="editing-photo-stage">
               <div className="editing-photo-effects" style={effectVars}>
-                <img src={activePhoto.previewUrl} alt={activePhoto.filename} style={effectStyle} />
+                <FilteredImage
+                  src={activePhoto.previewUrl}
+                  alt={activePhoto.filename}
+                  adjustments={adjustments}
+                  original={showOriginal}
+                />
               </div>
               <button
                 className="compare-button"
@@ -374,11 +421,11 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
                   className={presetId === preset.id ? "active" : ""}
                   onClick={() => choosePreset(preset)}
                 >
-                  <span>
-                    <img
+                  <span style={effectVariables(preset.adjustments)}>
+                    <FilteredImage
                       src={activePhoto.previewUrl}
                       alt=""
-                      style={{ filter: editingCssFilter(preset.adjustments) }}
+                      adjustments={preset.adjustments}
                     />
                   </span>
                   {preset.name}
@@ -430,7 +477,7 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
                     </span>
                     <input
                       type="range"
-                      min="-100"
+                      min={field.min ?? -100}
                       max="100"
                       value={adjustments[field.key]}
                       onChange={(event) =>
@@ -550,10 +597,10 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
                     className="editing-camera-preview"
                     style={effectVariables(preset.adjustments)}
                   >
-                    <img
+                    <FilteredImage
                       src={demo.photos[index % demo.photos.length].previewUrl}
                       alt=""
-                      style={{ filter: editingCssFilter(preset.adjustments) }}
+                      adjustments={preset.adjustments}
                     />
                     <i>{preset.camera}</i>
                     <em>{preset.category}</em>
@@ -640,11 +687,11 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
             <div className="editing-photo-grid">
               {albumPhotos.map((photo) => (
                 <button key={photo.id} type="button" onClick={() => openPhoto(photo)}>
-                  <span className="editing-photo-thumb">
-                    <img
+                  <span className="editing-photo-thumb" style={effectVariables(photo.adjustments)}>
+                    <FilteredImage
                       src={photo.previewUrl}
                       alt={photo.filename}
-                      style={{ filter: editingCssFilter(photo.adjustments) }}
+                      adjustments={photo.adjustments}
                     />
                     {photo.editedUrl && <i>EDITADA</i>}
                   </span>
