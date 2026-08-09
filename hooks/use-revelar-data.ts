@@ -25,7 +25,16 @@ import type {
   DiaryEntry,
   PhotoLocation,
   AchievementUnlock,
+  MoodboardReference,
+  StoreSettings,
 } from "@/types/revelar";
+
+const initialStoreSettings: StoreSettings = {
+  enabled: true,
+  title: "Loja Mary Fotografia",
+  description: "Produtos digitais, álbuns e experiências pensadas para guardar histórias.",
+  whatsapp: "",
+};
 
 export function useRevelarData() {
   const [clients, setClients] = useStoredJsonState<Client[]>(storageKeys.clients, initialClients);
@@ -59,6 +68,14 @@ export function useRevelarData() {
     storageKeys.achievementUnlocks,
     [],
   );
+  const [referenceLibrary, setReferenceLibrary] = useStoredJsonState<MoodboardReference[]>(
+    "revelar-reference-library",
+    [],
+  );
+  const [storeSettings, setStoreSettings] = useStoredJsonState<StoreSettings>(
+    "revelar-store-settings",
+    initialStoreSettings,
+  );
   const [cloudReady, setCloudReady] = useState(false);
   const locatingWorks = useRef(new Set<number>());
 
@@ -82,6 +99,8 @@ export function useRevelarData() {
           locations: PhotoLocation[];
           diaryEntries: DiaryEntry[];
           achievementUnlocks: AchievementUnlock[];
+          referenceLibrary: MoodboardReference[];
+          storeSettings: StoreSettings;
         }>;
         if (Array.isArray(data.clients)) setClients(data.clients);
         if (Array.isArray(data.works)) setWorks(data.works);
@@ -93,6 +112,9 @@ export function useRevelarData() {
         if (Array.isArray(data.locations)) setLocations(data.locations);
         if (Array.isArray(data.diaryEntries)) setDiaryEntries(data.diaryEntries);
         if (Array.isArray(data.achievementUnlocks)) setAchievementUnlocks(data.achievementUnlocks);
+        if (Array.isArray(data.referenceLibrary)) setReferenceLibrary(data.referenceLibrary);
+        if (data.storeSettings && typeof data.storeSettings === "object")
+          setStoreSettings({ ...initialStoreSettings, ...data.storeSettings });
       })
       .catch(() => undefined)
       .finally(() => {
@@ -112,6 +134,8 @@ export function useRevelarData() {
     setTransactions,
     setWorks,
     setAchievementUnlocks,
+    setReferenceLibrary,
+    setStoreSettings,
   ]);
 
   useEffect(() => {
@@ -131,6 +155,8 @@ export function useRevelarData() {
           locations,
           diaryEntries,
           achievementUnlocks,
+          referenceLibrary,
+          storeSettings,
         }),
       }).catch(() => undefined);
     }, 900);
@@ -147,6 +173,8 @@ export function useRevelarData() {
     locations,
     diaryEntries,
     achievementUnlocks,
+    referenceLibrary,
+    storeSettings,
   ]);
 
   useEffect(() => {
@@ -265,6 +293,10 @@ export function useRevelarData() {
     setDiaryEntries,
     achievementUnlocks,
     setAchievementUnlocks,
+    referenceLibrary,
+    setReferenceLibrary,
+    storeSettings,
+    setStoreSettings,
     cloudReady,
   };
 }
