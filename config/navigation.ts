@@ -54,11 +54,6 @@ export const navItems = [
     available: true,
   },
   {
-    icon: "contracts",
-    label: "Contratos",
-    available: true,
-  },
-  {
     icon: "locations",
     label: "Locais",
     available: true,
