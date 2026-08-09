@@ -21,6 +21,11 @@ export function emptyProduct(currency: Currency): Omit<Product, "id" | "sales"> 
     discountValue: 0,
     status: "active",
     publicReady: false,
+    sku: "",
+    badges: [],
+    galleryFiles: [],
+    hideWhenSoldOut: true,
+    allowBackorder: false,
   };
 }
 
