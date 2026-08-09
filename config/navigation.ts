@@ -1,74 +1,75 @@
 import type { AppSection } from "@/types/revelar";
+import type { RevelarIconName } from "@/components/shared/RevelarIcon";
 
 export type NavigationItem = {
-  icon: string;
+  icon: RevelarIconName;
   label: AppSection;
   available: boolean;
 };
 
 export const navItems = [
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/01-visao-geral.svg",
+    icon: "overview",
     label: "Visão geral",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/04-agenda.svg",
+    icon: "agenda",
     label: "Agenda",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/02-clientes.svg",
+    icon: "clients",
     label: "Clientes",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/03-trabalhos.svg",
+    icon: "works",
     label: "Trabalhos",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/10-fotografias.svg",
+    icon: "gallery",
     label: "Galeria",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/14-temas.svg",
+    icon: "editing",
     label: "Presets e edição",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg",
+    icon: "finance",
     label: "Financeiro",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/11-entrega.svg",
+    icon: "products",
     label: "Produtos",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/09-arquivos.svg",
+    icon: "quotes",
     label: "Orçamentos",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/08-contratos.svg",
+    icon: "contracts",
     label: "Contratos",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/05-calendario.svg",
+    icon: "locations",
     label: "Locais",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/01-visao-geral.svg",
+    icon: "diary",
     label: "Diário",
     available: true,
   },
   {
-    icon: "/brand/revelar-icons-svg-monocromatico/12-notificacoes.svg",
+    icon: "whatsapp",
     label: "WhatsApp e IA",
     available: true,
   },
