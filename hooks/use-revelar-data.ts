@@ -24,6 +24,7 @@ import type {
   Work,
   DiaryEntry,
   PhotoLocation,
+  AchievementUnlock,
 } from "@/types/revelar";
 
 export function useRevelarData() {
@@ -54,6 +55,10 @@ export function useRevelarData() {
     storageKeys.diary,
     initialDiaryEntries,
   );
+  const [achievementUnlocks, setAchievementUnlocks] = useStoredJsonState<AchievementUnlock[]>(
+    storageKeys.achievementUnlocks,
+    [],
+  );
   const [cloudReady, setCloudReady] = useState(false);
 
   useEffect(() => {
@@ -75,6 +80,7 @@ export function useRevelarData() {
           contracts: Contract[];
           locations: PhotoLocation[];
           diaryEntries: DiaryEntry[];
+          achievementUnlocks: AchievementUnlock[];
         }>;
         if (Array.isArray(data.clients)) setClients(data.clients);
         if (Array.isArray(data.works)) setWorks(data.works);
@@ -85,6 +91,7 @@ export function useRevelarData() {
         if (Array.isArray(data.contracts)) setContracts(data.contracts);
         if (Array.isArray(data.locations)) setLocations(data.locations);
         if (Array.isArray(data.diaryEntries)) setDiaryEntries(data.diaryEntries);
+        if (Array.isArray(data.achievementUnlocks)) setAchievementUnlocks(data.achievementUnlocks);
       })
       .catch(() => undefined)
       .finally(() => {
@@ -103,6 +110,7 @@ export function useRevelarData() {
     setQuotes,
     setTransactions,
     setWorks,
+    setAchievementUnlocks,
   ]);
 
   useEffect(() => {
@@ -121,6 +129,7 @@ export function useRevelarData() {
           contracts,
           locations,
           diaryEntries,
+          achievementUnlocks,
         }),
       }).catch(() => undefined);
     }, 900);
@@ -136,6 +145,7 @@ export function useRevelarData() {
     contracts,
     locations,
     diaryEntries,
+    achievementUnlocks,
   ]);
 
   return {
@@ -157,5 +167,8 @@ export function useRevelarData() {
     setLocations,
     diaryEntries,
     setDiaryEntries,
+    achievementUnlocks,
+    setAchievementUnlocks,
+    cloudReady,
   };
 }
