@@ -1,7 +1,15 @@
-import { type Dispatch, type SetStateAction, useState } from "react";
+import { type Dispatch, type SetStateAction, useRef, useState } from "react";
 
+import { FileViewer } from "@/components/shared/FileViewer";
 import { standardContractTemplate } from "@/config/contracts";
 import { contractStatusLabels } from "@/config/labels";
+import {
+  deleteAppFile,
+  fileDownloadUrl,
+  formatFileSize,
+  isAppFileRef,
+  uploadAppFile,
+} from "@/lib/app-files.client";
 import type { Client, Contract, ContractStatus, Quote } from "@/types/revelar";
 
 export function ContractsView({
@@ -18,8 +26,11 @@ export function ContractsView({
   toast: (message: string) => void;
 }) {
   const [selectedId, setSelectedId] = useState(contracts[0]?.id || 0);
-  const [templateFile, setTemplateFile] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const selected = contracts.find((item) => item.id === selectedId);
+  const selectedFile = isAppFileRef(selected?.templateFile) ? selected.templateFile : undefined;
   const update = (changes: Partial<Contract>) =>
     selected &&
     setContracts((current) =>
@@ -40,6 +51,32 @@ export function ContractsView({
     };
     setContracts((current) => [contract, ...current]);
     setSelectedId(id);
+  };
+
+  const uploadTemplate = async (file?: File) => {
+    if (!file || !selected) return;
+    setUploading(true);
+    try {
+      const uploaded = await uploadAppFile(file, "contract", String(selected.id));
+      const previous = isAppFileRef(selected.templateFile) ? selected.templateFile : undefined;
+      update({ template: "custom", templateFile: uploaded });
+      if (previous) await deleteAppFile(previous).catch(() => undefined);
+      toast(previous ? "Arquivo do contrato substituído" : "Arquivo enviado e salvo no Revelar.");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível enviar o arquivo");
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  };
+
+  const removeTemplate = async () => {
+    if (!selected) return;
+    const previous = isAppFileRef(selected.templateFile) ? selected.templateFile : undefined;
+    if (previous) await deleteAppFile(previous).catch(() => undefined);
+    update({ templateFile: undefined, template: "standard" });
+    setPreviewOpen(false);
+    toast("Arquivo removido do contrato");
   };
   return (
     <div className="documents-page">
@@ -143,7 +180,7 @@ export function ContractsView({
               <button
                 type="button"
                 className={selected.template === "standard" ? "active" : ""}
-                onClick={() => update({ template: "standard", templateFile: undefined })}
+                onClick={() => update({ template: "standard" })}
               >
                 <span>REVELAR.</span>
                 <strong>Modelo padrão editável</strong>
@@ -151,20 +188,24 @@ export function ContractsView({
               </button>
               <label className={selected.template === "custom" ? "active" : ""}>
                 <input
+                  ref={fileInput}
                   type="file"
                   accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   hidden
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    setTemplateFile(file.name);
-                    update({ template: "custom", templateFile: file.name });
-                    toast("Template próprio definido para este contrato");
-                  }}
+                  onChange={(event) => void uploadTemplate(event.target.files?.[0])}
                 />
                 <span>↑</span>
-                <strong>{selected.templateFile || templateFile || "Enviar PDF ou DOCX"}</strong>
-                <small>Substitui o modelo padrão</small>
+                <strong>
+                  {uploading
+                    ? "Enviando…"
+                    : selectedFile?.name ||
+                      (typeof selected.templateFile === "string"
+                        ? selected.templateFile
+                        : "Enviar PDF ou DOCX")}
+                </strong>
+                <small>
+                  {selectedFile ? "Clique para substituir" : "Salva e sincroniza no Revelar."}
+                </small>
               </label>
             </div>
             {selected.template === "standard" ? (
@@ -178,14 +219,45 @@ export function ContractsView({
             ) : (
               <div className="custom-template-preview">
                 <span>
-                  {selected.templateFile?.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX"}
+                  {(selectedFile?.name || String(selected.templateFile || ""))
+                    .toLowerCase()
+                    .endsWith(".pdf")
+                    ? "PDF"
+                    : "DOCX"}
                 </span>
                 <div>
-                  <strong>{selected.templateFile}</strong>
+                  <strong>
+                    {selectedFile?.name || String(selected.templateFile || "Nenhum arquivo")}
+                  </strong>
                   <p>
-                    Este arquivo foi definido como modelo. Os dados do cliente e do orçamento ficam
-                    vinculados ao contrato.
+                    {selectedFile
+                      ? `${formatFileSize(selectedFile.size)} · disponível no computador e no celular`
+                      : "Envie novamente este arquivo antigo para habilitar a visualização sincronizada."}
                   </p>
+                </div>
+                <div className="contract-file-actions">
+                  {selectedFile && (
+                    <>
+                      <button type="button" onClick={() => setPreviewOpen(true)}>
+                        Visualizar
+                      </button>
+                      <a href={fileDownloadUrl(selectedFile)} download={selectedFile.name}>
+                        Baixar
+                      </a>
+                    </>
+                  )}
+                  <button type="button" onClick={() => fileInput.current?.click()}>
+                    Substituir
+                  </button>
+                  {selected.templateFile && (
+                    <button
+                      className="danger-action"
+                      type="button"
+                      onClick={() => void removeTemplate()}
+                    >
+                      Excluir
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -215,6 +287,14 @@ export function ContractsView({
           </div>
         )}
       </div>
+      {previewOpen && selectedFile && (
+        <FileViewer
+          file={selectedFile}
+          onClose={() => setPreviewOpen(false)}
+          onReplace={() => fileInput.current?.click()}
+          onDelete={() => void removeTemplate()}
+        />
+      )}
     </div>
   );
 }
