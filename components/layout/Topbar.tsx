@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { NotificationPopover } from "@/components/notifications/NotificationPopover";
+import { RevelarIcon } from "@/components/shared/RevelarIcon";
 import type { AppNotification, Currency, ThemeMode } from "@/types/revelar";
 
 type TopbarProps = {
@@ -74,7 +75,7 @@ export function Topbar({
           onClick={onSearchToggle}
           aria-label="Abrir busca"
         >
-          <span className="search-glyph" aria-hidden="true" />
+          <RevelarIcon name="search" />
         </button>
         <select
           value={currency}
@@ -99,7 +100,7 @@ export function Topbar({
           onClick={() => onThemeChange(resolvedTheme === "light" ? "dark" : "light")}
           aria-label="Alternar tema"
         >
-          <img src="/brand/revelar-icons-svg-monocromatico/14-temas.svg" alt="" />
+          <RevelarIcon name={resolvedTheme === "light" ? "moon" : "sun"} />
         </button>
         <div className="notification-anchor">
           <button
@@ -109,7 +110,7 @@ export function Topbar({
             aria-label={`Notificações${unreadCount ? `, ${unreadCount} não lidas` : ""}`}
             aria-expanded={notificationsOpen}
           >
-            <img src="/brand/revelar-icons-svg-monocromatico/12-notificacoes.svg" alt="" />
+            <RevelarIcon name="bell" />
             {unreadCount > 0 && (
               <span className="notification-count" aria-hidden="true">
                 {unreadCount > 9 ? "9+" : unreadCount}
