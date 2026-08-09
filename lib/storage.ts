@@ -22,6 +22,7 @@ export const storageKeys = {
   automations: "revelar-automations",
   locations: "revelar-locations",
   diary: "revelar-diary",
+  achievementUnlocks: "revelar-achievement-unlocks",
 } as const;
 
 export function readText<T extends string>(

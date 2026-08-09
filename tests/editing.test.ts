@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -41,4 +42,10 @@ test("converte ajustes compatíveis de um preset XMP", async () => {
   assert.equal(preset.adjustments.exposure, 12);
   assert.equal(preset.adjustments.temperature, 10);
   assert.equal(preset.adjustments.grain, 22);
+});
+
+test("a textura de filme não usa mosaico radial repetido", () => {
+  const styles = readFileSync(new URL("../styles/modules/editing.css", import.meta.url), "utf8");
+  assert.doesNotMatch(styles, /repeating-radial-gradient/);
+  assert.match(styles, /revelar-film-grain/);
 });

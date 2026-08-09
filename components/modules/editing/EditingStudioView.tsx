@@ -118,7 +118,27 @@ function FilteredImage({
         </>
       )}
       <img className="editing-effect-main" src={src} alt={alt} style={{ filter }} />
+      <span className="editing-film-grain" aria-hidden="true" />
     </>
+  );
+}
+
+function FilmTextureDefinitions() {
+  return (
+    <svg className="editing-filter-definitions" aria-hidden="true" focusable="false">
+      <defs>
+        <filter id="revelar-film-grain" x="0" y="0" width="100%" height="100%">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.72"
+            numOctaves="3"
+            seed="19"
+            stitchTiles="stitch"
+          />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+      </defs>
+    </svg>
   );
 }
 
@@ -346,6 +366,7 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
     const effectVars = effectVariables(adjustments, showOriginal);
     return (
       <div className="editing-studio editor-open">
+        <FilmTextureDefinitions />
         <header className="editing-editor-bar">
           <button type="button" className="back-button" onClick={() => setActivePhotoId(null)}>
             ←
@@ -516,6 +537,7 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
 
   return (
     <div className="editing-studio">
+      <FilmTextureDefinitions />
       <input ref={presetInput} type="file" accept=".xmp,.dng" hidden onChange={importPreset} />
       <input
         ref={photoInput}

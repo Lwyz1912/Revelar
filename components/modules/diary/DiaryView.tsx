@@ -1,80 +1,42 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { achievementCategories, achievementTiers } from "@/lib/achievements";
 import { formatDate } from "@/lib/format";
-import type { Client, DiaryEntry, Work } from "@/types/revelar";
+import type { AchievementEvaluation } from "@/lib/achievements";
+import type {
+  AchievementCategory,
+  AchievementTier,
+  AchievementUnlock,
+  DiaryEntry,
+  Work,
+} from "@/types/revelar";
 
 export function DiaryView({
   entries,
   setEntries,
   works,
-  clients,
+  achievements,
+  achievementUnlocks,
   toast,
 }: {
   entries: DiaryEntry[];
   setEntries: React.Dispatch<React.SetStateAction<DiaryEntry[]>>;
   works: Work[];
-  clients: Client[];
+  achievements: AchievementEvaluation[];
+  achievementUnlocks: AchievementUnlock[];
   toast: (message: string) => void;
 }) {
   const [tab, setTab] = useState<"diary" | "timeline" | "achievements">("diary");
   const [writing, setWriting] = useState(false);
-  const completed = works.filter((work) => work.status === "completed").length;
-  const achievements = [
-    {
-      icon: "◇",
-      title: "Primeira revelação",
-      description: "Concluir o primeiro trabalho",
-      unlocked: completed >= 1,
-      progress: Math.min(completed, 1),
-      goal: 1,
-    },
-    {
-      icon: "✦",
-      title: "Histórias em série",
-      description: "Cadastrar 10 trabalhos",
-      unlocked: works.length >= 10,
-      progress: Math.min(works.length, 10),
-      goal: 10,
-    },
-    {
-      icon: "♡",
-      title: "Olhar de confiança",
-      description: "Ter 3 clientes recorrentes",
-      unlocked: clients.filter((client) => client.workCount >= 2).length >= 3,
-      progress: Math.min(clients.filter((client) => client.workCount >= 2).length, 3),
-      goal: 3,
-    },
-    {
-      icon: "✓",
-      title: "Tudo no prazo",
-      description: "Entregar 5 trabalhos",
-      unlocked: completed >= 5,
-      progress: Math.min(completed, 5),
-      goal: 5,
-    },
-    {
-      icon: "◎",
-      title: "Mapa de memórias",
-      description: "Fotografar em 5 locais",
-      unlocked: false,
-      progress: 3,
-      goal: 5,
-    },
-    {
-      icon: "☼",
-      title: "Temporada de casamentos",
-      description: "Concluir 5 casamentos",
-      unlocked:
-        works.filter((work) => work.category === "Casamento" && work.status === "completed")
-          .length >= 5,
-      progress: Math.min(
-        works.filter((work) => work.category === "Casamento" && work.status === "completed").length,
-        5,
-      ),
-      goal: 5,
-    },
-  ];
+  const [category, setCategory] = useState<"Todas" | AchievementCategory>("Todas");
+  const [tier, setTier] = useState<"Todos" | AchievementTier>("Todos");
+  const [achievementSearch, setAchievementSearch] = useState("");
+  const unlockedCount = achievements.filter((achievement) => achievement.unlocked).length;
+  const achievementById = useMemo(
+    () => new Map(achievements.map((achievement) => [achievement.id, achievement])),
+    [achievements],
+  );
   const timeline = useMemo(
     () =>
       [
@@ -84,6 +46,7 @@ export function DiaryView({
           type: "Diário",
           title: entry.title,
           detail: entry.body,
+          icon: "✎",
         })),
         ...works.map((work) => ({
           id: `work-${work.id}`,
@@ -91,10 +54,41 @@ export function DiaryView({
           type: work.status === "completed" ? "Entrega" : "Trabalho",
           title: work.title,
           detail: `${work.category} · ${work.location}`,
+          icon: work.status === "completed" ? "✓" : "◇",
         })),
+        ...achievementUnlocks.flatMap((unlock) => {
+          const achievement = achievementById.get(unlock.id);
+          if (!achievement) return [];
+          return [
+            {
+              id: `achievement-${unlock.id}`,
+              date: unlock.unlockedAt.slice(0, 10),
+              type: "Conquista",
+              title: achievement.title,
+              detail: `${achievement.tier} · ${achievement.category}${
+                unlock.retroactive ? " · Reconhecida a partir do histórico" : ""
+              }`,
+              icon: achievement.icon,
+            },
+          ];
+        }),
       ].sort((a, b) => b.date.localeCompare(a.date)),
-    [entries, works],
+    [achievementById, achievementUnlocks, entries, works],
   );
+  const visibleAchievements = useMemo(() => {
+    const query = achievementSearch.trim().toLocaleLowerCase("pt-BR");
+    return achievements.filter((achievement) => {
+      if (category !== "Todas" && achievement.category !== category) return false;
+      if (tier !== "Todos" && achievement.tier !== tier) return false;
+      if (!query) return true;
+      const searchable =
+        achievement.secret && !achievement.unlocked
+          ? `${achievement.category} ${achievement.tier} secreta`
+          : `${achievement.title} ${achievement.description} ${achievement.category} ${achievement.tier}`;
+      return searchable.toLocaleLowerCase("pt-BR").includes(query);
+    });
+  }, [achievementSearch, achievements, category, tier]);
+
   return (
     <div className="diary-view">
       <header className="diary-heading">
@@ -119,7 +113,7 @@ export function DiaryView({
             {label}
             {id === "achievements" && (
               <b>
-                {achievements.filter((item) => item.unlocked).length}/{achievements.length}
+                {unlockedCount}/{achievements.length}
               </b>
             )}
           </button>
@@ -147,7 +141,7 @@ export function DiaryView({
           {timeline.map((item) => (
             <article key={item.id}>
               <time>{formatDate(item.date)}</time>
-              <i>{item.type === "Diário" ? "✎" : item.type === "Entrega" ? "✓" : "◇"}</i>
+              <i>{item.icon}</i>
               <div>
                 <span>{item.type}</span>
                 <h3>{item.title}</h3>
@@ -158,21 +152,105 @@ export function DiaryView({
         </section>
       )}
       {tab === "achievements" && (
-        <section className="achievement-grid">
-          {achievements.map((item) => (
-            <article key={item.title} className={item.unlocked ? "unlocked" : "locked"}>
-              <i>{item.icon}</i>
-              <span>
-                {item.unlocked ? "CONQUISTA DESBLOQUEADA" : `${item.progress} DE ${item.goal}`}
-              </span>
-              <h2>{item.title}</h2>
-              <p>{item.description}</p>
-              <div>
-                <b style={{ width: `${(item.progress / item.goal) * 100}%` }} />
-              </div>
-            </article>
-          ))}
-        </section>
+        <>
+          <section className="achievement-overview">
+            <div>
+              <span>PROGRESSO PROFISSIONAL</span>
+              <strong>
+                {unlockedCount} de {achievements.length}
+              </strong>
+              <p>As conquistas são reconhecidas automaticamente pelos dados do Revelar.</p>
+            </div>
+            <div
+              className="achievement-overview-bar"
+              aria-label={`${unlockedCount} de ${achievements.length} conquistas`}
+            >
+              <b style={{ width: `${(unlockedCount / achievements.length) * 100}%` }} />
+            </div>
+          </section>
+          <section className="achievement-controls" aria-label="Filtros de conquistas">
+            <div className="achievement-category-filter">
+              {(["Todas", ...achievementCategories] as const).map((item) => (
+                <button
+                  key={item}
+                  className={category === item ? "active" : ""}
+                  onClick={() => setCategory(item)}
+                >
+                  {item}
+                  {item !== "Todas" && (
+                    <b>
+                      {
+                        achievements.filter(
+                          (achievement) => achievement.category === item && achievement.unlocked,
+                        ).length
+                      }
+                      /{achievements.filter((achievement) => achievement.category === item).length}
+                    </b>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="achievement-search-row">
+              <label>
+                <span>Buscar conquista</span>
+                <input
+                  value={achievementSearch}
+                  onChange={(event) => setAchievementSearch(event.target.value)}
+                  placeholder="Nome, categoria ou nível"
+                />
+              </label>
+              <label>
+                <span>Nível</span>
+                <select
+                  value={tier}
+                  onChange={(event) => setTier(event.target.value as "Todos" | AchievementTier)}
+                >
+                  <option>Todos</option>
+                  {achievementTiers.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
+          <section className="achievement-grid">
+            {visibleAchievements.map((item) => {
+              const hidden = Boolean(item.secret && !item.unlocked);
+              const percentage = item.goal ? Math.min(100, (item.progress / item.goal) * 100) : 0;
+              return (
+                <article
+                  key={item.id}
+                  className={`${item.unlocked ? "unlocked" : "locked"} tier-${item.tier.toLocaleLowerCase("pt-BR")} ${hidden ? "secret" : ""}`}
+                >
+                  <div className="achievement-card-top">
+                    <i>{hidden ? "?" : item.icon}</i>
+                    <em>{item.tier}</em>
+                  </div>
+                  <span>
+                    {item.unlocked
+                      ? "CONQUISTA DESBLOQUEADA"
+                      : hidden
+                        ? "CONQUISTA SECRETA"
+                        : `${item.progress.toLocaleString("pt-BR")} DE ${item.goal.toLocaleString("pt-BR")}`}
+                  </span>
+                  <h2>{hidden ? "Conquista secreta" : item.title}</h2>
+                  <p>
+                    {hidden
+                      ? "Continue registrando sua trajetória para revelar este marco."
+                      : item.description}
+                  </p>
+                  <small>{item.category}</small>
+                  <div className="achievement-progress">
+                    <b style={{ width: `${hidden ? 0 : percentage}%` }} />
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+          {visibleAchievements.length === 0 && (
+            <p className="achievement-empty">Nenhuma conquista corresponde a estes filtros.</p>
+          )}
+        </>
       )}
       {writing && (
         <div className="drawer-backdrop" onMouseDown={() => setWriting(false)}>
