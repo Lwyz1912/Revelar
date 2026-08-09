@@ -15,7 +15,6 @@ import { todayIso } from "@/lib/dates";
 import { visibleNotifications } from "@/lib/notifications";
 import {
   createClientRecord,
-  createContractFromQuote as createContractRecord,
   createProductSaleTransaction,
   createQuoteFromProduct as createQuoteRecordFromProduct,
   createWorkFromQuote,
@@ -43,7 +42,6 @@ import { AgendaView } from "@/components/modules/agenda/AgendaView";
 import { ClientsView } from "@/components/modules/clients/ClientsView";
 import { ClientDetails } from "@/components/modules/clients/ClientDetails";
 import { NewClientDrawer } from "@/components/modules/clients/NewClientDrawer";
-import { ContractsView } from "@/components/modules/contracts/ContractsView";
 import { Dashboard } from "@/components/modules/dashboard/Dashboard";
 import { FinancialView } from "@/components/modules/finance/FinancialView";
 import { EditingStudioView } from "@/components/modules/editing/EditingStudioView";
@@ -94,13 +92,16 @@ export function RevelarApp() {
     quotes,
     setQuotes,
     contracts,
-    setContracts,
     locations,
     setLocations,
     diaryEntries,
     setDiaryEntries,
     achievementUnlocks,
     setAchievementUnlocks,
+    referenceLibrary,
+    setReferenceLibrary,
+    storeSettings,
+    setStoreSettings,
     cloudReady,
   } = useRevelarData();
   const {
@@ -283,22 +284,22 @@ export function RevelarApp() {
     setSelectedWorkId(null);
     setToast(`${work.title} foi cancelado e mantido no histórico`);
   };
-  const convertQuoteToWork = (quote: Quote) => {
+  const convertQuoteToWork = (quote: Quote, contractNeeded: boolean) => {
+    const existing = works.find((item) => item.sourceQuoteId === quote.id);
+    if (existing) {
+      setSelectedWorkId(existing.id);
+      setActiveNav("Trabalhos");
+      setToast("Este orçamento já possui um trabalho vinculado");
+      return existing.id;
+    }
     const id = nextNumericId(works);
     const client = clients.find((item) => item.id === quote.clientId);
-    const work = createWorkFromQuote(quote, id);
+    const work = createWorkFromQuote(quote, id, client?.name, contractNeeded);
     setWorks((current) => [work, ...current]);
     setSelectedWorkId(id);
     setActiveNav("Trabalhos");
-    setToast(`Orçamento de ${client?.name || "cliente"} convertido em trabalho`);
-  };
-  const createContractFromQuote = (quote: Quote) => {
-    const id = nextNumericId(contracts);
-    const client = clients.find((item) => item.id === quote.clientId);
-    const contract = createContractRecord(quote, id, client?.name);
-    setContracts((current) => [contract, ...current]);
-    setActiveNav("Contratos");
-    setToast("Contrato criado a partir do orçamento aprovado");
+    setToast(`Trabalho de ${client?.name || "cliente"} criado pelo orçamento aprovado`);
+    return id;
   };
   const sellProduct = (
     product: Product,
@@ -384,7 +385,6 @@ export function RevelarApp() {
   const isEditing = activeNav === "Presets e edição";
   const isProducts = activeNav === "Produtos";
   const isQuotes = activeNav === "Orçamentos";
-  const isContracts = activeNav === "Contratos";
   const isLocations = activeNav === "Locais";
   const isDiary = activeNav === "Diário";
   const isWhatsApp = activeNav === "WhatsApp e IA";
@@ -463,6 +463,8 @@ export function RevelarApp() {
             onArchive={archiveWork}
             onCancel={cancelWork}
             onPhotoExtras={registerPhotoExtras}
+            referenceLibrary={referenceLibrary}
+            setReferenceLibrary={setReferenceLibrary}
             toast={setToast}
           />
         ) : selectedClient ? (
@@ -570,6 +572,8 @@ export function RevelarApp() {
             currency={currency}
             onSale={sellProduct}
             onCreateQuote={createQuoteFromProduct}
+            storeSettings={storeSettings}
+            setStoreSettings={setStoreSettings}
             toast={setToast}
           />
         ) : isQuotes ? (
@@ -578,16 +582,7 @@ export function RevelarApp() {
             setQuotes={setQuotes}
             clients={clients}
             currency={currency}
-            onConvert={convertQuoteToWork}
-            onCreateContract={createContractFromQuote}
-            toast={setToast}
-          />
-        ) : isContracts ? (
-          <ContractsView
-            contracts={contracts}
-            setContracts={setContracts}
-            clients={clients}
-            quotes={quotes}
+            onApprove={convertQuoteToWork}
             toast={setToast}
           />
         ) : isLocations ? (
@@ -630,7 +625,6 @@ export function RevelarApp() {
         !isFinancial &&
         !isProducts &&
         !isQuotes &&
-        !isContracts &&
         !isLocations &&
         !isDiary &&
         !isWhatsApp && (
