@@ -42,6 +42,7 @@ import { NewClientDrawer } from "@/components/modules/clients/NewClientDrawer";
 import { ContractsView } from "@/components/modules/contracts/ContractsView";
 import { Dashboard } from "@/components/modules/dashboard/Dashboard";
 import { FinancialView } from "@/components/modules/finance/FinancialView";
+import { GalleryLibraryView } from "@/components/modules/gallery/GalleryLibraryView";
 import { ProductsView } from "@/components/modules/products/ProductsView";
 import { QuotesView } from "@/components/modules/quotes/QuotesView";
 import { NewWorkDrawer } from "@/components/modules/works/NewWorkDrawer";
@@ -247,6 +248,7 @@ export function RevelarApp() {
   const isWorks = activeNav === "Trabalhos";
   const isAgenda = activeNav === "Agenda";
   const isFinancial = activeNav === "Financeiro";
+  const isGallery = activeNav === "Galeria";
   const isProducts = activeNav === "Produtos";
   const isQuotes = activeNav === "Orçamentos";
   const isContracts = activeNav === "Contratos";
@@ -339,6 +341,8 @@ export function RevelarApp() {
             onOpenWork={openWork}
             toast={setToast}
           />
+        ) : isGallery ? (
+          <GalleryLibraryView works={works} onOpenWork={openWork} toast={setToast} />
         ) : isProducts ? (
           <ProductsView
             products={products}
@@ -380,16 +384,22 @@ export function RevelarApp() {
         )}
       </main>
 
-      {!selectedWork && !isAgenda && !isFinancial && !isProducts && !isQuotes && !isContracts && (
-        <button
-          className="floating-add"
-          type="button"
-          onClick={() => (isClients ? setNewClientOpen(true) : setNewWorkOpen(true))}
-          aria-label={isClients ? "Novo cliente" : "Novo trabalho"}
-        >
-          ＋
-        </button>
-      )}
+      {!selectedWork &&
+        !isAgenda &&
+        !isGallery &&
+        !isFinancial &&
+        !isProducts &&
+        !isQuotes &&
+        !isContracts && (
+          <button
+            className="floating-add"
+            type="button"
+            onClick={() => (isClients ? setNewClientOpen(true) : setNewWorkOpen(true))}
+            aria-label={isClients ? "Novo cliente" : "Novo trabalho"}
+          >
+            ＋
+          </button>
+        )}
 
       <MobileNavigation
         activeNav={activeNav}

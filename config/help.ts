@@ -43,6 +43,15 @@ export const sectionGuides: Record<AvailableSection, SectionGuide> = {
     ],
     tip: "Um orçamento aprovado também pode virar trabalho automaticamente.",
   },
+  Galeria: {
+    purpose: "Encontre todas as fotos organizadas por cliente, trabalho e etapa.",
+    steps: [
+      "Abra uma capa para acessar as cinco pastas do trabalho.",
+      "Use a demonstração para testar seleção, aprovação e entrega.",
+      "Entre no trabalho quando precisar enviar ou configurar arquivos reais.",
+    ],
+    tip: "Os dados de demonstração são separados e podem ser restaurados a qualquer momento.",
+  },
   Financeiro: {
     purpose: "Entenda de onde o dinheiro veio, para onde foi e o que ainda está pendente.",
     steps: [
