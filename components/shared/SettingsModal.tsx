@@ -1,10 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  defaultProfessionalSettings,
+  normalizeProfessionalSettings,
+  type BrandSettings,
+  type ContractTemplateSettings,
+  type ProfessionalSettings,
+  type SettingsFileRef,
+  type WatermarkSettings,
+} from "@/config/settings";
 import { notificationCategoryOptions } from "@/config/notifications";
 import { palettes } from "@/config/themes";
 import { useStoredJsonState } from "@/hooks/use-persisted-state";
+import {
+  deleteSettingsFile,
+  readSettingsFile,
+  saveSettingsFile,
+} from "@/lib/settings-files.client";
 import { storageKeys } from "@/lib/storage";
 import type { NotificationPreferences, Palette, ThemeMode } from "@/types/revelar";
 
@@ -40,51 +54,14 @@ type SettingsSection =
   | "data"
   | "integrations";
 
-type ProfessionalSettings = {
-  profile: {
-    name: string;
-    email: string;
-    phone: string;
-    instagram: string;
-    site: string;
-    bio: string;
-  };
-  activeBrand: string;
-  watermarks: string[];
-  watermarkMode: "corner" | "center" | "tile";
-  watermarkCorner: "top-left" | "top-right" | "bottom-left" | "bottom-right";
-  watermarkOpacity: number;
-  watermarkSize: number;
-  watermarkTargets: string[];
-  watermarkPreview: boolean;
-  watermarkDownload: boolean;
-  contractTemplates: string[];
-  automaticContractFields: boolean;
-  defaultContract: string;
-};
-
-const defaultSettings: ProfessionalSettings = {
-  profile: {
-    name: "Maryana Ferreira",
-    email: "",
-    phone: "",
-    instagram: "@maryfotografiaa__",
-    site: "",
-    bio: "Fotógrafa de casamentos, ensaios e histórias reais.",
-  },
-  activeBrand: "Mary Fotografia",
-  watermarks: [],
-  watermarkMode: "corner",
-  watermarkCorner: "bottom-right",
-  watermarkOpacity: 42,
-  watermarkSize: 28,
-  watermarkTargets: ["Prévias", "Seleção"],
-  watermarkPreview: true,
-  watermarkDownload: false,
-  contractTemplates: [],
-  automaticContractFields: true,
-  defaultContract: "",
-};
+type BrandAssetKey =
+  | "logoLight"
+  | "logoDark"
+  | "logoMono"
+  | "symbolLight"
+  | "symbolDark"
+  | "symbolMono"
+  | "signature";
 
 const settingsGroups: Array<{
   title: string;
@@ -125,22 +102,59 @@ const settingsGroups: Array<{
   },
 ];
 
-const brands = [
-  { name: "Mary Fotografia", use: "Casamentos e ensaios", initials: "M" },
-  { name: "MF Studio", use: "Estúdio e editoriais", initials: "MF" },
-  { name: "Maryana Ferreira", use: "Assinatura pessoal", initials: "MA" },
+const watermarkTargets = ["Prévias", "Seleção", "Editadas", "Entregues", "Originais"];
+const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const contractCategories: ContractTemplateSettings["category"][] = [
+  "Casamento",
+  "Ensaio",
+  "Evento",
+  "Editorial",
+  "Geral",
 ];
 
-const watermarkTargets = ["Prévias", "Seleção", "Editadas", "Entregues", "Originais"];
+function createFileRef(file: File): SettingsFileRef {
+  return {
+    id: `${Date.now()}-${crypto.randomUUID()}`,
+    name: file.name,
+    type: file.type,
+    size: file.size,
+  };
+}
+
+function collectFileIds(settings: ProfessionalSettings) {
+  const ids = new Set<string>();
+  if (settings.profile.avatar) ids.add(settings.profile.avatar.id);
+  settings.watermarks.forEach((watermark) => ids.add(watermark.file.id));
+  settings.contractTemplates.forEach((template) => ids.add(template.file.id));
+  settings.brands.forEach((brand) => {
+    (
+      [
+        "logoLight",
+        "logoDark",
+        "logoMono",
+        "symbolLight",
+        "symbolDark",
+        "symbolMono",
+        "signature",
+      ] as BrandAssetKey[]
+    ).forEach((key) => {
+      const file = brand[key];
+      if (file && typeof file !== "string") ids.add(file.id);
+    });
+  });
+  return ids;
+}
 
 function Toggle({
   checked,
   onChange,
   label,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: () => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -149,28 +163,123 @@ function Toggle({
       onClick={onChange}
       aria-label={label}
       aria-pressed={checked}
+      disabled={disabled}
     >
       <span />
     </button>
   );
 }
 
-function ComingSetting({
+function SectionHeading({
+  eyebrow,
   title,
   description,
-  children,
 }: {
+  eyebrow: string;
   title: string;
   description: string;
-  children?: React.ReactNode;
 }) {
   return (
-    <div className="settings-row-card">
+    <div className="settings-section-heading">
+      <span>{eyebrow}</span>
+      <h2>{title}</h2>
+      <p>{description}</p>
+    </div>
+  );
+}
+
+function LocalImage({
+  file,
+  alt,
+  className,
+}: {
+  file?: SettingsFileRef;
+  alt: string;
+  className?: string;
+}) {
+  const [preview, setPreview] = useState({ id: "", url: "" });
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+    if (!file) return;
+    void readSettingsFile(file.id).then((stored) => {
+      if (!active || !stored) return;
+      objectUrl = URL.createObjectURL(stored);
+      setPreview({ id: file.id, url: objectUrl });
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [file]);
+  return file && preview.id === file.id ? (
+    <img className={className} src={preview.url} alt={alt} />
+  ) : null;
+}
+
+function DisabledSetting({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="settings-row-card settings-disabled-card" aria-disabled="true">
       <div>
         <strong>{title}</strong>
         <p>{description}</p>
       </div>
-      {children ?? <button type="button">Configurar</button>}
+      <button type="button" disabled>
+        Após conectar o banco
+      </button>
+    </div>
+  );
+}
+
+function EditableList({
+  title,
+  description,
+  items,
+  value,
+  placeholder,
+  onValueChange,
+  onAdd,
+  onRemove,
+}: {
+  title: string;
+  description: string;
+  items: string[];
+  value: string;
+  placeholder: string;
+  onValueChange: (value: string) => void;
+  onAdd: () => void;
+  onRemove: (value: string) => void;
+}) {
+  return (
+    <div className="settings-control-block full">
+      <h3>{title}</h3>
+      <p>{description}</p>
+      <div className="editable-list">
+        {items.map((item) => (
+          <span key={item}>
+            {item}
+            <button type="button" onClick={() => onRemove(item)} aria-label={`Remover ${item}`}>
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="custom-reminder">
+        <input
+          value={value}
+          onChange={(event) => onValueChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onAdd();
+            }
+          }}
+          placeholder={placeholder}
+        />
+        <button type="button" onClick={onAdd} disabled={!value.trim()}>
+          Adicionar
+        </button>
+      </div>
     </div>
   );
 }
@@ -189,24 +298,54 @@ export function SettingsModal({
   const [section, setSection] = useState<SettingsSection>("overview");
   const [query, setQuery] = useState("");
   const [customReminder, setCustomReminder] = useState("");
-  const [savedSettings, setSavedSettings] = useStoredJsonState(
+  const [listInputs, setListInputs] = useState<Record<string, string>>({});
+  const [editingBrandId, setEditingBrandId] = useState<string | null>(null);
+  const [fileNotice, setFileNotice] = useState("");
+  const [savedValue, setSavedValue] = useStoredJsonState<unknown>(
     storageKeys.professionalSettings,
-    defaultSettings,
+    defaultProfessionalSettings,
   );
-  const [draft, setDraft] = useState<ProfessionalSettings>(defaultSettings);
+  const [draft, setDraft] = useState<ProfessionalSettings>(defaultProfessionalSettings);
   const [loaded, setLoaded] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const pendingFileIds = useRef(new Set<string>());
+  const initialTheme = useRef(themeMode);
+  const initialPalette = useRef(palette);
+  const initialNotifications = useRef(notificationPreferences);
 
   useEffect(() => {
     if (loaded) return;
-    setDraft(savedSettings);
-    setLoaded(true);
-  }, [loaded, savedSettings]);
+    const timeout = window.setTimeout(() => {
+      setDraft(normalizeProfessionalSettings(savedValue));
+      setLoaded(true);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [loaded, savedValue]);
 
-  const updateDraft = (update: (current: ProfessionalSettings) => ProfessionalSettings) => {
-    setDraft(update);
-    setDirty(true);
-  };
+  useEffect(() => {
+    if (!loaded) return;
+    document.documentElement.dataset.interfaceSize = draft.appearance.interfaceSize;
+    document.documentElement.dataset.highContrast = String(draft.appearance.highContrast);
+  }, [draft.appearance.highContrast, draft.appearance.interfaceSize, loaded]);
+
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [dirty]);
+
+  const savedSettings = useMemo(() => normalizeProfessionalSettings(savedValue), [savedValue]);
+
+  const updateDraft = useCallback(
+    (update: (current: ProfessionalSettings) => ProfessionalSettings) => {
+      setDraft(update);
+      setDirty(true);
+    },
+    [],
+  );
 
   const visibleGroups = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
@@ -221,14 +360,119 @@ export function SettingsModal({
       .filter((group) => group.items.length > 0);
   }, [query]);
 
-  const selectFiles = (files: FileList | null, kind: "watermark" | "contract") => {
+  const storeFile = async (file: File) => {
+    const ref = createFileRef(file);
+    await saveSettingsFile(ref.id, file);
+    pendingFileIds.current.add(ref.id);
+    return ref;
+  };
+
+  const handleFileError = () => {
+    setFileNotice("Não foi possível guardar esse arquivo neste dispositivo.");
+    window.setTimeout(() => setFileNotice(""), 3500);
+  };
+
+  const setProfileAvatar = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    try {
+      const ref = await storeFile(file);
+      updateDraft((current) => ({ ...current, profile: { ...current.profile, avatar: ref } }));
+    } catch {
+      handleFileError();
+    }
+  };
+
+  const updateBrand = (id: string, update: Partial<BrandSettings>) => {
+    updateDraft((current) => ({
+      ...current,
+      brands: current.brands.map((brand) => (brand.id === id ? { ...brand, ...update } : brand)),
+    }));
+  };
+
+  const setBrandAsset = async (brandId: string, key: BrandAssetKey, files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    try {
+      const ref = await storeFile(file);
+      updateBrand(brandId, { [key]: ref });
+    } catch {
+      handleFileError();
+    }
+  };
+
+  const addWatermarks = async (files: FileList | null) => {
     if (!files?.length) return;
-    const names = Array.from(files).map((file) => file.name);
-    updateDraft((current) =>
-      kind === "watermark"
-        ? { ...current, watermarks: [...new Set([...current.watermarks, ...names])] }
-        : { ...current, contractTemplates: [...new Set([...current.contractTemplates, ...names])] },
-    );
+    try {
+      const added: WatermarkSettings[] = [];
+      for (const file of Array.from(files)) {
+        const ref = await storeFile(file);
+        added.push({ id: ref.id, name: file.name.replace(/\.[^.]+$/, ""), file: ref });
+      }
+      updateDraft((current) => ({
+        ...current,
+        watermarks: [...current.watermarks, ...added],
+        selectedWatermarkId: current.selectedWatermarkId || added[0]?.id || "",
+      }));
+    } catch {
+      handleFileError();
+    }
+  };
+
+  const addContractTemplates = async (files: FileList | null) => {
+    if (!files?.length) return;
+    try {
+      const added: ContractTemplateSettings[] = [];
+      for (const file of Array.from(files)) {
+        const ref = await storeFile(file);
+        added.push({ id: ref.id, file: ref, category: "Geral", brandId: draft.activeBrandId });
+      }
+      updateDraft((current) => ({
+        ...current,
+        contractTemplates: [...current.contractTemplates, ...added],
+      }));
+    } catch {
+      handleFileError();
+    }
+  };
+
+  const removeFileFromDraft = (ref?: SettingsFileRef) => {
+    if (ref && pendingFileIds.current.has(ref.id)) {
+      void deleteSettingsFile(ref.id);
+      pendingFileIds.current.delete(ref.id);
+    }
+  };
+
+  const restoreImmediatePreferences = () => {
+    onThemeModeChange(initialTheme.current);
+    onPaletteChange(initialPalette.current);
+    onNotificationPreferencesChange(initialNotifications.current);
+    document.documentElement.dataset.interfaceSize = savedSettings.appearance.interfaceSize;
+    document.documentElement.dataset.highContrast = String(savedSettings.appearance.highContrast);
+  };
+
+  const cancel = () => {
+    pendingFileIds.current.forEach((id) => void deleteSettingsFile(id));
+    pendingFileIds.current.clear();
+    restoreImmediatePreferences();
+    onClose();
+  };
+
+  const requestClose = () => {
+    if (dirty && !window.confirm("Descartar todas as alterações feitas nas Configurações?")) return;
+    cancel();
+  };
+
+  const save = () => {
+    const previousIds = collectFileIds(savedSettings);
+    const nextIds = collectFileIds(draft);
+    previousIds.forEach((id) => {
+      if (!nextIds.has(id)) void deleteSettingsFile(id);
+    });
+    setSavedValue(draft);
+    pendingFileIds.current.clear();
+    setDirty(false);
+    onSave();
   };
 
   const toggleReminder = (day: number) => {
@@ -242,10 +486,31 @@ export function SettingsModal({
     setDirty(true);
   };
 
-  const save = () => {
-    setSavedSettings(draft);
-    setDirty(false);
-    onSave();
+  const updateList = (
+    group: "work" | "finance",
+    field: "categories" | "stages" | "packages" | "accounts" | "paymentMethods",
+    items: string[],
+  ) => {
+    updateDraft((current) => ({
+      ...current,
+      [group]: { ...current[group], [field]: items },
+    }));
+  };
+
+  const addListItem = (
+    key: string,
+    group: "work" | "finance",
+    field: "categories" | "stages" | "packages" | "accounts" | "paymentMethods",
+    items: string[],
+  ) => {
+    const value = (listInputs[key] ?? "").trim();
+    if (
+      !value ||
+      items.some((item) => item.toLocaleLowerCase("pt-BR") === value.toLocaleLowerCase("pt-BR"))
+    )
+      return;
+    updateList(group, field, [...items, value]);
+    setListInputs((current) => ({ ...current, [key]: "" }));
   };
 
   const renderOverview = () => (
@@ -255,9 +520,7 @@ export function SettingsModal({
         <div>
           <span>ESPAÇO PROFISSIONAL</span>
           <h2>Deixe o Revelar. com a cara do seu trabalho</h2>
-          <p>
-            Centralize sua identidade, documentos, padrões de entrega e preferências em um só lugar.
-          </p>
+          <p>Identidade, documentos, padrões de entrega e preferências em um só lugar.</p>
         </div>
         <button type="button" onClick={() => setSection("account")}>
           Completar perfil
@@ -265,34 +528,31 @@ export function SettingsModal({
       </div>
       <div className="settings-overview-grid">
         <button type="button" onClick={() => setSection("brands")}>
-          <span>3 identidades</span>
+          <span>{draft.brands.length} identidades</span>
           <strong>Marcas profissionais</strong>
-          <small>Escolha a marca certa para cada trabalho.</small>
+          <small>Logo, símbolo, contatos e assinatura.</small>
         </button>
         <button type="button" onClick={() => setSection("watermarks")}>
           <span>{draft.watermarks.length} cadastradas</span>
           <strong>Marcas-d’água</strong>
-          <small>Defina proteção por etapa e por foto.</small>
+          <small>Proteção por etapa e tipo de entrega.</small>
         </button>
         <button type="button" onClick={() => setSection("contracts")}>
           <span>{draft.contractTemplates.length} modelos</span>
           <strong>Contratos</strong>
-          <small>Importe PDF e DOCX com preenchimento automático.</small>
+          <small>PDF e DOCX organizados por categoria.</small>
         </button>
-        <button type="button" onClick={() => setSection("data")}>
-          <span>Preparado</span>
-          <strong>Dados e backup</strong>
-          <small>Base pronta para sincronização e banco definitivo.</small>
+        <button type="button" onClick={() => setSection("appearance")}>
+          <span>Personalizável</span>
+          <strong>Aparência</strong>
+          <small>Modo, paleta, tamanho e contraste.</small>
         </button>
       </div>
       <div className="settings-status-card">
         <span className="status-dot" />
         <div>
-          <strong>Esta versão salva as preferências neste dispositivo</strong>
-          <p>
-            Quando o banco definitivo entrar, arquivos, marcas e modelos serão sincronizados entre
-            computador e telefone.
-          </p>
+          <strong>Preferências e arquivos salvos neste dispositivo</strong>
+          <p>A sincronização entre celular e computador será ativada com o banco definitivo.</p>
         </div>
       </div>
     </>
@@ -300,87 +560,69 @@ export function SettingsModal({
 
   const renderAccount = () => (
     <>
-      <div className="settings-section-heading">
-        <span>PERFIL</span>
-        <h2>Minha conta</h2>
-        <p>Dados pessoais e profissionais usados no painel.</p>
-      </div>
+      <SectionHeading
+        eyebrow="PERFIL"
+        title="Minha conta"
+        description="Dados pessoais e profissionais usados no painel."
+      />
       <div className="profile-photo-card">
-        <div className="settings-avatar large">MF</div>
+        <div className="settings-avatar large profile-avatar">
+          <LocalImage file={draft.profile.avatar} alt="Foto de Maryana" />
+          {!draft.profile.avatar && "MF"}
+        </div>
         <div>
           <strong>Foto da Maryana</strong>
-          <p>Será exibida apenas no painel e nas atividades da equipe.</p>
+          <p>Exibida no painel e nas atividades da equipe.</p>
         </div>
         <label className="outline-upload">
           Alterar foto
-          <input type="file" accept="image/png,image/jpeg,image/webp" />
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => void setProfileAvatar(event.target.files)}
+          />
         </label>
+        {draft.profile.avatar && (
+          <button
+            type="button"
+            className="subtle-remove"
+            onClick={() => {
+              removeFileFromDraft(draft.profile.avatar);
+              updateDraft((current) => ({
+                ...current,
+                profile: { ...current.profile, avatar: undefined },
+              }));
+            }}
+          >
+            Remover
+          </button>
+        )}
       </div>
       <div className="settings-form-grid">
-        <label>
-          Nome completo
-          <input
-            value={draft.profile.name}
-            onChange={(event) =>
-              updateDraft((current) => ({
-                ...current,
-                profile: { ...current.profile, name: event.target.value },
-              }))
-            }
-          />
-        </label>
-        <label>
-          E-mail profissional
-          <input
-            type="email"
-            value={draft.profile.email}
-            placeholder="mary@exemplo.com"
-            onChange={(event) =>
-              updateDraft((current) => ({
-                ...current,
-                profile: { ...current.profile, email: event.target.value },
-              }))
-            }
-          />
-        </label>
-        <label>
-          Telefone / WhatsApp
-          <input
-            value={draft.profile.phone}
-            placeholder="+55 ou +351"
-            onChange={(event) =>
-              updateDraft((current) => ({
-                ...current,
-                profile: { ...current.profile, phone: event.target.value },
-              }))
-            }
-          />
-        </label>
-        <label>
-          Instagram
-          <input
-            value={draft.profile.instagram}
-            onChange={(event) =>
-              updateDraft((current) => ({
-                ...current,
-                profile: { ...current.profile, instagram: event.target.value },
-              }))
-            }
-          />
-        </label>
-        <label>
-          Site
-          <input
-            value={draft.profile.site}
-            placeholder="https://"
-            onChange={(event) =>
-              updateDraft((current) => ({
-                ...current,
-                profile: { ...current.profile, site: event.target.value },
-              }))
-            }
-          />
-        </label>
+        {(
+          [
+            ["name", "Nome completo", "Maryana Ferreira", "text"],
+            ["email", "E-mail profissional", "mary@exemplo.com", "email"],
+            ["phone", "Telefone / WhatsApp", "+55 ou +351", "tel"],
+            ["instagram", "Instagram", "@maryfotografiaa__", "text"],
+            ["site", "Site", "https://", "url"],
+          ] as const
+        ).map(([key, label, placeholder, type]) => (
+          <label key={key}>
+            {label}
+            <input
+              type={type}
+              value={draft.profile[key]}
+              placeholder={placeholder}
+              onChange={(event) =>
+                updateDraft((current) => ({
+                  ...current,
+                  profile: { ...current.profile, [key]: event.target.value },
+                }))
+              }
+            />
+          </label>
+        ))}
         <label className="wide">
           Bio profissional
           <textarea
@@ -397,49 +639,167 @@ export function SettingsModal({
     </>
   );
 
+  const renderBrandEditor = (brand: BrandSettings) => {
+    const assets: Array<[BrandAssetKey, string, string]> = [
+      ["logoLight", "Logo para fundo claro", "PNG, SVG ou WEBP"],
+      ["logoDark", "Logo para fundo escuro", "PNG, SVG ou WEBP"],
+      ["logoMono", "Logo monocromática", "PNG ou SVG"],
+      ["symbolLight", "Símbolo para fundo claro", "PNG, SVG ou WEBP"],
+      ["symbolDark", "Símbolo para fundo escuro", "PNG, SVG ou WEBP"],
+      ["symbolMono", "Símbolo monocromático", "PNG ou SVG"],
+      ["signature", "Assinatura em imagem", "PNG, SVG ou WEBP"],
+    ];
+    return (
+      <div className="brand-editor">
+        <div className="brand-editor-header">
+          <div>
+            <span>EDITANDO IDENTIDADE</span>
+            <h3>{brand.name}</h3>
+          </div>
+          <button type="button" onClick={() => setEditingBrandId(null)}>
+            Concluir
+          </button>
+        </div>
+        <div className="settings-form-grid">
+          {(
+            [
+              ["name", "Nome exibido"],
+              ["use", "Uso principal"],
+              ["email", "E-mail"],
+              ["phone", "Telefone"],
+              ["instagram", "Instagram"],
+              ["site", "Site"],
+              ["address", "Endereço"],
+              ["document", "CPF / NIF"],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key}>
+              {label}
+              <input
+                value={brand[key]}
+                onChange={(event) => updateBrand(brand.id, { [key]: event.target.value })}
+              />
+            </label>
+          ))}
+          <label className="wide">
+            Assinatura digitada
+            <input
+              value={brand.signatureText}
+              onChange={(event) => updateBrand(brand.id, { signatureText: event.target.value })}
+            />
+          </label>
+        </div>
+        <div className="brand-assets-grid">
+          {assets.map(([key, label, hint]) => {
+            const file = brand[key];
+            return (
+              <div className="asset-upload-card" key={key}>
+                <div>
+                  <strong>{label}</strong>
+                  <small>{file?.name ?? hint}</small>
+                </div>
+                <label>
+                  {file ? "Trocar" : "Importar"}
+                  <input
+                    type="file"
+                    accept="image/png,image/svg+xml,image/webp"
+                    onChange={(event) => void setBrandAsset(brand.id, key, event.target.files)}
+                  />
+                </label>
+                {file && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      removeFileFromDraft(file);
+                      updateBrand(brand.id, { [key]: undefined });
+                    }}
+                    aria-label={`Remover ${label}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderBrands = () => (
     <>
-      <div className="settings-section-heading">
-        <span>IDENTIDADE</span>
-        <h2>Marcas profissionais</h2>
-        <p>Use contatos, logos e assinaturas diferentes sem misturar as marcas.</p>
-      </div>
+      <SectionHeading
+        eyebrow="IDENTIDADE"
+        title="Marcas profissionais"
+        description="Contatos, logos, símbolos e assinaturas separados para cada marca."
+      />
       <div className="brand-settings-grid">
-        {brands.map((brand) => (
-          <article className={draft.activeBrand === brand.name ? "active" : ""} key={brand.name}>
+        {draft.brands.map((brand) => (
+          <article className={draft.activeBrandId === brand.id ? "active" : ""} key={brand.id}>
             <div className="brand-mark">{brand.initials}</div>
             <div>
               <h3>{brand.name}</h3>
               <p>{brand.use}</p>
             </div>
-            <span>{draft.activeBrand === brand.name ? "Padrão" : "Disponível"}</span>
-            <button
-              type="button"
-              onClick={() => updateDraft((current) => ({ ...current, activeBrand: brand.name }))}
-            >
-              {draft.activeBrand === brand.name ? "Editar identidade" : "Definir como padrão"}
-            </button>
+            <span>{draft.activeBrandId === brand.id ? "Padrão" : "Disponível"}</span>
+            <div className="brand-card-actions">
+              {draft.activeBrandId !== brand.id && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateDraft((current) => ({ ...current, activeBrandId: brand.id }))
+                  }
+                >
+                  Definir padrão
+                </button>
+              )}
+              <button type="button" onClick={() => setEditingBrandId(brand.id)}>
+                Editar identidade
+              </button>
+            </div>
           </article>
         ))}
       </div>
-      <ComingSetting
-        title="Logo e símbolo separados"
-        description="Cadastre versões claras, escuras e monocromáticas para documentos e galerias."
-      />
-      <ComingSetting
-        title="Assinatura profissional"
-        description="Imagem ou assinatura digitada para contratos e orçamentos."
-      />
+      {editingBrandId ? (
+        renderBrandEditor(
+          draft.brands.find((brand) => brand.id === editingBrandId) ?? draft.brands[0],
+        )
+      ) : (
+        <div className="settings-status-card neutral">
+          <span className="status-dot" />
+          <div>
+            <strong>Cada identidade é independente</strong>
+            <p>
+              Abra “Editar identidade” para configurar dados, logo, símbolo e assinatura daquela
+              marca.
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 
+  const selectedWatermark = draft.watermarks.find((item) => item.id === draft.selectedWatermarkId);
+  const renderWatermarkMark = (tiled = false) =>
+    selectedWatermark ? (
+      <LocalImage
+        file={selectedWatermark.file}
+        alt={selectedWatermark.name}
+        className={tiled ? "tile-logo" : "watermark-logo"}
+      />
+    ) : (
+      <span>
+        {draft.brands.find((brand) => brand.id === draft.activeBrandId)?.name ?? "MARY FOTOGRAFIA"}
+      </span>
+    );
+
   const renderWatermarks = () => (
     <>
-      <div className="settings-section-heading">
-        <span>FOTOGRAFIAS</span>
-        <h2>Marcas-d’água</h2>
-        <p>O arquivo original nunca será alterado.</p>
-      </div>
+      <SectionHeading
+        eyebrow="FOTOGRAFIAS"
+        title="Marcas-d’água"
+        description="O arquivo original nunca será alterado."
+      />
       <div className="watermark-layout">
         <div>
           <label className="file-drop">
@@ -449,27 +809,47 @@ export function SettingsModal({
               type="file"
               multiple
               accept="image/png,image/svg+xml"
-              onChange={(event) => selectFiles(event.target.files, "watermark")}
+              onChange={(event) => void addWatermarks(event.target.files)}
             />
           </label>
           {draft.watermarks.length > 0 && (
-            <div className="uploaded-file-list">
-              {draft.watermarks.map((name) => (
-                <span key={name}>
-                  {name}
-                  <button
-                    type="button"
-                    aria-label={`Remover ${name}`}
-                    onClick={() =>
+            <div className="watermark-library">
+              {draft.watermarks.map((watermark) => (
+                <button
+                  type="button"
+                  className={draft.selectedWatermarkId === watermark.id ? "selected" : ""}
+                  key={watermark.id}
+                  onClick={() =>
+                    updateDraft((current) => ({ ...current, selectedWatermarkId: watermark.id }))
+                  }
+                >
+                  <LocalImage file={watermark.file} alt="" />
+                  <span>
+                    <strong>{watermark.name}</strong>
+                    <small>
+                      {draft.selectedWatermarkId === watermark.id ? "Em uso" : "Selecionar"}
+                    </small>
+                  </span>
+                  <i
+                    role="button"
+                    aria-label={`Remover ${watermark.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      removeFileFromDraft(watermark.file);
                       updateDraft((current) => ({
                         ...current,
-                        watermarks: current.watermarks.filter((item) => item !== name),
-                      }))
-                    }
+                        watermarks: current.watermarks.filter((item) => item.id !== watermark.id),
+                        selectedWatermarkId:
+                          current.selectedWatermarkId === watermark.id
+                            ? (current.watermarks.find((item) => item.id !== watermark.id)?.id ??
+                              "")
+                            : current.selectedWatermarkId,
+                      }));
+                    }}
                   >
                     ×
-                  </button>
-                </span>
+                  </i>
+                </button>
               ))}
             </div>
           )}
@@ -560,10 +940,10 @@ export function SettingsModal({
             <div className="preview-scene">
               <span>PRÉVIA EM TEMPO REAL</span>
             </div>
-            <div className="single-watermark">MARY FOTOGRAFIA</div>
+            <div className="single-watermark">{renderWatermarkMark()}</div>
             <div className="tile-watermark">
               {Array.from({ length: 12 }).map((_, index) => (
-                <i key={index}>MARY</i>
+                <i key={index}>{renderWatermarkMark(true)}</i>
               ))}
             </div>
           </div>
@@ -611,7 +991,7 @@ export function SettingsModal({
           <label>
             <span>
               <strong>Nas cópias baixadas</strong>
-              <small>Aplica somente na cópia exportada.</small>
+              <small>Aplica apenas na cópia exportada.</small>
             </span>
             <Toggle
               checked={draft.watermarkDownload}
@@ -629,13 +1009,556 @@ export function SettingsModal({
     </>
   );
 
+  const renderWork = () => (
+    <>
+      <SectionHeading
+        eyebrow="PADRÕES"
+        title="Trabalhos"
+        description="Modelos usados ao criar novos trabalhos."
+      />
+      <EditableList
+        title="Categorias e tipos"
+        description="Tipos disponíveis no cadastro de trabalho."
+        items={draft.work.categories}
+        value={listInputs.workCategories ?? ""}
+        placeholder="Nova categoria"
+        onValueChange={(value) =>
+          setListInputs((current) => ({ ...current, workCategories: value }))
+        }
+        onAdd={() => addListItem("workCategories", "work", "categories", draft.work.categories)}
+        onRemove={(value) =>
+          updateList(
+            "work",
+            "categories",
+            draft.work.categories.filter((item) => item !== value),
+          )
+        }
+      />
+      <EditableList
+        title="Etapas padrão"
+        description="Ordem aplicada em novos fluxos."
+        items={draft.work.stages}
+        value={listInputs.workStages ?? ""}
+        placeholder="Nova etapa"
+        onValueChange={(value) => setListInputs((current) => ({ ...current, workStages: value }))}
+        onAdd={() => addListItem("workStages", "work", "stages", draft.work.stages)}
+        onRemove={(value) =>
+          updateList(
+            "work",
+            "stages",
+            draft.work.stages.filter((item) => item !== value),
+          )
+        }
+      />
+      <EditableList
+        title="Pacotes"
+        description="Nomes rápidos para propostas e trabalhos."
+        items={draft.work.packages}
+        value={listInputs.workPackages ?? ""}
+        placeholder="Novo pacote"
+        onValueChange={(value) => setListInputs((current) => ({ ...current, workPackages: value }))}
+        onAdd={() => addListItem("workPackages", "work", "packages", draft.work.packages)}
+        onRemove={(value) =>
+          updateList(
+            "work",
+            "packages",
+            draft.work.packages.filter((item) => item !== value),
+          )
+        }
+      />
+    </>
+  );
+
+  const renderAgenda = () => (
+    <>
+      <SectionHeading
+        eyebrow="TEMPO"
+        title="Agenda"
+        description="Disponibilidade e lembretes usados em novos eventos."
+      />
+      <div className="settings-control-block full">
+        <h3>Dias de trabalho</h3>
+        <div className="target-chips">
+          {weekDays.map((day) => (
+            <button
+              type="button"
+              key={day}
+              className={draft.agenda.workDays.includes(day) ? "selected" : ""}
+              onClick={() =>
+                updateDraft((current) => ({
+                  ...current,
+                  agenda: {
+                    ...current.agenda,
+                    workDays: current.agenda.workDays.includes(day)
+                      ? current.agenda.workDays.filter((item) => item !== day)
+                      : [...current.agenda.workDays, day],
+                  },
+                }))
+              }
+            >
+              {day}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="settings-form-grid settings-control-block full">
+        <label>
+          Início
+          <input
+            type="time"
+            value={draft.agenda.startTime}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                agenda: { ...current.agenda, startTime: event.target.value },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Fim
+          <input
+            type="time"
+            value={draft.agenda.endTime}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                agenda: { ...current.agenda, endTime: event.target.value },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Início do intervalo
+          <input
+            type="time"
+            value={draft.agenda.breakStart}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                agenda: { ...current.agenda, breakStart: event.target.value },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Fim do intervalo
+          <input
+            type="time"
+            value={draft.agenda.breakEnd}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                agenda: { ...current.agenda, breakEnd: event.target.value },
+              }))
+            }
+          />
+        </label>
+        <label className="wide">
+          Fuso horário
+          <select
+            value={draft.agenda.timezone}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                agenda: { ...current.agenda, timezone: event.target.value },
+              }))
+            }
+          >
+            <option value="Europe/Lisbon">Portugal · Lisboa</option>
+            <option value="America/Maceio">Brasil · Maceió</option>
+            <option value="America/Sao_Paulo">Brasil · São Paulo</option>
+          </select>
+        </label>
+      </div>
+      <div className="settings-control-block full">
+        <h3>Lembretes padrão</h3>
+        <div className="target-chips">
+          {[
+            [1440, "1 dia"],
+            [120, "2 horas"],
+            [30, "30 minutos"],
+          ].map(([minutes, label]) => (
+            <button
+              type="button"
+              key={minutes}
+              className={
+                draft.agenda.defaultReminderMinutes.includes(minutes as number) ? "selected" : ""
+              }
+              onClick={() =>
+                updateDraft((current) => ({
+                  ...current,
+                  agenda: {
+                    ...current.agenda,
+                    defaultReminderMinutes: current.agenda.defaultReminderMinutes.includes(
+                      minutes as number,
+                    )
+                      ? current.agenda.defaultReminderMinutes.filter((item) => item !== minutes)
+                      : [...current.agenda.defaultReminderMinutes, minutes as number],
+                  },
+                }))
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+
+  const renderGalleries = () => (
+    <>
+      <SectionHeading
+        eyebrow="CLIENTES"
+        title="Galerias"
+        description="Padrões de acesso, seleção e entrega."
+      />
+      <div className="toggle-list">
+        <label>
+          <span>
+            <strong>Solicitar PIN por padrão</strong>
+            <small>Pode ser alterado em cada galeria.</small>
+          </span>
+          <Toggle
+            checked={draft.galleries.pinEnabled}
+            onChange={() =>
+              updateDraft((current) => ({
+                ...current,
+                galleries: { ...current.galleries, pinEnabled: !current.galleries.pinEnabled },
+              }))
+            }
+            label="PIN padrão"
+          />
+        </label>
+        <label>
+          <span>
+            <strong>Permitir downloads</strong>
+            <small>Controla novas galerias; originais continuam protegidos.</small>
+          </span>
+          <Toggle
+            checked={draft.galleries.downloadsEnabled}
+            onChange={() =>
+              updateDraft((current) => ({
+                ...current,
+                galleries: {
+                  ...current.galleries,
+                  downloadsEnabled: !current.galleries.downloadsEnabled,
+                },
+              }))
+            }
+            label="Downloads"
+          />
+        </label>
+      </div>
+      <div className="settings-form-grid settings-control-block full">
+        <label>
+          Validade padrão (dias)
+          <input
+            type="number"
+            min="1"
+            value={draft.galleries.validityDays}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                galleries: { ...current.galleries, validityDays: Number(event.target.value) },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Limite de seleção
+          <input
+            type="number"
+            min="0"
+            value={draft.galleries.selectionLimit}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                galleries: { ...current.galleries, selectionLimit: Number(event.target.value) },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Revisões incluídas
+          <input
+            type="number"
+            min="0"
+            value={draft.galleries.revisionLimit}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                galleries: { ...current.galleries, revisionLimit: Number(event.target.value) },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Preço de foto extra
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={draft.galleries.extraPhotoPrice}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                galleries: { ...current.galleries, extraPhotoPrice: Number(event.target.value) },
+              }))
+            }
+          />
+        </label>
+        <label className="wide">
+          Marca-d’água padrão
+          <select
+            value={draft.galleries.defaultWatermarkId}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                galleries: { ...current.galleries, defaultWatermarkId: event.target.value },
+              }))
+            }
+          >
+            <option value="">Sem marca padrão</option>
+            {draft.watermarks.map((watermark) => (
+              <option key={watermark.id} value={watermark.id}>
+                {watermark.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </>
+  );
+
+  const renderFinance = () => (
+    <>
+      <SectionHeading
+        eyebrow="CONTROLE"
+        title="Financeiro"
+        description="Moedas, contas, categorias e confirmações importantes."
+      />
+      <div className="settings-control-block full">
+        <h3>Moedas ativas</h3>
+        <div className="target-chips">
+          {(["BRL", "EUR"] as const).map((currency) => (
+            <button
+              type="button"
+              key={currency}
+              className={draft.finance.currencies.includes(currency) ? "selected" : ""}
+              onClick={() => {
+                const exists = draft.finance.currencies.includes(currency);
+                if (exists && draft.finance.currencies.length === 1) return;
+                updateDraft((current) => ({
+                  ...current,
+                  finance: {
+                    ...current.finance,
+                    currencies: exists
+                      ? current.finance.currencies.filter((item) => item !== currency)
+                      : [...current.finance.currencies, currency],
+                    defaultCurrency:
+                      exists && current.finance.defaultCurrency === currency
+                        ? (current.finance.currencies.find((item) => item !== currency) ?? "BRL")
+                        : current.finance.defaultCurrency,
+                  },
+                }));
+              }}
+            >
+              {currency === "BRL" ? "Real (BRL)" : "Euro (EUR)"}
+            </button>
+          ))}
+        </div>
+        <label className="select-label">
+          Moeda padrão
+          <select
+            value={draft.finance.defaultCurrency}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                finance: {
+                  ...current.finance,
+                  defaultCurrency: event.target.value as "BRL" | "EUR",
+                },
+              }))
+            }
+          >
+            {draft.finance.currencies.map((currency) => (
+              <option key={currency} value={currency}>
+                {currency}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <EditableList
+        title="Contas e carteiras"
+        description="Destinos disponíveis nos lançamentos."
+        items={draft.finance.accounts}
+        value={listInputs.accounts ?? ""}
+        placeholder="Nova conta"
+        onValueChange={(value) => setListInputs((current) => ({ ...current, accounts: value }))}
+        onAdd={() => addListItem("accounts", "finance", "accounts", draft.finance.accounts)}
+        onRemove={(value) =>
+          updateList(
+            "finance",
+            "accounts",
+            draft.finance.accounts.filter((item) => item !== value),
+          )
+        }
+      />
+      <EditableList
+        title="Categorias"
+        description="Organização de receitas e despesas."
+        items={draft.finance.categories}
+        value={listInputs.financeCategories ?? ""}
+        placeholder="Nova categoria"
+        onValueChange={(value) =>
+          setListInputs((current) => ({ ...current, financeCategories: value }))
+        }
+        onAdd={() =>
+          addListItem("financeCategories", "finance", "categories", draft.finance.categories)
+        }
+        onRemove={(value) =>
+          updateList(
+            "finance",
+            "categories",
+            draft.finance.categories.filter((item) => item !== value),
+          )
+        }
+      />
+      <EditableList
+        title="Formas de pagamento"
+        description="PIX, transferência, dinheiro e outras."
+        items={draft.finance.paymentMethods}
+        value={listInputs.paymentMethods ?? ""}
+        placeholder="Nova forma"
+        onValueChange={(value) =>
+          setListInputs((current) => ({ ...current, paymentMethods: value }))
+        }
+        onAdd={() =>
+          addListItem("paymentMethods", "finance", "paymentMethods", draft.finance.paymentMethods)
+        }
+        onRemove={(value) =>
+          updateList(
+            "finance",
+            "paymentMethods",
+            draft.finance.paymentMethods.filter((item) => item !== value),
+          )
+        }
+      />
+      <div className="settings-row-card">
+        <div>
+          <strong>Confirmar alterações críticas</strong>
+          <p>Exige confirmação antes de cancelar ou corrigir valores.</p>
+        </div>
+        <Toggle
+          checked={draft.finance.confirmCriticalChanges}
+          onChange={() =>
+            updateDraft((current) => ({
+              ...current,
+              finance: {
+                ...current.finance,
+                confirmCriticalChanges: !current.finance.confirmCriticalChanges,
+              },
+            }))
+          }
+          label="Confirmação financeira"
+        />
+      </div>
+    </>
+  );
+
+  const renderQuotes = () => (
+    <>
+      <SectionHeading
+        eyebrow="DOCUMENTOS"
+        title="Orçamentos"
+        description="Numeração, validade e identidade visual padrão."
+      />
+      <div className="settings-form-grid settings-control-block full">
+        <label>
+          Prefixo
+          <input
+            value={draft.quotes.prefix}
+            maxLength={8}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                quotes: { ...current.quotes, prefix: event.target.value.toUpperCase() },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Próximo número
+          <input
+            type="number"
+            min="1"
+            value={draft.quotes.nextNumber}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                quotes: { ...current.quotes, nextNumber: Number(event.target.value) },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Validade padrão (dias)
+          <input
+            type="number"
+            min="1"
+            value={draft.quotes.validityDays}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                quotes: { ...current.quotes, validityDays: Number(event.target.value) },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Identidade padrão
+          <select
+            value={draft.quotes.brandId}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                quotes: { ...current.quotes, brandId: event.target.value },
+              }))
+            }
+          >
+            {draft.brands.map((brand) => (
+              <option value={brand.id} key={brand.id}>
+                {brand.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="wide">
+          Observações padrão
+          <textarea
+            value={draft.quotes.defaultNotes}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                quotes: { ...current.quotes, defaultNotes: event.target.value },
+              }))
+            }
+          />
+        </label>
+      </div>
+    </>
+  );
+
   const renderContracts = () => (
     <>
-      <div className="settings-section-heading">
-        <span>DOCUMENTOS</span>
-        <h2>Modelos de contrato</h2>
-        <p>Importe seus arquivos e deixe o Revelar. preencher os dados repetitivos.</p>
-      </div>
+      <SectionHeading
+        eyebrow="DOCUMENTOS"
+        title="Modelos de contrato"
+        description="Arquivos PDF e DOCX salvos neste dispositivo e organizados por categoria."
+      />
       <label className="file-drop wide-drop">
         <strong>＋ Importar modelo</strong>
         <span>PDF ou DOCX · vários modelos permitidos</span>
@@ -643,38 +1566,93 @@ export function SettingsModal({
           type="file"
           multiple
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(event) => selectFiles(event.target.files, "contract")}
+          onChange={(event) => void addContractTemplates(event.target.files)}
         />
       </label>
       {draft.contractTemplates.length > 0 ? (
         <div className="template-list">
-          {draft.contractTemplates.map((name) => (
-            <article key={name}>
+          {draft.contractTemplates.map((template) => (
+            <article key={template.id}>
               <span className="file-type">
-                {name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX"}
+                {template.file.name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX"}
               </span>
               <div>
-                <strong>{name}</strong>
-                <small>Modelo importado neste dispositivo</small>
+                <strong>{template.file.name}</strong>
+                <small>Salvo neste dispositivo</small>
               </div>
+              <select
+                aria-label={`Categoria de ${template.file.name}`}
+                value={template.category}
+                onChange={(event) =>
+                  updateDraft((current) => ({
+                    ...current,
+                    contractTemplates: current.contractTemplates.map((item) =>
+                      item.id === template.id
+                        ? {
+                            ...item,
+                            category: event.target.value as ContractTemplateSettings["category"],
+                          }
+                        : item,
+                    ),
+                  }))
+                }
+              >
+                {contractCategories.map((category) => (
+                  <option key={category}>{category}</option>
+                ))}
+              </select>
+              <select
+                aria-label={`Identidade de ${template.file.name}`}
+                value={template.brandId}
+                onChange={(event) =>
+                  updateDraft((current) => ({
+                    ...current,
+                    contractTemplates: current.contractTemplates.map((item) =>
+                      item.id === template.id ? { ...item, brandId: event.target.value } : item,
+                    ),
+                  }))
+                }
+              >
+                {draft.brands.map((brand) => (
+                  <option value={brand.id} key={brand.id}>
+                    {brand.name}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
-                onClick={() => updateDraft((current) => ({ ...current, defaultContract: name }))}
+                onClick={() =>
+                  updateDraft((current) => ({
+                    ...current,
+                    defaultContracts: {
+                      ...current.defaultContracts,
+                      [template.category]: template.id,
+                    },
+                  }))
+                }
               >
-                {draft.defaultContract === name ? "Padrão" : "Usar como padrão"}
+                {draft.defaultContracts[template.category] === template.id
+                  ? "Padrão"
+                  : "Usar como padrão"}
               </button>
               <button
                 type="button"
                 className="icon-remove"
-                aria-label={`Remover ${name}`}
-                onClick={() =>
+                aria-label={`Remover ${template.file.name}`}
+                onClick={() => {
+                  removeFileFromDraft(template.file);
                   updateDraft((current) => ({
                     ...current,
-                    contractTemplates: current.contractTemplates.filter((item) => item !== name),
-                    defaultContract:
-                      current.defaultContract === name ? "" : current.defaultContract,
-                  }))
-                }
+                    contractTemplates: current.contractTemplates.filter(
+                      (item) => item.id !== template.id,
+                    ),
+                    defaultContracts: Object.fromEntries(
+                      Object.entries(current.defaultContracts).filter(
+                        ([, id]) => id !== template.id,
+                      ),
+                    ),
+                  }));
+                }}
               >
                 ×
               </button>
@@ -687,10 +1665,11 @@ export function SettingsModal({
           <p>Adicione contratos de casamento, ensaio, evento ou editorial.</p>
         </div>
       )}
-      <ComingSetting
-        title="Preencher campos automaticamente"
-        description="Cliente, documento, data, local, valor e tipo de trabalho serão inseridos antes da prévia."
-      >
+      <div className="settings-row-card">
+        <div>
+          <strong>Preencher campos automaticamente</strong>
+          <p>Cliente, documento, data, local, valor e tipo de trabalho.</p>
+        </div>
         <Toggle
           checked={draft.automaticContractFields}
           onChange={() =>
@@ -701,7 +1680,7 @@ export function SettingsModal({
           }
           label="Preenchimento automático"
         />
-      </ComingSetting>
+      </div>
       <div className="automatic-fields">
         <span>{"{{cliente}}"}</span>
         <span>{"{{documento}}"}</span>
@@ -713,13 +1692,99 @@ export function SettingsModal({
     </>
   );
 
+  const renderProducts = () => (
+    <>
+      <SectionHeading
+        eyebrow="CATÁLOGO"
+        title="Produtos"
+        description="Padrões para produtos digitais, físicos e vagas mensais."
+      />
+      <div className="settings-form-grid settings-control-block full">
+        <label>
+          Disponibilidade padrão
+          <select
+            value={draft.products.defaultAvailability}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                products: {
+                  ...current.products,
+                  defaultAvailability: event.target
+                    .value as ProfessionalSettings["products"]["defaultAvailability"],
+                },
+              }))
+            }
+          >
+            <option value="unlimited">Ilimitado</option>
+            <option value="stock">Estoque</option>
+            <option value="capacity">Vagas / capacidade</option>
+          </select>
+        </label>
+        <label>
+          Entrega padrão
+          <select
+            value={draft.products.defaultDelivery}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                products: {
+                  ...current.products,
+                  defaultDelivery: event.target
+                    .value as ProfessionalSettings["products"]["defaultDelivery"],
+                },
+              }))
+            }
+          >
+            <option value="manual">Manual</option>
+            <option value="file">Arquivo</option>
+            <option value="link">Link</option>
+          </select>
+        </label>
+        <label>
+          Capacidade mensal
+          <input
+            type="number"
+            min="0"
+            value={draft.products.monthlyCapacity}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                products: { ...current.products, monthlyCapacity: Number(event.target.value) },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Promoção padrão
+          <select
+            value={draft.products.promotionType}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                products: {
+                  ...current.products,
+                  promotionType: event.target
+                    .value as ProfessionalSettings["products"]["promotionType"],
+                },
+              }))
+            }
+          >
+            <option value="none">Sem promoção</option>
+            <option value="fixed">Valor fixo</option>
+            <option value="percent">Percentual</option>
+          </select>
+        </label>
+      </div>
+    </>
+  );
+
   const renderAppearance = () => (
     <>
-      <div className="settings-section-heading">
-        <span>INTERFACE</span>
-        <h2>Aparência</h2>
-        <p>Escolha como o Revelar. aparece em cada dispositivo.</p>
-      </div>
+      <SectionHeading
+        eyebrow="INTERFACE"
+        title="Aparência"
+        description="Escolha como o Revelar. aparece em cada dispositivo."
+      />
       <div className="settings-control-block full">
         <h3>Modo</h3>
         <div className="segmented">
@@ -763,28 +1828,55 @@ export function SettingsModal({
           ))}
         </div>
       </div>
-      <ComingSetting
-        title="Tamanho da interface"
-        description="Compacta, confortável ou ampliada para melhorar a leitura"
-      >
-        <div className="mini-segment">
-          <button type="button">A−</button>
-          <button type="button" className="active">
-            A
-          </button>
-          <button type="button">A＋</button>
+      <div className="settings-row-card">
+        <div>
+          <strong>Tamanho da interface</strong>
+          <p>Compacta, confortável ou ampliada.</p>
         </div>
-      </ComingSetting>
+        <div className="mini-segment">
+          {(["compact", "comfortable", "large"] as const).map((size) => (
+            <button
+              type="button"
+              key={size}
+              className={draft.appearance.interfaceSize === size ? "active" : ""}
+              onClick={() =>
+                updateDraft((current) => ({
+                  ...current,
+                  appearance: { ...current.appearance, interfaceSize: size },
+                }))
+              }
+            >
+              {size === "compact" ? "A−" : size === "comfortable" ? "A" : "A＋"}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="settings-row-card">
+        <div>
+          <strong>Contraste reforçado</strong>
+          <p>Aumenta bordas e contraste dos textos.</p>
+        </div>
+        <Toggle
+          checked={draft.appearance.highContrast}
+          onChange={() =>
+            updateDraft((current) => ({
+              ...current,
+              appearance: { ...current.appearance, highContrast: !current.appearance.highContrast },
+            }))
+          }
+          label="Contraste reforçado"
+        />
+      </div>
     </>
   );
 
   const renderNotifications = () => (
     <>
-      <div className="settings-section-heading">
-        <span>AVISOS</span>
-        <h2>Notificações</h2>
-        <p>Escolha o que merece sua atenção e quando avisar.</p>
-      </div>
+      <SectionHeading
+        eyebrow="AVISOS"
+        title="Notificações"
+        description="Escolha o que merece atenção e quando avisar."
+      />
       <div className="settings-row-card featured">
         <div>
           <strong>Avisos no navegador e telefone</strong>
@@ -854,6 +1946,7 @@ export function SettingsModal({
                 setCustomReminder("");
               }
             }}
+            disabled={!customReminder}
           >
             Adicionar
           </button>
@@ -862,156 +1955,178 @@ export function SettingsModal({
     </>
   );
 
-  const renderStandard = () => {
-    const content: Record<
-      Exclude<
-        SettingsSection,
-        | "overview"
-        | "account"
-        | "brands"
-        | "watermarks"
-        | "contracts"
-        | "appearance"
-        | "notifications"
-      >,
-      { eyebrow: string; title: string; description: string; rows: Array<[string, string]> }
-    > = {
-      work: {
-        eyebrow: "PADRÕES",
-        title: "Trabalhos",
-        description: "Modelos que aceleram a criação de novos trabalhos.",
-        rows: [
-          ["Categorias e tipos", "Casamento, ensaio, família, editorial e eventos"],
-          ["Etapas padrão", "Fluxos com prazo, checklist e responsável"],
-          ["Pacotes e equipe", "Serviços, duração, entregas e colaboradores"],
-        ],
-      },
-      agenda: {
-        eyebrow: "TEMPO",
-        title: "Agenda",
-        description: "Disponibilidade e lembretes usados em novos eventos.",
-        rows: [
-          ["Horários de trabalho", "Defina dias, turnos e intervalos"],
-          ["Indisponibilidades", "Bloqueios pessoais, férias e deslocamentos"],
-          ["Fuso horário", "Portugal e Brasil com horários corretos"],
-        ],
-      },
-      galleries: {
-        eyebrow: "CLIENTES",
-        title: "Galerias",
-        description: "Padrões de seleção, segurança e entrega.",
-        rows: [
-          ["Acesso do cliente", "PIN e validade opcionais"],
-          ["Downloads e seleção", "Limites, aprovações e fotos extras"],
-          ["Marca-d’água padrão", "Defina uma regra e altere por galeria"],
-        ],
-      },
-      finance: {
-        eyebrow: "CONTROLE",
-        title: "Financeiro",
-        description: "Moedas, contas e confirmações importantes.",
-        rows: [
-          ["Real e Euro", "Controles separados, sem conversão automática"],
-          ["Contas e categorias", "Carteiras, bancos e formas de pagamento"],
-          ["Proteção de valores", "Confirmação antes de cancelar ou corrigir"],
-        ],
-      },
-      quotes: {
-        eyebrow: "DOCUMENTOS",
-        title: "Orçamentos",
-        description: "Padrões dos orçamentos enviados a clientes.",
-        rows: [
-          ["Numeração automática", "Sequência separada por identidade profissional"],
-          ["Validade padrão", "Prazo, observações e condições"],
-          ["Identidade visual", "Logo, cores e assinatura do documento"],
-        ],
-      },
-      products: {
-        eyebrow: "CATÁLOGO",
-        title: "Produtos",
-        description: "Padrões para produtos digitais e físicos.",
-        rows: [
-          ["Disponibilidade", "Vagas, estoque e limite mensal"],
-          ["Entrega", "Arquivo, link, retirada ou envio"],
-          ["Promoções", "Desconto fixo, percentual e período"],
-        ],
-      },
-      team: {
-        eyebrow: "PESSOAS",
-        title: "Equipe",
-        description: "Acesso preparado para assistente, editor e fotógrafo.",
-        rows: [
-          ["Convidar por e-mail", "Somente Maryana poderá enviar convites"],
-          ["Funções e permissões", "Acesso por módulo e ação"],
-          ["Histórico de atividade", "Usuário, data e dispositivo em cada mudança"],
-        ],
-      },
-      security: {
-        eyebrow: "ACESSO",
-        title: "Segurança",
-        description: "Proteção da conta e dos dados do estúdio.",
-        rows: [
-          ["Senha e recuperação", "Alteração segura e recuperação por e-mail"],
-          ["Dispositivos conectados", "Veja e encerre sessões antigas"],
-          ["Autenticação em dois fatores", "Preparada para ativação futura"],
-        ],
-      },
-      privacy: {
-        eyebrow: "PRIVACIDADE",
-        title: "Consentimentos",
-        description: "Controle de imagem e retenção de dados pessoais.",
-        rows: [
-          ["Autorização de imagem", "Modelos por tipo de trabalho"],
-          ["Retenção de dados", "Prazo e motivo para manter informações"],
-          ["Solicitações do cliente", "Exportar, corrigir ou excluir dados"],
-        ],
-      },
-      data: {
-        eyebrow: "DADOS",
-        title: "Sincronização e backup",
-        description: "Tudo preparado para o banco definitivo.",
-        rows: [
-          ["Backup automático", "Diário, mantendo os últimos 30 dias"],
-          ["Exportação completa", "ZIP com JSON, CSV, fotos e documentos"],
-          ["Lixeira", "Recuperação por 30 dias antes da exclusão definitiva"],
-          ["Conflitos offline", "Compare as versões antes de escolher qual manter"],
-        ],
-      },
-      integrations: {
-        eyebrow: "CONEXÕES",
-        title: "Integrações",
-        description: "Serviços que poderão trabalhar junto com o Revelar.",
-        rows: [
-          ["WhatsApp Business", "Conversas, anexos e vínculo com clientes"],
-          ["Inteligência artificial", "Sugestões com aprovação antes de agir"],
-          ["Calendário e clima", "Compromissos, previsão e pôr do sol"],
-        ],
-      },
-    };
-    const selected = content[section as keyof typeof content];
-    if (!selected) return null;
+  const renderPrivacy = () => (
+    <>
+      <SectionHeading
+        eyebrow="PRIVACIDADE"
+        title="Consentimentos"
+        description="Padrões locais de autorização e retenção de dados."
+      />
+      <div className="settings-row-card">
+        <div>
+          <strong>Exigir autorização de imagem</strong>
+          <p>Adiciona a confirmação aos novos contratos.</p>
+        </div>
+        <Toggle
+          checked={draft.privacy.imageConsentRequired}
+          onChange={() =>
+            updateDraft((current) => ({
+              ...current,
+              privacy: {
+                ...current.privacy,
+                imageConsentRequired: !current.privacy.imageConsentRequired,
+              },
+            }))
+          }
+          label="Autorização de imagem"
+        />
+      </div>
+      <div className="settings-form-grid settings-control-block full">
+        <label>
+          Retenção padrão (meses)
+          <input
+            type="number"
+            min="1"
+            value={draft.privacy.retentionMonths}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                privacy: { ...current.privacy, retentionMonths: Number(event.target.value) },
+              }))
+            }
+          />
+        </label>
+        <label>
+          Aviso antes de excluir (dias)
+          <input
+            type="number"
+            min="1"
+            value={draft.privacy.deletionNoticeDays}
+            onChange={(event) =>
+              updateDraft((current) => ({
+                ...current,
+                privacy: { ...current.privacy, deletionNoticeDays: Number(event.target.value) },
+              }))
+            }
+          />
+        </label>
+      </div>
+      <DisabledSetting
+        title="Solicitações do cliente"
+        description="Exportar, corrigir ou excluir dados dependerá do cadastro definitivo no banco."
+      />
+    </>
+  );
+
+  const exportPreferences = () => {
+    const blob = new Blob([JSON.stringify(draft, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `revelar-configuracoes-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const renderFutureSection = () => {
+    if (section === "team")
+      return (
+        <>
+          <SectionHeading
+            eyebrow="PESSOAS"
+            title="Equipe"
+            description="Acesso futuro para assistente, editor e fotógrafo."
+          />
+          <DisabledSetting
+            title="Convidar por e-mail"
+            description="Somente Maryana poderá enviar convites após o login e o banco."
+          />
+          <DisabledSetting
+            title="Funções e permissões"
+            description="Acesso por módulo e por ação será configurado no banco."
+          />
+          <DisabledSetting
+            title="Histórico de atividade"
+            description="Usuário, data e dispositivo serão registrados após a auditoria do banco."
+          />
+        </>
+      );
+    if (section === "security")
+      return (
+        <>
+          <SectionHeading
+            eyebrow="ACESSO"
+            title="Segurança"
+            description="Proteção da conta e dos dados do estúdio."
+          />
+          <DisabledSetting
+            title="Senha e recuperação"
+            description="Será liberado junto com o login seguro por e-mail e senha."
+          />
+          <DisabledSetting
+            title="Dispositivos conectados"
+            description="Sessões só existem depois da autenticação definitiva."
+          />
+          <DisabledSetting
+            title="Autenticação em dois fatores"
+            description="Preparada como opção futura, sem obrigar Maryana agora."
+          />
+        </>
+      );
+    if (section === "data")
+      return (
+        <>
+          <SectionHeading
+            eyebrow="DADOS"
+            title="Sincronização e backup"
+            description="Ações locais disponíveis agora e recursos definitivos claramente separados."
+          />
+          <div className="settings-row-card featured">
+            <div>
+              <strong>Exportar preferências locais</strong>
+              <p>Baixa um JSON com as configurações deste dispositivo.</p>
+            </div>
+            <button type="button" onClick={exportPreferences}>
+              Baixar JSON
+            </button>
+          </div>
+          <DisabledSetting
+            title="Backup automático diário"
+            description="Manterá 30 dias de versões quando o banco estiver conectado."
+          />
+          <DisabledSetting
+            title="Exportação completa em ZIP"
+            description="Incluirá JSON, CSV, fotos e documentos armazenados no banco e no R2."
+          />
+          <DisabledSetting
+            title="Lixeira por 30 dias"
+            description="A recuperação definitiva depende das tabelas e do armazenamento real."
+          />
+          <DisabledSetting
+            title="Conflitos offline"
+            description="As duas versões serão comparadas depois da sincronização entre dispositivos."
+          />
+        </>
+      );
     return (
       <>
-        <div className="settings-section-heading">
-          <span>{selected.eyebrow}</span>
-          <h2>{selected.title}</h2>
-          <p>{selected.description}</p>
-        </div>
-        <div className="standard-settings-list">
-          {selected.rows.map(([title, description]) => (
-            <ComingSetting key={title} title={title} description={description} />
-          ))}
-        </div>
-        <div className="settings-status-card neutral">
-          <span className="status-dot" />
-          <div>
-            <strong>Estrutura pronta para a próxima fase</strong>
-            <p>
-              Essas opções serão conectadas ao banco definitivo por módulo, sem misturar dados
-              demonstrativos.
-            </p>
-          </div>
-        </div>
+        <SectionHeading
+          eyebrow="CONEXÕES"
+          title="Integrações"
+          description="Serviços planejados, sem ações simuladas nesta fase."
+        />
+        <DisabledSetting
+          title="WhatsApp Business"
+          description="Conversas, anexos e vínculo com clientes exigem a integração oficial."
+        />
+        <DisabledSetting
+          title="Inteligência artificial"
+          description="Sugestões com aprovação serão conectadas após o banco."
+        />
+        <DisabledSetting
+          title="Calendário"
+          description="A sincronização externa será configurada em uma fase própria."
+        />
       </>
     );
   };
@@ -1021,14 +2136,25 @@ export function SettingsModal({
     if (section === "account") return renderAccount();
     if (section === "brands") return renderBrands();
     if (section === "watermarks") return renderWatermarks();
+    if (section === "work") return renderWork();
+    if (section === "agenda") return renderAgenda();
+    if (section === "galleries") return renderGalleries();
+    if (section === "finance") return renderFinance();
+    if (section === "quotes") return renderQuotes();
     if (section === "contracts") return renderContracts();
+    if (section === "products") return renderProducts();
     if (section === "appearance") return renderAppearance();
     if (section === "notifications") return renderNotifications();
-    return renderStandard();
+    if (section === "privacy") return renderPrivacy();
+    return renderFutureSection();
   };
 
   return (
-    <div className="modal-backdrop settings-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className="modal-backdrop settings-backdrop"
+      role="presentation"
+      onMouseDown={requestClose}
+    >
       <section
         className="settings-modal settings-workspace"
         role="dialog"
@@ -1050,10 +2176,20 @@ export function SettingsModal({
               aria-label="Pesquisar configurações"
             />
           </div>
-          <button type="button" className="settings-close" onClick={onClose} aria-label="Fechar">
+          <button
+            type="button"
+            className="settings-close"
+            onClick={requestClose}
+            aria-label="Fechar"
+          >
             ×
           </button>
         </header>
+        {fileNotice && (
+          <div className="settings-inline-error" role="alert">
+            {fileNotice}
+          </div>
+        )}
         <div className="settings-workspace-body">
           <aside className="settings-sidebar" aria-label="Áreas das configurações">
             {visibleGroups.length > 0 ? (
@@ -1087,10 +2223,10 @@ export function SettingsModal({
             {dirty ? "● Alterações ainda não salvas" : "✓ Tudo salvo neste dispositivo"}
           </span>
           <div>
-            <button type="button" className="outline-button" onClick={onClose}>
+            <button type="button" className="outline-button" onClick={requestClose}>
               Cancelar
             </button>
-            <button className="primary-button" type="button" onClick={save}>
+            <button className="primary-button" type="button" onClick={save} disabled={!loaded}>
               Salvar configurações
             </button>
           </div>
