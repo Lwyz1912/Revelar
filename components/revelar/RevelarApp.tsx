@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { navItems } from "@/config/navigation";
 import { MobileNavigation } from "@/components/layout/MobileNavigation";
@@ -53,6 +53,10 @@ import { QuotesView } from "@/components/modules/quotes/QuotesView";
 import { NotificationsCenter } from "@/components/modules/notifications/NotificationsCenter";
 import { LocationsView } from "@/components/modules/locations/LocationsView";
 import { DiaryView } from "@/components/modules/diary/DiaryView";
+import {
+  AchievementCelebration,
+  type AchievementCelebrationState,
+} from "@/components/modules/diary/AchievementCelebration";
 import { WhatsAppAIView } from "@/components/modules/whatsapp/WhatsAppAIView";
 import { NewWorkDrawer } from "@/components/modules/works/NewWorkDrawer";
 import { WorkDetails } from "@/components/modules/works/WorkDetails";
@@ -60,6 +64,7 @@ import { WorksView } from "@/components/modules/works/WorksView";
 import { SettingsModal } from "@/components/shared/SettingsModal";
 import { HelpCenter } from "@/components/shared/HelpCenter";
 import { Toast } from "@/components/shared/Toast";
+import { createMissingUnlocks, evaluateAchievements } from "@/lib/achievements";
 
 export function RevelarApp() {
   const {
@@ -94,6 +99,9 @@ export function RevelarApp() {
     setLocations,
     diaryEntries,
     setDiaryEntries,
+    achievementUnlocks,
+    setAchievementUnlocks,
+    cloudReady,
   } = useRevelarData();
   const {
     notifications,
@@ -122,6 +130,9 @@ export function RevelarApp() {
   const [selectedWorkId, setSelectedWorkId] = useState<number | null>(null);
   const [notificationsCenterOpen, setNotificationsCenterOpen] = useState(false);
   const [agendaInitialView, setAgendaInitialView] = useState<AgendaViewMode>("month");
+  const [achievementCelebration, setAchievementCelebration] =
+    useState<AchievementCelebrationState | null>(null);
+  const achievementTrackingStarted = useRef(false);
   const today = todayIso();
   const dashboardOverview = useMemo(
     () => buildDashboardOverview({ works, transactions, currency, today }),
@@ -131,6 +142,61 @@ export function RevelarApp() {
     () => visibleNotifications(notifications, notificationPreferences),
     [notificationPreferences, notifications],
   );
+  const achievements = useMemo(
+    () =>
+      evaluateAchievements(
+        {
+          clients,
+          works,
+          agendaEvents,
+          transactions,
+          products,
+          quotes,
+          contracts,
+          locations,
+          diaryEntries,
+        },
+        achievementUnlocks,
+      ),
+    [
+      achievementUnlocks,
+      agendaEvents,
+      clients,
+      contracts,
+      diaryEntries,
+      locations,
+      products,
+      quotes,
+      transactions,
+      works,
+    ],
+  );
+
+  useEffect(() => {
+    if (!cloudReady) return;
+    const retroactive = !achievementTrackingStarted.current;
+    achievementTrackingStarted.current = true;
+    const missing = createMissingUnlocks(
+      achievements,
+      achievementUnlocks,
+      new Date().toISOString(),
+      retroactive,
+    );
+    if (missing.length === 0) return;
+    setAchievementUnlocks((current) => [...current, ...missing]);
+    const tierWeight = { Bronze: 1, Prata: 2, Ouro: 3, Platina: 4, Diamante: 5 };
+    const newlyUnlocked = achievements
+      .filter((achievement) => missing.some((unlock) => unlock.id === achievement.id))
+      .sort((left, right) => tierWeight[right.tier] - tierWeight[left.tier]);
+    const highlight = newlyUnlocked[0];
+    if (!highlight) return;
+    setAchievementCelebration({ achievement: highlight, count: missing.length, retroactive });
+    setToast(
+      retroactive && missing.length > 1
+        ? `${missing.length} conquistas foram reconhecidas pelo histórico`
+        : `Conquista desbloqueada: ${highlight.title}`,
+    );
+  }, [achievementUnlocks, achievements, cloudReady, setAchievementUnlocks, setToast]);
 
   const navigate = (label: AppSection) => {
     setSearchOpen(false);
@@ -536,7 +602,8 @@ export function RevelarApp() {
             entries={diaryEntries}
             setEntries={setDiaryEntries}
             works={works}
-            clients={clients}
+            achievements={achievements}
+            achievementUnlocks={achievementUnlocks}
             toast={setToast}
           />
         ) : isWhatsApp ? (
@@ -649,6 +716,12 @@ export function RevelarApp() {
         />
       )}
       <Toast message={toast} />
+      {achievementCelebration && (
+        <AchievementCelebration
+          celebration={achievementCelebration}
+          onClose={() => setAchievementCelebration(null)}
+        />
+      )}
     </div>
   );
 }
