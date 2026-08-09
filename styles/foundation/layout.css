@@ -89,26 +89,17 @@
 .theme-dark .side-nav button.active {
   color: color-mix(in srgb, var(--accent) 65%, white);
 }
-.side-nav button > img,
-.sidebar-bottom > button > img {
+.side-nav button > .revelar-icon,
+.sidebar-bottom > button > .revelar-icon {
   width: 18px;
   height: 18px;
-  object-fit: contain;
-  opacity: 0.62;
-  transition:
-    filter 0.18s ease,
-    opacity 0.18s ease;
+  flex: 0 0 18px;
+  opacity: 0.72;
+  transition: opacity 0.18s ease;
 }
-.side-nav button.active > img {
+.side-nav button.active > .revelar-icon {
   opacity: 1;
-  filter: sepia(1) saturate(5) hue-rotate(64deg) brightness(0.46);
-}
-.theme-dark .side-nav button > img,
-.theme-dark .sidebar-bottom > button > img {
-  filter: invert(1);
-}
-.theme-dark .side-nav button.active > img {
-  filter: invert(82%) sepia(23%) saturate(666%) hue-rotate(356deg) brightness(92%);
+  color: var(--primary);
 }
 .sidebar-bottom {
   margin-top: auto;
@@ -228,14 +219,10 @@
   font-size: 16px;
   position: relative;
 }
-.icon-button > img {
+.icon-button > .revelar-icon {
   width: 17px;
   height: 17px;
-  object-fit: contain;
   opacity: 0.72;
-}
-.theme-dark .icon-button > img {
-  filter: invert(1);
 }
 .mobile-logo,
 .mobile-search {
