@@ -43,7 +43,7 @@ export function ClientDetails({
   onEdit: () => void;
   onNewWork: () => void;
   onOpenWork: (work: Work) => void;
-  onNavigate: (section: "Orçamentos" | "Contratos" | "Financeiro") => void;
+  onNavigate: (section: "Orçamentos" | "Financeiro") => void;
   onUpdate: (client: Client) => void;
   onArchive: () => void;
   toast: (message: string) => void;
@@ -208,9 +208,6 @@ export function ClientDetails({
               </button>
               <button type="button" onClick={() => onNavigate("Orçamentos")}>
                 <span>▤</span>Orçamento
-              </button>
-              <button type="button" onClick={() => onNavigate("Contratos")}>
-                <span>✓</span>Contrato
               </button>
               <button type="button" onClick={() => onNavigate("Financeiro")}>
                 <span>€</span>Pagamento
