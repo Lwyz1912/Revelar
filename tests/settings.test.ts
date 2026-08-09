@@ -3,12 +3,12 @@ import test from "node:test";
 
 import { defaultProfessionalSettings, normalizeProfessionalSettings } from "../config/settings";
 
-test("cria a central completa com as três identidades profissionais", () => {
+test("separa o perfil pessoal das duas marcas do negócio", () => {
   const settings = normalizeProfessionalSettings(undefined);
 
   assert.deepEqual(
     settings.brands.map((brand) => brand.name),
-    ["Mary Fotografia", "MF Studio", "Maryana Ferreira"],
+    ["Mary Fotografia", "MF Studio"],
   );
   assert.equal(settings.activeBrandId, "mary-fotografia");
   assert.deepEqual(settings.finance.currencies, ["BRL", "EUR"]);
@@ -27,7 +27,7 @@ test("migra preferências da primeira versão sem inventar arquivos inexistentes
   assert.equal(settings.watermarkOpacity, 60);
   assert.deepEqual(settings.watermarks, []);
   assert.deepEqual(settings.contractTemplates, []);
-  assert.equal(settings.agenda.timezone, "Europe/Lisbon");
+  assert.equal(settings.agenda.timezone, "America/Recife");
 });
 
 test("normalização preserva padrões editáveis salvos", () => {
