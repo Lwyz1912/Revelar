@@ -72,20 +72,15 @@ const settingsGroups: Array<{
     items: [
       { id: "overview", label: "Início", icon: "⌂", hint: "Resumo" },
       { id: "account", label: "Minha conta", icon: "○", hint: "Perfil e contato" },
-      { id: "brands", label: "Marcas profissionais", icon: "◇", hint: "Identidades" },
+      { id: "brands", label: "Marcas do negócio", icon: "◇", hint: "Logos e documentos" },
       { id: "watermarks", label: "Marcas-d’água", icon: "◫", hint: "Proteção das fotos" },
     ],
   },
   {
-    title: "PADRÕES DO NEGÓCIO",
+    title: "DOCUMENTOS E FINANÇAS",
     items: [
-      { id: "work", label: "Trabalhos", icon: "▣", hint: "Etapas e pacotes" },
-      { id: "agenda", label: "Agenda", icon: "□", hint: "Horários e lembretes" },
-      { id: "galleries", label: "Galerias", icon: "▧", hint: "Entrega e seleção" },
       { id: "finance", label: "Financeiro", icon: "◉", hint: "Moedas e contas" },
-      { id: "quotes", label: "Orçamentos", icon: "▤", hint: "Validade e condições" },
       { id: "contracts", label: "Contratos", icon: "▱", hint: "Modelos e campos" },
-      { id: "products", label: "Produtos", icon: "▦", hint: "Catálogo e vendas" },
     ],
   },
   {
@@ -165,7 +160,9 @@ function Toggle({
       aria-pressed={checked}
       disabled={disabled}
     >
-      <span />
+      <span aria-hidden="true">
+        <i />
+      </span>
     </button>
   );
 }
@@ -520,7 +517,7 @@ export function SettingsModal({
         <div>
           <span>ESPAÇO PROFISSIONAL</span>
           <h2>Deixe o Revelar. com a cara do seu trabalho</h2>
-          <p>Identidade, documentos, padrões de entrega e preferências em um só lugar.</p>
+          <p>Perfil, marcas, documentos e preferências gerais em um só lugar.</p>
         </div>
         <button type="button" onClick={() => setSection("account")}>
           Completar perfil
@@ -528,9 +525,9 @@ export function SettingsModal({
       </div>
       <div className="settings-overview-grid">
         <button type="button" onClick={() => setSection("brands")}>
-          <span>{draft.brands.length} identidades</span>
-          <strong>Marcas profissionais</strong>
-          <small>Logo, símbolo, contatos e assinatura.</small>
+          <span>{draft.brands.length} marcas</span>
+          <strong>Marcas do negócio</strong>
+          <small>Nome, logo e contatos usados em documentos e galerias.</small>
         </button>
         <button type="button" onClick={() => setSection("watermarks")}>
           <span>{draft.watermarks.length} cadastradas</span>
@@ -653,7 +650,7 @@ export function SettingsModal({
       <div className="brand-editor">
         <div className="brand-editor-header">
           <div>
-            <span>EDITANDO IDENTIDADE</span>
+            <span>EDITANDO MARCA</span>
             <h3>{brand.name}</h3>
           </div>
           <button type="button" onClick={() => setEditingBrandId(null)}>
@@ -730,9 +727,17 @@ export function SettingsModal({
     <>
       <SectionHeading
         eyebrow="IDENTIDADE"
-        title="Marcas profissionais"
-        description="Contatos, logos, símbolos e assinaturas separados para cada marca."
+        title="Marcas do negócio"
+        description="Define qual nome, logo e contato aparece em contratos, orçamentos e galerias."
       />
+      <div className="settings-explainer-card">
+        <strong>Para que serve?</strong>
+        <p>
+          Mary Fotografia pode aparecer nos casamentos e ensaios, enquanto MF Studio pode ser usado
+          nos trabalhos de estúdio. Se ela usar apenas Mary Fotografia, basta mantê-la como padrão e
+          ignorar a alternativa.
+        </p>
+      </div>
       <div className="brand-settings-grid">
         {draft.brands.map((brand) => (
           <article className={draft.activeBrandId === brand.id ? "active" : ""} key={brand.id}>
@@ -754,7 +759,7 @@ export function SettingsModal({
                 </button>
               )}
               <button type="button" onClick={() => setEditingBrandId(brand.id)}>
-                Editar identidade
+                Editar marca
               </button>
             </div>
           </article>
@@ -768,11 +773,8 @@ export function SettingsModal({
         <div className="settings-status-card neutral">
           <span className="status-dot" />
           <div>
-            <strong>Cada identidade é independente</strong>
-            <p>
-              Abra “Editar identidade” para configurar dados, logo, símbolo e assinatura daquela
-              marca.
-            </p>
+            <strong>Cada marca pode ter seus próprios arquivos</strong>
+            <p>Abra “Editar marca” para configurar os dados, o logo, o símbolo e a assinatura.</p>
           </div>
         </div>
       )}
