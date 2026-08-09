@@ -157,3 +157,13 @@ export const editingPresets = sqliteTable(
   },
   (table) => [index("editing_presets_owner_idx").on(table.ownerEmail, table.updatedAt)],
 );
+
+export const appState = sqliteTable(
+  "app_state",
+  {
+    ownerEmail: text("owner_email").primaryKey(),
+    dataJson: text("data_json").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("app_state_updated_idx").on(table.updatedAt)],
+);

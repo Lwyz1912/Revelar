@@ -98,7 +98,13 @@ export function MobileNavigation({
                             ? "Catálogo e vendas"
                             : item.label === "Orçamentos"
                               ? "Propostas para clientes"
-                              : "Documentos e assinaturas"}
+                              : item.label === "Locais"
+                                ? "Mapa dos trabalhos"
+                                : item.label === "Diário"
+                                  ? "Memórias e conquistas"
+                                  : item.label === "WhatsApp e IA"
+                                    ? "Conversas e automações"
+                                    : "Documentos e assinaturas"}
                     </small>
                   </span>
                 </button>

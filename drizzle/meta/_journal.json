@@ -15,6 +15,13 @@
       "when": 1786241646645,
       "tag": "0001_white_famine",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786247374246,
+      "tag": "0002_colossal_hairball",
+      "breakpoints": true
     }
   ]
 }

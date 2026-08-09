@@ -9,8 +9,9 @@ import {
 } from "../lib/editing";
 
 test("oferece estilos de câmera próprios com receitas completas", () => {
-  assert.ok(builtInPresets.length >= 6);
+  assert.ok(builtInPresets.length >= 20);
   assert.ok(builtInPresets.every((preset) => preset.builtIn));
+  assert.ok(new Set(builtInPresets.map((preset) => preset.category)).size >= 6);
   assert.equal(Object.keys(builtInPresets[0].adjustments).length, 14);
 });
 

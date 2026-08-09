@@ -97,4 +97,27 @@ export const sectionGuides: Record<AvailableSection, SectionGuide> = {
     ],
     tip: "Nesta fase, o arquivo e o estado ficam salvos neste navegador.",
   },
+  Locais: {
+    purpose: "Visualize no mapa os lugares onde os trabalhos foram realizados.",
+    steps: [
+      "Abra um marcador.",
+      "Consulte as informações do local.",
+      "Vincule trabalhos ao lugar.",
+    ],
+    tip: "O mapa é um histórico visual; não calcula rotas ou deslocamentos.",
+  },
+  Diário: {
+    purpose: "Registre memórias, aprendizados e marcos da trajetória da fotógrafa.",
+    steps: ["Crie uma entrada.", "Vincule um cliente ou trabalho.", "Acompanhe a linha do tempo."],
+    tip: "As conquistas aparecem automaticamente quando um marco é alcançado.",
+  },
+  "WhatsApp e IA": {
+    purpose: "Organize conversas e revise sugestões da IA antes de agir.",
+    steps: [
+      "Conecte o WhatsApp Business.",
+      "Abra uma conversa.",
+      "Revise e confirme as sugestões.",
+    ],
+    tip: "Mensagens, cobranças, contratos e alterações financeiras sempre exigem confirmação.",
+  },
 };

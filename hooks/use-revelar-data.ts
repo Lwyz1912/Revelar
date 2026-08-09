@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import {
   initialAgendaEvents,
   initialClients,
@@ -9,6 +11,7 @@ import {
   initialQuotes,
   initialWorks,
 } from "@/data/demo";
+import { initialDiaryEntries, initialLocations } from "@/data/story";
 import { useStoredJsonState } from "@/hooks/use-persisted-state";
 import { storageKeys } from "@/lib/storage";
 import type {
@@ -19,6 +22,8 @@ import type {
   Product,
   Quote,
   Work,
+  DiaryEntry,
+  PhotoLocation,
 } from "@/types/revelar";
 
 export function useRevelarData() {
@@ -41,6 +46,97 @@ export function useRevelarData() {
     storageKeys.contracts,
     initialContracts,
   );
+  const [locations, setLocations] = useStoredJsonState<PhotoLocation[]>(
+    storageKeys.locations,
+    initialLocations,
+  );
+  const [diaryEntries, setDiaryEntries] = useStoredJsonState<DiaryEntry[]>(
+    storageKeys.diary,
+    initialDiaryEntries,
+  );
+  const [cloudReady, setCloudReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/app-data")
+      .then(
+        async (response): Promise<{ data?: unknown } | null> =>
+          response.ok ? ((await response.json()) as { data?: unknown }) : null,
+      )
+      .then((result) => {
+        if (cancelled || !result?.data) return;
+        const data = result.data as Partial<{
+          clients: Client[];
+          works: Work[];
+          agendaEvents: AgendaEvent[];
+          transactions: FinanceTransaction[];
+          products: Product[];
+          quotes: Quote[];
+          contracts: Contract[];
+          locations: PhotoLocation[];
+          diaryEntries: DiaryEntry[];
+        }>;
+        if (Array.isArray(data.clients)) setClients(data.clients);
+        if (Array.isArray(data.works)) setWorks(data.works);
+        if (Array.isArray(data.agendaEvents)) setAgendaEvents(data.agendaEvents);
+        if (Array.isArray(data.transactions)) setTransactions(data.transactions);
+        if (Array.isArray(data.products)) setProducts(data.products);
+        if (Array.isArray(data.quotes)) setQuotes(data.quotes);
+        if (Array.isArray(data.contracts)) setContracts(data.contracts);
+        if (Array.isArray(data.locations)) setLocations(data.locations);
+        if (Array.isArray(data.diaryEntries)) setDiaryEntries(data.diaryEntries);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setCloudReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    setAgendaEvents,
+    setClients,
+    setContracts,
+    setDiaryEntries,
+    setLocations,
+    setProducts,
+    setQuotes,
+    setTransactions,
+    setWorks,
+  ]);
+
+  useEffect(() => {
+    if (!cloudReady) return;
+    const timer = window.setTimeout(() => {
+      fetch("/api/app-data", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clients,
+          works,
+          agendaEvents,
+          transactions,
+          products,
+          quotes,
+          contracts,
+          locations,
+          diaryEntries,
+        }),
+      }).catch(() => undefined);
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [
+    cloudReady,
+    clients,
+    works,
+    agendaEvents,
+    transactions,
+    products,
+    quotes,
+    contracts,
+    locations,
+    diaryEntries,
+  ]);
 
   return {
     clients,
@@ -57,5 +153,9 @@ export function useRevelarData() {
     setQuotes,
     contracts,
     setContracts,
+    locations,
+    setLocations,
+    diaryEntries,
+    setDiaryEntries,
   };
 }

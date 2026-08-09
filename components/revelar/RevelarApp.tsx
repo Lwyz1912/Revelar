@@ -51,6 +51,9 @@ import { GalleryLibraryView } from "@/components/modules/gallery/GalleryLibraryV
 import { ProductsView } from "@/components/modules/products/ProductsView";
 import { QuotesView } from "@/components/modules/quotes/QuotesView";
 import { NotificationsCenter } from "@/components/modules/notifications/NotificationsCenter";
+import { LocationsView } from "@/components/modules/locations/LocationsView";
+import { DiaryView } from "@/components/modules/diary/DiaryView";
+import { WhatsAppAIView } from "@/components/modules/whatsapp/WhatsAppAIView";
 import { NewWorkDrawer } from "@/components/modules/works/NewWorkDrawer";
 import { WorkDetails } from "@/components/modules/works/WorkDetails";
 import { WorksView } from "@/components/modules/works/WorksView";
@@ -87,6 +90,10 @@ export function RevelarApp() {
     setQuotes,
     contracts,
     setContracts,
+    locations,
+    setLocations,
+    diaryEntries,
+    setDiaryEntries,
   } = useRevelarData();
   const {
     notifications,
@@ -312,6 +319,9 @@ export function RevelarApp() {
   const isProducts = activeNav === "Produtos";
   const isQuotes = activeNav === "Orçamentos";
   const isContracts = activeNav === "Contratos";
+  const isLocations = activeNav === "Locais";
+  const isDiary = activeNav === "Diário";
+  const isWhatsApp = activeNav === "WhatsApp e IA";
   const selectedWork = works.find((work) => work.id === selectedWorkId);
   const selectedClient = clients.find((client) => client.id === selectedClientId);
   const editingClient = clients.find((client) => client.id === editingClientId);
@@ -514,6 +524,23 @@ export function RevelarApp() {
             quotes={quotes}
             toast={setToast}
           />
+        ) : isLocations ? (
+          <LocationsView
+            locations={locations}
+            setLocations={setLocations}
+            works={works}
+            toast={setToast}
+          />
+        ) : isDiary ? (
+          <DiaryView
+            entries={diaryEntries}
+            setEntries={setDiaryEntries}
+            works={works}
+            clients={clients}
+            toast={setToast}
+          />
+        ) : isWhatsApp ? (
+          <WhatsAppAIView clients={clients} works={works} toast={setToast} />
         ) : (
           <Dashboard
             overview={dashboardOverview}
@@ -536,7 +563,10 @@ export function RevelarApp() {
         !isFinancial &&
         !isProducts &&
         !isQuotes &&
-        !isContracts && (
+        !isContracts &&
+        !isLocations &&
+        !isDiary &&
+        !isWhatsApp && (
           <button
             className="floating-add"
             type="button"

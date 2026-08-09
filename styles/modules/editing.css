@@ -81,8 +81,29 @@
 }
 .editing-camera-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+.editing-camera-filters {
+  display: flex;
+  gap: 7px;
+  margin: -2px 0 15px;
+  overflow-x: auto;
+}
+.editing-camera-filters button {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 9px;
+  font-weight: 700;
+}
+.editing-camera-filters button.active {
+  border-color: var(--primary);
+  color: white;
+  background: var(--primary);
 }
 .editing-camera-grid > button {
   min-width: 0;
@@ -109,6 +130,43 @@
   overflow: hidden;
   background: var(--surface-2);
 }
+.editing-camera-preview::before,
+.editing-camera-preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.editing-camera-preview::before {
+  opacity: calc(var(--edit-grain) * 0.32 + var(--edit-dust) * 0.26);
+  background-image:
+    repeating-radial-gradient(
+      circle at 30% 40%,
+      transparent 0 2px,
+      rgba(255, 255, 255, 0.32) 3px,
+      transparent 4px
+    ),
+    radial-gradient(
+      circle at 0 45%,
+      rgba(255, 95, 38, calc(var(--edit-leak) * 0.65)),
+      transparent 52%
+    ),
+    radial-gradient(
+      circle at 68% 22%,
+      rgba(255, 125, 70, calc(var(--edit-halation) * 0.38)),
+      transparent 44%
+    );
+  background-size:
+    7px 7px,
+    100% 100%,
+    100% 100%;
+  mix-blend-mode: screen;
+}
+.editing-camera-preview::after {
+  box-shadow: inset 0 0 calc(80px * var(--edit-vignette)) calc(18px * var(--edit-vignette))
+    rgba(0, 0, 0, 0.82);
+}
 .editing-camera-preview img {
   width: 100%;
   height: 100%;
@@ -131,6 +189,23 @@
   font-style: normal;
   font-weight: 800;
   letter-spacing: 0.13em;
+  z-index: 3;
+}
+.editing-camera-preview em {
+  position: absolute;
+  right: 9px;
+  top: 9px;
+  z-index: 3;
+  padding: 4px 6px;
+  border-radius: 99px;
+  color: #fff;
+  background: rgba(15, 14, 11, 0.48);
+  backdrop-filter: blur(8px);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .editing-camera-grid > button > strong,
 .editing-camera-grid > button > small {
@@ -663,6 +738,25 @@
   grid-template-columns: 1fr 1fr;
   margin-bottom: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.editing-intensity {
+  display: block;
+  margin-bottom: 18px;
+  padding: 12px;
+  border: 1px solid rgba(216, 189, 125, 0.22);
+  border-radius: 8px;
+  background: rgba(216, 189, 125, 0.07);
+}
+.editing-intensity span {
+  margin-bottom: 9px;
+  display: flex;
+  justify-content: space-between;
+  color: #dcd6c8;
+  font-size: 9px;
+}
+.editing-intensity input {
+  width: 100%;
+  accent-color: #d8bd7d;
 }
 .editing-control-tabs button {
   padding: 10px 4px;
