@@ -42,6 +42,23 @@ function addEffects(
     context.fillStyle = `rgba(229, 215, 190, ${adjustments.fade / 700})`;
     context.fillRect(0, 0, width, height);
   }
+  if (adjustments.coolShadows > 0) {
+    context.save();
+    context.globalCompositeOperation = "multiply";
+    context.fillStyle = `rgba(31, 92, 116, ${adjustments.coolShadows / 620})`;
+    context.fillRect(0, height * 0.25, width, height * 0.75);
+    context.restore();
+  }
+  if (adjustments.warmHighlights > 0) {
+    const warmth = context.createLinearGradient(0, 0, 0, height * 0.72);
+    warmth.addColorStop(0, `rgba(255, 184, 91, ${adjustments.warmHighlights / 520})`);
+    warmth.addColorStop(1, "rgba(255, 184, 91, 0)");
+    context.save();
+    context.globalCompositeOperation = "screen";
+    context.fillStyle = warmth;
+    context.fillRect(0, 0, width, height);
+    context.restore();
+  }
   if (adjustments.halation > 0) {
     const glow = context.createRadialGradient(
       width * 0.68,
@@ -149,6 +166,16 @@ export async function renderEditedPhoto(
   const context = canvas.getContext("2d", { alpha: options.mimeType === "image/png" })!;
   context.filter = editingCssFilter(adjustments);
   context.drawImage(image, 0, 0);
+  if (adjustments.motionTrail > 0) {
+    context.save();
+    context.globalCompositeOperation = "screen";
+    context.globalAlpha = adjustments.motionTrail / 460;
+    const distance = (Math.max(canvas.width, canvas.height) * adjustments.motionTrail) / 9000;
+    context.drawImage(image, distance, 0, canvas.width, canvas.height);
+    context.globalAlpha = adjustments.motionTrail / 760;
+    context.drawImage(image, -distance * 0.7, 0, canvas.width, canvas.height);
+    context.restore();
+  }
   context.filter = "none";
   addEffects(context, canvas.width, canvas.height, adjustments);
   return canvasBlob(canvas, options.mimeType, options.quality ?? 0.96);
