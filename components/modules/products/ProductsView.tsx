@@ -1,4 +1,4 @@
-import { type Dispatch, type FormEvent, type SetStateAction, useState } from "react";
+import { type Dispatch, type FormEvent, type SetStateAction, useEffect, useState } from "react";
 
 import { FileViewer } from "@/components/shared/FileViewer";
 import { catalogKindLabels, productPriceLabels } from "@/config/labels";
@@ -26,6 +26,10 @@ import type {
   ProductOptionValue,
   ProductPriceType,
   AppFileRef,
+  ProductBadge,
+  ProductStatus,
+  StoreOrder,
+  StoreSettings,
 } from "@/types/revelar";
 
 export function ProductsView({
@@ -35,6 +39,8 @@ export function ProductsView({
   currency,
   onSale,
   onCreateQuote,
+  storeSettings,
+  setStoreSettings,
   toast,
 }: {
   products: Product[];
@@ -49,10 +55,15 @@ export function ProductsView({
     total: number,
   ) => void;
   onCreateQuote: (product: Product) => void;
+  storeSettings: StoreSettings;
+  setStoreSettings: Dispatch<SetStateAction<StoreSettings>>;
   toast: (message: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"all" | ProductKind>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | ProductStatus>("all");
+  const [adminView, setAdminView] = useState<"catalog" | "orders">("catalog");
+  const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState<Omit<Product, "id" | "sales">>(emptyProduct(currency));
@@ -62,9 +73,19 @@ export function ProductsView({
   const [saleOptions, setSaleOptions] = useState<Record<string, string>>({});
   const [previewFile, setPreviewFile] = useState<AppFileRef | null>(null);
 
+  useEffect(() => {
+    void fetch("/api/store/orders", { cache: "no-store" })
+      .then(async (response) =>
+        response.ok ? ((await response.json()) as { orders?: StoreOrder[] }) : null,
+      )
+      .then((result) => setOrders(result?.orders || []))
+      .catch(() => undefined);
+  }, []);
+
   const visible = products.filter(
     (product) =>
       (kind === "all" || product.kind === kind) &&
+      (statusFilter === "all" || product.status === statusFilter) &&
       (!search.trim() ||
         `${product.name} ${product.description} ${catalogKindLabels[product.kind]}`
           .toLowerCase()
@@ -92,6 +113,65 @@ export function ProductsView({
     } catch (error) {
       toast(error instanceof Error ? error.message : "Não foi possível enviar o arquivo");
     }
+  };
+  const uploadCoverFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const uploaded = await uploadAppFile(file, "product", editingId ? String(editingId) : "new");
+      if (draft.coverFile) await deleteAppFile(draft.coverFile).catch(() => undefined);
+      setDraft({ ...draft, coverFile: uploaded });
+      toast("Imagem de capa salva para a loja");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível enviar a imagem");
+    }
+  };
+
+  const updateProductStatus = (product: Product, status: ProductStatus) => {
+    setProducts((current) =>
+      current.map((item) =>
+        item.id === product.id
+          ? {
+              ...item,
+              status,
+              deletedAt: status === "deleted" ? new Date().toISOString() : undefined,
+            }
+          : item,
+      ),
+    );
+    toast(
+      status === "deleted" ? "Produto movido para a lixeira" : "Situação do produto atualizada",
+    );
+  };
+
+  const updateOrder = async (order: StoreOrder, status: StoreOrder["status"]) => {
+    const response = await fetch(`/api/store/orders/${order.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!response.ok) return;
+    if (status === "confirmed" && order.status === "new") {
+      setProducts((current) =>
+        current.map((product) => {
+          const ordered = order.items
+            .filter((item) => item.productId === product.id)
+            .reduce((sum, item) => sum + item.quantity, 0);
+          if (!ordered) return product;
+          return {
+            ...product,
+            sales: product.sales + ordered,
+            availableQuantity:
+              product.availability === "unlimited"
+                ? product.availableQuantity
+                : Math.max(0, (product.availableQuantity || 0) - ordered),
+          };
+        }),
+      );
+    }
+    setOrders((current) =>
+      current.map((item) => (item.id === order.id ? { ...item, status } : item)),
+    );
+    toast("Pedido atualizado");
   };
 
   const openNew = () => {
@@ -204,6 +284,20 @@ export function ProductsView({
     );
     setSaleProductId(null);
   };
+  const statusLabel: Record<ProductStatus, string> = {
+    active: "Ativo",
+    draft: "Rascunho",
+    hidden: "Oculto",
+    archived: "Arquivado",
+    deleted: "Na lixeira",
+  };
+  const orderStatusLabel: Record<StoreOrder["status"], string> = {
+    new: "Novo",
+    confirmed: "Confirmado",
+    completed: "Concluído",
+    cancelled: "Cancelado",
+  };
+  const storefrontUrl = typeof window === "undefined" ? "/loja" : `${window.location.origin}/loja`;
 
   return (
     <div className="products-page">
@@ -217,153 +311,355 @@ export function ProductsView({
           ＋ Novo produto
         </button>
       </section>
-      <section className="document-metrics">
-        <article>
-          <span>PRODUTOS ATIVOS</span>
-          <strong>{products.filter((product) => product.status === "active").length}</strong>
-          <small>Prontos para vender</small>
-        </article>
-        <article>
-          <span>DIGITAIS</span>
-          <strong>
-            {
-              products.filter((product) => ["course", "pdf", "preset"].includes(product.kind))
-                .length
-            }
-          </strong>
-          <small>Entrega por arquivo ou link</small>
-        </article>
-        <article>
-          <span>DISPONIBILIDADE</span>
-          <strong>
-            {products.filter((product) => product.availability !== "unlimited").length}
-          </strong>
-          <small>Com estoque ou limite</small>
-        </article>
-        <article>
-          <span>VENDAS REGISTRADAS</span>
-          <strong>{products.reduce((sum, product) => sum + product.sales, 0)}</strong>
-          <small>Integradas ao Financeiro</small>
-        </article>
+      <section className="products-admin-tabs" aria-label="Gestão da loja">
+        <button
+          type="button"
+          className={adminView === "catalog" ? "active" : ""}
+          onClick={() => setAdminView("catalog")}
+        >
+          Catálogo
+        </button>
+        <button
+          type="button"
+          className={adminView === "orders" ? "active" : ""}
+          onClick={() => setAdminView("orders")}
+        >
+          Pedidos <span>{orders.filter((order) => order.status === "new").length}</span>
+        </button>
+        <a href="/loja" target="_blank" rel="noreferrer">
+          Abrir loja pública ↗
+        </a>
       </section>
-      <section className="product-toolbar">
-        <label className="client-search">
-          <span className="search-glyph" />
+      <section className="store-settings card">
+        <div className="store-settings-copy">
+          <p>LOJA PÚBLICA</p>
+          <h2>Venda pelo catálogo e finalize no WhatsApp</h2>
+          <span>
+            O pedido fica registrado antes de abrir a conversa, com itens e valores conferidos.
+          </span>
+        </div>
+        <label>
+          <span>Nome da loja</span>
           <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar produtos..."
+            value={storeSettings.title}
+            onChange={(event) => setStoreSettings({ ...storeSettings, title: event.target.value })}
           />
         </label>
-        <div className="finance-tabs">
-          {(
-            ["all", "package", "album", "photo", "course", "pdf", "preset"] as Array<
-              "all" | ProductKind
-            >
-          ).map((item) => (
-            <button
-              type="button"
-              key={item}
-              className={kind === item ? "active" : ""}
-              onClick={() => setKind(item)}
-            >
-              {item === "all" ? "Todos" : catalogKindLabels[item]}
-            </button>
-          ))}
-        </div>
+        <label>
+          <span>WhatsApp para pedidos</span>
+          <input
+            inputMode="tel"
+            value={storeSettings.whatsapp}
+            onChange={(event) =>
+              setStoreSettings({ ...storeSettings, whatsapp: event.target.value })
+            }
+            placeholder="5511999999999"
+          />
+        </label>
+        <label className="store-settings-description">
+          <span>Apresentação</span>
+          <input
+            value={storeSettings.description}
+            onChange={(event) =>
+              setStoreSettings({ ...storeSettings, description: event.target.value })
+            }
+          />
+        </label>
+        <label className="store-enabled-toggle">
+          <input
+            type="checkbox"
+            checked={storeSettings.enabled}
+            onChange={(event) =>
+              setStoreSettings({ ...storeSettings, enabled: event.target.checked })
+            }
+          />
+          <span>Loja publicada</span>
+        </label>
+        <button
+          type="button"
+          className="copy-store-link"
+          onClick={() => {
+            void navigator.clipboard.writeText(storefrontUrl);
+            toast("Link da loja copiado");
+          }}
+        >
+          Copiar link
+        </button>
       </section>
-      <section className="product-grid">
-        {visible.map((product) => {
-          const promo = productDiscountActive(product);
-          const unavailable =
-            product.availability !== "unlimited" && (product.availableQuantity || 0) <= 0;
-          const availabilityText =
-            product.availabilityLabel ||
-            (product.availability === "stock" ? "em estoque" : "vagas");
-          return (
-            <article
-              className={`card product-card ${product.status !== "active" ? "inactive" : ""}`}
-              key={product.id}
+      {adminView === "catalog" ? (
+        <>
+          <section className="document-metrics">
+            <article>
+              <span>PRODUTOS ATIVOS</span>
+              <strong>{products.filter((product) => product.status === "active").length}</strong>
+              <small>Prontos para vender</small>
+            </article>
+            <article>
+              <span>DIGITAIS</span>
+              <strong>
+                {
+                  products.filter((product) => ["course", "pdf", "preset"].includes(product.kind))
+                    .length
+                }
+              </strong>
+              <small>Entrega por arquivo ou link</small>
+            </article>
+            <article>
+              <span>DISPONIBILIDADE</span>
+              <strong>
+                {products.filter((product) => product.availability !== "unlimited").length}
+              </strong>
+              <small>Com estoque ou limite</small>
+            </article>
+            <article>
+              <span>VENDAS REGISTRADAS</span>
+              <strong>{products.reduce((sum, product) => sum + product.sales, 0)}</strong>
+              <small>Integradas ao Financeiro</small>
+            </article>
+          </section>
+          <section className="product-toolbar">
+            <label className="client-search">
+              <span className="search-glyph" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar produtos..."
+              />
+            </label>
+            <div className="finance-tabs">
+              {(
+                ["all", "package", "album", "photo", "course", "pdf", "preset"] as Array<
+                  "all" | ProductKind
+                >
+              ).map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  className={kind === item ? "active" : ""}
+                  onClick={() => setKind(item)}
+                >
+                  {item === "all" ? "Todos" : catalogKindLabels[item]}
+                </button>
+              ))}
+            </div>
+            <select
+              className="product-status-filter"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as "all" | ProductStatus)}
+              aria-label="Filtrar por situação"
             >
-              <div className="product-card-top">
-                <span className={`product-kind kind-${product.kind}`}>
-                  {catalogKindLabels[product.kind]}
-                </span>
-                <span className={`document-status status-${product.status}`}>
-                  {product.status === "active"
-                    ? "Ativo"
-                    : product.status === "draft"
-                      ? "Rascunho"
-                      : "Arquivado"}
-                </span>
+              <option value="all">Todas as situações</option>
+              <option value="active">Ativos</option>
+              <option value="draft">Rascunhos</option>
+              <option value="hidden">Ocultos</option>
+              <option value="archived">Arquivados</option>
+              <option value="deleted">Lixeira</option>
+            </select>
+          </section>
+          <section className="product-grid">
+            {visible.map((product) => {
+              const promo = productDiscountActive(product);
+              const unavailable =
+                product.availability !== "unlimited" && (product.availableQuantity || 0) <= 0;
+              const availabilityText =
+                product.availabilityLabel ||
+                (product.availability === "stock" ? "em estoque" : "vagas");
+              return (
+                <article
+                  className={`card product-card ${product.status !== "active" ? "inactive" : ""}`}
+                  key={product.id}
+                >
+                  {product.coverFile && (
+                    <button
+                      type="button"
+                      className="product-cover"
+                      onClick={() => setPreviewFile(product.coverFile || null)}
+                    >
+                      <img src={fileDownloadUrl(product.coverFile)} alt="" />
+                    </button>
+                  )}
+                  {!!product.badges?.length && (
+                    <div className="product-badges">
+                      {product.badges.map((badge) => (
+                        <span key={badge}>{badge}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="product-card-top">
+                    <span className={`product-kind kind-${product.kind}`}>
+                      {catalogKindLabels[product.kind]}
+                    </span>
+                    <span className={`document-status status-${product.status}`}>
+                      {statusLabel[product.status]}
+                    </span>
+                  </div>
+                  <h2>{product.name}</h2>
+                  <p>{product.description}</p>
+                  <div className="product-price">
+                    <small>{productPriceLabels[product.priceType].toUpperCase()}</small>
+                    {product.priceType === "consult" ? (
+                      <strong>Sob consulta</strong>
+                    ) : (
+                      <>
+                        <strong>
+                          {product.priceType === "from" && "a partir de "}
+                          {formatMoney(discountedProductPrice(product), product.currency)}
+                        </strong>
+                        {promo && <del>{formatMoney(product.basePrice, product.currency)}</del>}
+                      </>
+                    )}
+                  </div>
+                  <div className="product-facts">
+                    <span>
+                      {product.options.length
+                        ? `${product.options.length} grupo${product.options.length > 1 ? "s" : ""} de opções`
+                        : "Sem variações"}
+                    </span>
+                    <span>
+                      {product.availability === "unlimited"
+                        ? "Disponibilidade ilimitada"
+                        : `${product.availableQuantity || 0} ${availabilityText}`}
+                    </span>
+                    <span>
+                      {product.deliveryType === "file"
+                        ? `Arquivo · ${deliveryFileName(product.deliveryFile) || "não anexado"}`
+                        : product.deliveryType === "link"
+                          ? "Entrega por link"
+                          : "Entrega manual"}
+                    </span>
+                    <span>
+                      {product.publicReady ? "Visível na loja pública" : "Somente uso interno"}
+                    </span>
+                    {unavailable && <span>Esgotado</span>}
+                  </div>
+                  <div className="product-card-actions">
+                    <button type="button" onClick={() => openEdit(product)}>
+                      Editar
+                    </button>
+                    <button type="button" onClick={() => onCreateQuote(product)}>
+                      Usar em orçamento
+                    </button>
+                    <button
+                      className="primary-mini"
+                      type="button"
+                      disabled={unavailable || product.status !== "active"}
+                      onClick={() => openSale(product)}
+                    >
+                      {product.priceType === "consult"
+                        ? "Criar orçamento"
+                        : unavailable
+                          ? "Indisponível"
+                          : "Vender"}
+                    </button>
+                    {product.status === "deleted" ? (
+                      <button type="button" onClick={() => updateProductStatus(product, "draft")}>
+                        Restaurar
+                      </button>
+                    ) : (
+                      <details className="product-more-actions">
+                        <summary aria-label="Mais ações">•••</summary>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => updateProductStatus(product, "hidden")}
+                          >
+                            Ocultar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateProductStatus(product, "archived")}
+                          >
+                            Arquivar
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-action"
+                            onClick={() => updateProductStatus(product, "deleted")}
+                          >
+                            Mover à lixeira
+                          </button>
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+            {visible.length === 0 && (
+              <div className="card empty-state product-empty">
+                <span>□</span>
+                <h2>Nenhum produto encontrado</h2>
+                <p>Ajuste os filtros ou crie um novo produto.</p>
               </div>
-              <h2>{product.name}</h2>
-              <p>{product.description}</p>
-              <div className="product-price">
-                <small>{productPriceLabels[product.priceType].toUpperCase()}</small>
-                {product.priceType === "consult" ? (
-                  <strong>Sob consulta</strong>
-                ) : (
-                  <>
-                    <strong>
-                      {product.priceType === "from" && "a partir de "}
-                      {formatMoney(discountedProductPrice(product), product.currency)}
-                    </strong>
-                    {promo && <del>{formatMoney(product.basePrice, product.currency)}</del>}
-                  </>
+            )}
+          </section>
+        </>
+      ) : (
+        <section className="store-orders">
+          {orders.map((order) => (
+            <article className="card store-order-card" key={order.id}>
+              <div className="store-order-heading">
+                <div>
+                  <span className={`document-status status-${order.status}`}>
+                    {orderStatusLabel[order.status]}
+                  </span>
+                  <h2>{order.customerName}</h2>
+                  <p>
+                    {order.customerWhatsapp} · {new Date(order.createdAt).toLocaleString("pt-BR")}
+                  </p>
+                </div>
+                <strong>
+                  {Object.entries(order.totals).map(([orderCurrency, total]) => (
+                    <span key={orderCurrency}>
+                      {formatMoney(total || 0, orderCurrency as Currency)}
+                    </span>
+                  ))}
+                </strong>
+              </div>
+              <ul>
+                {order.items.map((item, index) => (
+                  <li key={`${item.productId}-${index}`}>
+                    <span>
+                      {item.quantity}× {item.name}
+                    </span>
+                    <small>{item.options.join(" · ") || "Sem variação"}</small>
+                    <b>{formatMoney(item.unitPrice * item.quantity, item.currency)}</b>
+                  </li>
+                ))}
+              </ul>
+              {order.note && <p className="store-order-note">“{order.note}”</p>}
+              <div className="store-order-actions">
+                {order.status === "new" && (
+                  <button type="button" onClick={() => void updateOrder(order, "confirmed")}>
+                    Confirmar e baixar estoque
+                  </button>
+                )}
+                {order.status === "confirmed" && (
+                  <button type="button" onClick={() => void updateOrder(order, "completed")}>
+                    Marcar concluído
+                  </button>
+                )}
+                {!(["completed", "cancelled"] as StoreOrder["status"][]).includes(order.status) && (
+                  <button
+                    type="button"
+                    className="danger-action"
+                    onClick={() => void updateOrder(order, "cancelled")}
+                  >
+                    Cancelar
+                  </button>
                 )}
               </div>
-              <div className="product-facts">
-                <span>
-                  {product.options.length
-                    ? `${product.options.length} grupo${product.options.length > 1 ? "s" : ""} de opções`
-                    : "Sem variações"}
-                </span>
-                <span>
-                  {product.availability === "unlimited"
-                    ? "Disponibilidade ilimitada"
-                    : `${product.availableQuantity || 0} ${availabilityText}`}
-                </span>
-                <span>
-                  {product.deliveryType === "file"
-                    ? `Arquivo · ${deliveryFileName(product.deliveryFile) || "não anexado"}`
-                    : product.deliveryType === "link"
-                      ? "Entrega por link"
-                      : "Entrega manual"}
-                </span>
-                {product.publicReady && <span>Preparado para loja pública</span>}
-              </div>
-              <div className="product-card-actions">
-                <button type="button" onClick={() => openEdit(product)}>
-                  Editar
-                </button>
-                <button type="button" onClick={() => onCreateQuote(product)}>
-                  Usar em orçamento
-                </button>
-                <button
-                  className="primary-mini"
-                  type="button"
-                  disabled={unavailable || product.status !== "active"}
-                  onClick={() => openSale(product)}
-                >
-                  {product.priceType === "consult"
-                    ? "Criar orçamento"
-                    : unavailable
-                      ? "Indisponível"
-                      : "Vender"}
-                </button>
-              </div>
             </article>
-          );
-        })}
-        {visible.length === 0 && (
-          <div className="card empty-state product-empty">
-            <span>□</span>
-            <h2>Nenhum produto encontrado</h2>
-            <p>Ajuste os filtros ou crie um novo produto.</p>
-          </div>
-        )}
-      </section>
+          ))}
+          {!orders.length && (
+            <div className="card empty-state product-empty">
+              <span>◇</span>
+              <h2>Nenhum pedido ainda</h2>
+              <p>Os pedidos concluídos pelo carrinho aparecerão aqui antes do WhatsApp abrir.</p>
+            </div>
+          )}
+        </section>
+      )}
 
       {editorOpen && (
         <div
@@ -424,6 +720,7 @@ export function ProductsView({
                     >
                       <option value="active">Ativo</option>
                       <option value="draft">Rascunho</option>
+                      <option value="hidden">Oculto</option>
                       <option value="archived">Arquivado</option>
                     </select>
                   </label>
@@ -436,6 +733,65 @@ export function ProductsView({
                       placeholder="Explique o que está incluído e para quem é o produto."
                     />
                   </label>
+                  <label className="field">
+                    <span>SKU / código interno</span>
+                    <input
+                      value={draft.sku || ""}
+                      onChange={(event) => setDraft({ ...draft, sku: event.target.value })}
+                      placeholder="Ex.: ALBUM-3030"
+                    />
+                  </label>
+                  <label className="field file-field">
+                    <span>Imagem de capa</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => void uploadCoverFile(event.target.files?.[0])}
+                    />
+                    {draft.coverFile && (
+                      <span className="product-file-actions">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewFile(draft.coverFile || null)}
+                        >
+                          Visualizar
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-action"
+                          onClick={() => {
+                            if (!draft.coverFile) return;
+                            void deleteAppFile(draft.coverFile).catch(() => undefined);
+                            setDraft({ ...draft, coverFile: undefined });
+                          }}
+                        >
+                          Excluir
+                        </button>
+                      </span>
+                    )}
+                  </label>
+                  <fieldset className="product-badge-picker field full">
+                    <legend>Selos da loja</legend>
+                    {(["Novo", "Promoção", "Últimas unidades", "Destaque"] as ProductBadge[]).map(
+                      (badge) => (
+                        <label key={badge}>
+                          <input
+                            type="checkbox"
+                            checked={draft.badges?.includes(badge) || false}
+                            onChange={(event) =>
+                              setDraft({
+                                ...draft,
+                                badges: event.target.checked
+                                  ? [...(draft.badges || []), badge]
+                                  : (draft.badges || []).filter((item) => item !== badge),
+                              })
+                            }
+                          />
+                          <span>{badge}</span>
+                        </label>
+                      ),
+                    )}
+                  </fieldset>
                   <label className="field">
                     <span>Tipo de preço</span>
                     <select
@@ -734,12 +1090,40 @@ export function ProductsView({
                       }
                     />
                     <span>
-                      <strong>Preparar para a futura loja pública</strong>
-                      <small>
-                        Mantém título, descrição, preço e entrega prontos para publicação futura.
-                      </small>
+                      <strong>Exibir na loja pública</strong>
+                      <small>Só produtos ativos e marcados aqui aparecem para clientes.</small>
                     </span>
                   </label>
+                  {draft.availability !== "unlimited" && (
+                    <>
+                      <label className="checkbox-field full">
+                        <input
+                          type="checkbox"
+                          checked={draft.hideWhenSoldOut ?? true}
+                          onChange={(event) =>
+                            setDraft({ ...draft, hideWhenSoldOut: event.target.checked })
+                          }
+                        />
+                        <span>
+                          <strong>Ocultar automaticamente quando esgotar</strong>
+                          <small>O produto volta à loja assim que o estoque for reposto.</small>
+                        </span>
+                      </label>
+                      <label className="checkbox-field full">
+                        <input
+                          type="checkbox"
+                          checked={draft.allowBackorder || false}
+                          onChange={(event) =>
+                            setDraft({ ...draft, allowBackorder: event.target.checked })
+                          }
+                        />
+                        <span>
+                          <strong>Aceitar encomenda sem estoque</strong>
+                          <small>Permite finalizar o pedido mesmo com quantidade zerada.</small>
+                        </span>
+                      </label>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="drawer-footer">
