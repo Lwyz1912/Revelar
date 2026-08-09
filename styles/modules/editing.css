@@ -139,12 +139,11 @@
   z-index: 1;
 }
 .editing-camera-preview::before {
-  opacity: calc(var(--edit-grain) * 0.32 + var(--edit-dust) * 0.26);
   background-image:
     repeating-radial-gradient(
       circle at 30% 40%,
       transparent 0 2px,
-      rgba(255, 255, 255, 0.32) 3px,
+      rgba(255, 255, 255, calc(var(--edit-grain) * 0.3 + var(--edit-dust) * 0.2)) 3px,
       transparent 4px
     ),
     radial-gradient(
@@ -164,8 +163,20 @@
   mix-blend-mode: screen;
 }
 .editing-camera-preview::after {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 186, 96, calc(var(--edit-warm-highlights) * 0.22)),
+      transparent 48%
+    ),
+    linear-gradient(
+      0deg,
+      rgba(30, 101, 126, calc(var(--edit-cool-shadows) * 0.25)),
+      transparent 63%
+    );
   box-shadow: inset 0 0 calc(80px * var(--edit-vignette)) calc(18px * var(--edit-vignette))
     rgba(0, 0, 0, 0.82);
+  mix-blend-mode: soft-light;
 }
 .editing-camera-preview img {
   width: 100%;
@@ -652,12 +663,11 @@
   pointer-events: none;
 }
 .editing-photo-effects::before {
-  opacity: calc(var(--edit-grain) * 0.42 + var(--edit-dust) * 0.3);
   background-image:
     repeating-radial-gradient(
       circle at 20% 40%,
       transparent 0 2px,
-      rgba(255, 255, 255, 0.34) 3px,
+      rgba(255, 255, 255, calc(var(--edit-grain) * 0.34 + var(--edit-dust) * 0.22)) 3px,
       transparent 4px
     ),
     radial-gradient(
@@ -677,8 +687,49 @@
   mix-blend-mode: screen;
 }
 .editing-photo-effects::after {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 185, 94, calc(var(--edit-warm-highlights) * 0.24)),
+      transparent 50%
+    ),
+    linear-gradient(0deg, rgba(27, 98, 128, calc(var(--edit-cool-shadows) * 0.28)), transparent 65%);
   box-shadow: inset 0 0 calc(120px * var(--edit-vignette)) calc(35px * var(--edit-vignette))
     rgba(0, 0, 0, 0.88);
+  mix-blend-mode: soft-light;
+}
+
+.editing-camera-preview::before,
+.editing-camera-preview::after,
+.editing-photo-effects::before,
+.editing-photo-effects::after {
+  z-index: 3;
+}
+
+.editing-effect-main {
+  position: relative;
+  z-index: 2;
+}
+
+.editing-motion-layer {
+  position: absolute !important;
+  inset: 0;
+  z-index: 1;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.editing-motion-layer-one {
+  opacity: calc(var(--edit-motion) * 0.25);
+  transform: translateX(calc(var(--edit-motion) * 13px)) !important;
+}
+
+.editing-motion-layer-two {
+  opacity: calc(var(--edit-motion) * 0.14);
+  transform: translateX(calc(var(--edit-motion) * -9px)) !important;
 }
 .compare-button {
   position: absolute;

@@ -33,6 +33,10 @@ export type EditingAdjustments = {
   chromatic: number;
   dust: number;
   lightLeak: number;
+  softness: number;
+  motionTrail: number;
+  coolShadows: number;
+  warmHighlights: number;
 };
 
 export type EditingPreset = {
