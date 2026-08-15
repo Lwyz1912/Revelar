@@ -1,4 +1,12 @@
 .client-gallery-shell {
+  --surface: #f6f3ec;
+  --surface-2: #fff;
+  --surface-3: #ebe8e1;
+  --border: #d8d5ce;
+  --primary: #132b13;
+  --text: #20251f;
+  --muted: #697067;
+  --danger: #a63b32;
   min-height: 100vh;
   color: #20251f;
   background: #f6f3ec;
@@ -366,6 +374,35 @@
 
 .client-gallery-conversation .lightbox-choice {
   margin: 12px 14px 0;
+}
+
+.client-gallery-conversation .comment-bubble {
+  background: #fff;
+}
+
+.client-gallery-conversation .comment-bubble.photographer {
+  background: #e7efe5;
+}
+
+.client-gallery-conversation .gallery-message-composer {
+  position: sticky;
+  z-index: 4;
+  bottom: 0;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -10px 24px rgb(32 37 31 / 6%);
+}
+
+.client-gallery-conversation .gallery-message-composer textarea {
+  background: #fff;
+}
+
+.client-gallery-conversation .gallery-message-composer textarea::placeholder {
+  color: #8a8f87;
+  opacity: 1;
+}
+
+.client-gallery-conversation .gallery-message-composer button {
+  background: #132b13;
 }
 .gallery-feedback {
   position: fixed;
@@ -989,6 +1026,7 @@
 }
 .gallery-message-composer textarea {
   width: 100%;
+  min-width: 0;
   min-height: 42px;
   max-height: 120px;
   flex: 1;
@@ -1705,6 +1743,8 @@
 
 @media (max-width: 900px) {
   .gallery-lightbox {
+    height: 100dvh;
+    max-height: 100dvh;
     grid-template-columns: 1fr;
     grid-template-rows: minmax(220px, 55dvh) minmax(0, 45dvh);
   }
