@@ -1,6 +1,13 @@
 import { getChatGPTUser } from "@/app/chatgpt-auth";
-import { galleryById, galleryPhoto } from "@/lib/server/gallery-repository";
+import {
+  addGalleryPhotoComment,
+  galleryById,
+  galleryPhoto,
+  recordGalleryEvent,
+  serializeGallery,
+} from "@/lib/server/gallery-repository";
 import { privateObjectResponse } from "@/lib/server/gallery-storage";
+import { professionalDisplayName } from "@/lib/server/professional-settings-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -24,4 +31,34 @@ export async function GET(request: Request, context: RouteContext) {
         ? String(photo.social_key || "")
         : String(photo.preview_key || "");
   return key ? privateObjectResponse(key) : new Response("Versão indisponível", { status: 404 });
+}
+
+export async function PATCH(request: Request, context: RouteContext) {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "Entre para continuar" }, { status: 401 });
+  const { galleryId, photoId } = await context.params;
+  const gallery = await galleryById(galleryId);
+  if (!gallery || gallery.owner_email !== user.email)
+    return Response.json({ error: "Não encontrado" }, { status: 404 });
+  const photo = await galleryPhoto(photoId);
+  if (!photo || photo.gallery_id !== gallery.id || photo.deleted_at)
+    return Response.json({ error: "Foto indisponível" }, { status: 404 });
+  const input = (await request.json().catch(() => ({}))) as { message?: string };
+  if (!input.message?.trim())
+    return Response.json({ error: "Escreva uma resposta" }, { status: 400 });
+  const responderName = await professionalDisplayName(user.email, user.displayName);
+  await addGalleryPhotoComment({
+    galleryId,
+    photoId,
+    authorRole: "photographer",
+    authorName: responderName,
+    message: input.message,
+  });
+  await recordGalleryEvent(
+    galleryId,
+    "photographer_reply",
+    `${responderName} respondeu um comentário`,
+    photoId,
+  );
+  return Response.json({ gallery: await serializeGallery(gallery), responderName });
 }

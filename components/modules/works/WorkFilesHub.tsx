@@ -13,8 +13,10 @@ import type {
   WorkGallery,
 } from "@/types/revelar";
 
+type ManagerFolder = GalleryFolder | "trash";
+
 const folders: Array<{
-  id: GalleryFolder;
+  id: ManagerFolder;
   label: string;
   icon: string;
   accent: string;
@@ -24,6 +26,7 @@ const folders: Array<{
   { id: "edited", label: "Para aprovação", icon: "✦", accent: "Fotos editadas em revisão" },
   { id: "delivered", label: "Entrega final", icon: "⇩", accent: "Alta e redes sociais" },
   { id: "originals", label: "Originais", icon: "▣", accent: "Backup opcional" },
+  { id: "trash", label: "Lixeira", icon: "⌫", accent: "Recuperável por 30 dias" },
 ];
 
 const phaseLabels: Record<GalleryPhase, string> = {
@@ -38,9 +41,11 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
-function folderCount(gallery: WorkGallery, folder: GalleryFolder) {
-  if (folder === "selection") return gallery.photos.filter((photo) => photo.selected).length;
-  return gallery.photos.filter((photo) => photo.folder === folder).length;
+function folderCount(gallery: WorkGallery, folder: ManagerFolder) {
+  if (folder === "trash") return gallery.photos.filter((photo) => photo.deletedAt).length;
+  if (folder === "selection")
+    return gallery.photos.filter((photo) => photo.selected && !photo.deletedAt).length;
+  return gallery.photos.filter((photo) => photo.folder === folder && !photo.deletedAt).length;
 }
 
 function localDateTime(value?: string) {
@@ -71,13 +76,17 @@ export function WorkFilesHub({
       .map((client) => client.name)
       .join(" e ") || "Cliente";
   const [gallery, setGallery] = useState<WorkGallery | null>(null);
-  const [folder, setFolder] = useState<GalleryFolder>("preview");
+  const [folder, setFolder] = useState<ManagerFolder>("preview");
   const [loading, setLoading] = useState(true);
   const [authRequired, setAuthRequired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+  const [replyDraft, setReplyDraft] = useState("");
+  const [responderName, setResponderName] = useState("Profissional");
   const [watermarkFile, setWatermarkFile] = useState<File | null>(null);
   const [pinTouched, setPinTouched] = useState(false);
   const [settings, setSettings] = useState({
@@ -93,6 +102,8 @@ export function WorkFilesHub({
   const socialPhotoInput = useRef<HTMLInputElement>(null);
   const deliveryInput = useRef<HTMLInputElement>(null);
   const watermarkInput = useRef<HTMLInputElement>(null);
+  const conversationThread = useRef<HTMLDivElement>(null);
+  const replyInput = useRef<HTMLTextAreaElement>(null);
   const callbacks = useRef({ onStats, onEvents, onPhotoExtras });
 
   useEffect(() => {
@@ -110,8 +121,12 @@ export function WorkFilesHub({
       setLoading(false);
       return;
     }
-    const data = (await response.json()) as { gallery: WorkGallery | null };
+    const data = (await response.json()) as {
+      gallery: WorkGallery | null;
+      responderName?: string;
+    };
     setGallery(data.gallery);
+    if (data.responderName) setResponderName(data.responderName);
     if (data.gallery) {
       setSettings({
         pin: "",
@@ -125,6 +140,16 @@ export function WorkFilesHub({
     }
     setLoading(false);
   }, [work.id]);
+
+  const openPhoto = (photoId: string) => {
+    setReplyDraft("");
+    setActivePhotoId(photoId);
+  };
+
+  const closePhoto = () => {
+    setReplyDraft("");
+    setActivePhotoId(null);
+  };
 
   useEffect(() => {
     const timer = window.setTimeout(() => void refresh(), 0);
@@ -180,8 +205,12 @@ export function WorkFilesHub({
     });
     if (response.status === 401) setAuthRequired(true);
     else if (response.ok) {
-      const data = (await response.json()) as { gallery: WorkGallery };
+      const data = (await response.json()) as {
+        gallery: WorkGallery;
+        responderName?: string;
+      };
       setGallery(data.gallery);
+      if (data.responderName) setResponderName(data.responderName);
       toast("Galeria privada criada");
     }
     setBusy(false);
@@ -236,7 +265,7 @@ export function WorkFilesHub({
   };
 
   const uploadPhotos = async (files: File[], deliveryVariant: "high" | "social" = "high") => {
-    if (!gallery || files.length === 0) return;
+    if (!gallery || files.length === 0 || folder === "trash" || folder === "selection") return;
     setBusy(true);
     setUploadProgress(0);
     let latest = gallery;
@@ -282,6 +311,55 @@ export function WorkFilesHub({
     toast(`${files.length} arquivo${files.length === 1 ? " enviado" : "s enviados"}`);
   };
 
+  const updatePhotoTrash = async (action: "trash" | "restore", photoIds: string[]) => {
+    if (!gallery || !photoIds.length) return;
+    setBusy(true);
+    const response = await fetch(`/api/galleries/${gallery.id}/photos`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action, photoIds }),
+    });
+    if (response.ok) {
+      const data = (await response.json()) as { gallery: WorkGallery };
+      setGallery(data.gallery);
+      setSelectedPhotoIds(new Set());
+      setSelectionMode(false);
+      closePhoto();
+      toast(
+        action === "trash"
+          ? `${photoIds.length} foto(s) movida(s) para a lixeira`
+          : `${photoIds.length} foto(s) restaurada(s)`,
+      );
+    } else {
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      toast(data.error || "Não foi possível atualizar as fotos");
+    }
+    setBusy(false);
+  };
+
+  const replyToPhoto = async () => {
+    if (!gallery || !activePhoto || !replyDraft.trim()) return;
+    setBusy(true);
+    const response = await fetch(`/api/galleries/${gallery.id}/photos/${activePhoto.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: replyDraft }),
+    });
+    if (response.ok) {
+      const data = (await response.json()) as {
+        gallery: WorkGallery;
+        responderName?: string;
+      };
+      setGallery(data.gallery);
+      if (data.responderName) setResponderName(data.responderName);
+      setReplyDraft("");
+      toast("Resposta enviada para a cliente");
+    } else {
+      toast("Não foi possível enviar a resposta");
+    }
+    setBusy(false);
+  };
+
   const uploadDeliveryZip = async (file: File, kind: "high_zip" | "social_zip") => {
     if (!gallery) return;
     setBusy(true);
@@ -302,10 +380,46 @@ export function WorkFilesHub({
 
   const photos = useMemo(() => {
     if (!gallery) return [];
-    if (folder === "selection") return gallery.photos.filter((photo) => photo.selected);
-    return gallery.photos.filter((photo) => photo.folder === folder);
+    if (folder === "trash") return gallery.photos.filter((photo) => photo.deletedAt);
+    if (folder === "selection")
+      return gallery.photos.filter((photo) => photo.selected && !photo.deletedAt);
+    return gallery.photos.filter((photo) => photo.folder === folder && !photo.deletedAt);
   }, [folder, gallery]);
   const activePhoto = gallery?.photos.find((photo) => photo.id === activePhotoId) || null;
+  const activeConversation = useMemo(
+    () =>
+      activePhoto
+        ? activePhoto.comments.length
+          ? activePhoto.comments
+          : activePhoto.comment
+              .split("\n")
+              .filter(Boolean)
+              .map((message, index) => ({
+                id: `legacy-${index}`,
+                authorRole: "client" as const,
+                authorName: clientName,
+                message,
+                createdAt: "",
+              }))
+        : [],
+    [activePhoto, clientName],
+  );
+
+  useEffect(() => {
+    if (!activePhotoId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const thread = conversationThread.current;
+      if (thread) thread.scrollTop = thread.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeConversation.length, activePhotoId]);
+
+  useEffect(() => {
+    const input = replyInput.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+  }, [replyDraft]);
 
   if (loading) return <div className="gallery-manager-loading">Preparando arquivos…</div>;
 
@@ -422,7 +536,11 @@ export function WorkFilesHub({
             key={item.id}
             className={folder === item.id ? "active" : ""}
             type="button"
-            onClick={() => setFolder(item.id)}
+            onClick={() => {
+              setFolder(item.id);
+              setSelectionMode(false);
+              setSelectedPhotoIds(new Set());
+            }}
           >
             <span>{item.icon}</span>
             <strong>{item.label}</strong>
@@ -440,10 +558,39 @@ export function WorkFilesHub({
             {photos.length} arquivo{photos.length === 1 ? "" : "s"}
           </span>
         </div>
+        {selectionMode ? (
+          <div className="gallery-bulk-actions">
+            <strong>{selectedPhotoIds.size} selecionada(s)</strong>
+            <button
+              type="button"
+              disabled={selectedPhotoIds.size === 0 || busy}
+              onClick={() =>
+                void updatePhotoTrash(folder === "trash" ? "restore" : "trash", [
+                  ...selectedPhotoIds,
+                ])
+              }
+            >
+              {folder === "trash" ? "↻ Restaurar" : "⌫ Mover para lixeira"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectionMode(false);
+                setSelectedPhotoIds(new Set());
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setSelectionMode(true)} disabled={!photos.length}>
+            ✓ Selecionar fotos
+          </button>
+        )}
         <button className="gallery-refresh" type="button" onClick={() => void refresh()}>
-          ↻ Atualizar atividade do cliente
+          ↻ Atualizar
         </button>
-        {folder !== "selection" && (
+        {folder !== "selection" && folder !== "trash" && (
           <button type="button" disabled={busy} onClick={() => photoInput.current?.click()}>
             ＋ Enviar {folder === "originals" ? "originais" : "fotos"}
           </button>
@@ -519,11 +666,40 @@ export function WorkFilesHub({
 
       <div className="gallery-admin-grid">
         {photos.map((photo) => (
-          <article key={photo.id} className={photo.comment ? "has-client-comment" : ""}>
+          <article
+            key={photo.id}
+            className={`${photo.comments.length || photo.comment ? "has-client-comment" : ""} ${selectedPhotoIds.has(photo.id) ? "is-bulk-selected" : ""}`}
+          >
+            {selectionMode && (
+              <button
+                className="gallery-photo-selector"
+                type="button"
+                onClick={() =>
+                  setSelectedPhotoIds((current) => {
+                    const next = new Set(current);
+                    if (next.has(photo.id)) next.delete(photo.id);
+                    else next.add(photo.id);
+                    return next;
+                  })
+                }
+                aria-label={selectedPhotoIds.has(photo.id) ? "Desmarcar foto" : "Selecionar foto"}
+              >
+                {selectedPhotoIds.has(photo.id) ? "✓" : ""}
+              </button>
+            )}
             <button
               className="gallery-admin-photo-open"
               type="button"
-              onClick={() => setActivePhotoId(photo.id)}
+              onClick={() => {
+                if (selectionMode) {
+                  setSelectedPhotoIds((current) => {
+                    const next = new Set(current);
+                    if (next.has(photo.id)) next.delete(photo.id);
+                    else next.add(photo.id);
+                    return next;
+                  });
+                } else openPhoto(photo.id);
+              }}
               aria-label={`Abrir detalhes de ${photo.filename}`}
             >
               {photo.hasPreview ? (
@@ -545,16 +721,23 @@ export function WorkFilesHub({
             <span className="admin-photo-badges">
               {photo.selected && <b>♥</b>}
               {photo.approved && <b>✓</b>}
-              {photo.comment && <b>●</b>}
+              {(photo.comments.length > 0 || photo.comment) && <b>●</b>}
+              {photo.deletedAt && <b>⌫</b>}
             </span>
-            {photo.comment && (
+            {(photo.comments.length > 0 || photo.comment) && (
               <button
                 className="client-comment-preview"
                 type="button"
-                onClick={() => setActivePhotoId(photo.id)}
+                onClick={() => openPhoto(photo.id)}
               >
-                “{photo.comment.split("\n").at(-1)}”
+                “{photo.comments.at(-1)?.message || photo.comment.split("\n").at(-1)}”
               </button>
+            )}
+            {photo.deletedAt && (
+              <small className="trash-expiry-note">
+                Removida em {new Intl.DateTimeFormat("pt-BR").format(new Date(photo.deletedAt))} ·
+                excluída após 30 dias
+              </small>
             )}
           </article>
         ))}
@@ -588,57 +771,141 @@ export function WorkFilesHub({
       </div>
 
       {activePhoto && (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onMouseDown={() => setActivePhotoId(null)}
-        >
+        <div className="modal-backdrop" role="presentation" onMouseDown={closePhoto}>
           <section
-            className="gallery-client-activity-dialog"
+            className="gallery-client-activity-dialog gallery-conversation-dialog"
             role="dialog"
             aria-modal="true"
+            aria-labelledby="photo-conversation-title"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <header>
+            <header className="gallery-conversation-dialog-header">
               <div>
                 <span>RETORNO DO CLIENTE</span>
-                <h2>{activePhoto.filename}</h2>
+                <h2 id="photo-conversation-title">{activePhoto.filename}</h2>
               </div>
-              <button type="button" onClick={() => setActivePhotoId(null)}>
+              <button type="button" onClick={closePhoto} aria-label="Fechar conversa">
                 ×
               </button>
             </header>
-            {activePhoto.hasPreview ? (
-              <img
-                src={`/api/galleries/${gallery.id}/photos/${activePhoto.id}`}
-                alt={activePhoto.filename}
-              />
-            ) : (
-              <div className="raw-file-icon">ARQUIVO</div>
-            )}
-            <div className="gallery-client-statuses">
-              <span className={activePhoto.selected ? "active" : ""}>
-                {activePhoto.selected ? "♥ Escolhida pelo cliente" : "Não escolhida"}
-              </span>
-              <span className={activePhoto.approved ? "active" : ""}>
-                {activePhoto.approved ? "✓ Edição aprovada" : "Aguardando aprovação"}
-              </span>
+            <div className="gallery-conversation-dialog-body">
+              <div className="gallery-conversation-preview">
+                {activePhoto.hasPreview ? (
+                  <img
+                    src={`/api/galleries/${gallery.id}/photos/${activePhoto.id}`}
+                    alt={activePhoto.filename}
+                  />
+                ) : (
+                  <div className="raw-file-icon">ARQUIVO</div>
+                )}
+                <div className="gallery-client-statuses">
+                  <span className={activePhoto.selected ? "active" : ""}>
+                    {activePhoto.selected ? "♥ Escolhida pelo cliente" : "Não escolhida"}
+                  </span>
+                  <span className={activePhoto.approved ? "active" : ""}>
+                    {activePhoto.approved ? "✓ Edição aprovada" : "Aguardando aprovação"}
+                  </span>
+                </div>
+              </div>
+              <section className="gallery-photo-conversation">
+                <header className="gallery-conversation-heading">
+                  <div>
+                    <strong>Conversa sobre esta foto</strong>
+                    <small>
+                      {activeConversation.length || "Nenhuma"}{" "}
+                      {activeConversation.length === 1 ? "mensagem" : "mensagens"}
+                    </small>
+                  </div>
+                  <span>
+                    Respondendo como <strong>{responderName}</strong>
+                  </span>
+                </header>
+                <div className="gallery-comment-thread" ref={conversationThread} aria-live="polite">
+                  {activeConversation.map((comment) => (
+                    <article className={`comment-bubble ${comment.authorRole}`} key={comment.id}>
+                      <header className="comment-meta">
+                        <strong>{comment.authorName}</strong>
+                        {comment.createdAt && (
+                          <small>
+                            {new Intl.DateTimeFormat("pt-BR", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            }).format(new Date(comment.createdAt))}
+                          </small>
+                        )}
+                      </header>
+                      <p>{comment.message}</p>
+                    </article>
+                  ))}
+                  {!activeConversation.length && (
+                    <div className="gallery-conversation-empty">
+                      <span>◇</span>
+                      <p>A conversa desta foto começa aqui.</p>
+                    </div>
+                  )}
+                </div>
+                {!activePhoto.deletedAt && (
+                  <form
+                    className="gallery-message-composer"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void replyToPhoto();
+                    }}
+                  >
+                    <textarea
+                      ref={replyInput}
+                      id="photographer-reply"
+                      rows={1}
+                      value={replyDraft}
+                      onChange={(event) => setReplyDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter" &&
+                          !event.shiftKey &&
+                          !event.nativeEvent.isComposing &&
+                          !window.matchMedia("(pointer: coarse)").matches
+                        ) {
+                          event.preventDefault();
+                          if (!busy && replyDraft.trim()) void replyToPhoto();
+                        }
+                      }}
+                      aria-label={`Responder como ${responderName}`}
+                      placeholder="Escreva uma resposta…"
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy || !replyDraft.trim()}
+                      aria-label={busy ? "Enviando resposta" : "Enviar resposta"}
+                    >
+                      {busy ? (
+                        <span className="composer-spinner" aria-hidden="true" />
+                      ) : (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3.8 4.2 21 12 3.8 19.8l2.1-6.3L15 12l-9.1-1.5-2.1-6.3Z" />
+                        </svg>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </section>
             </div>
-            <section>
-              <strong>Comentários do cliente</strong>
-              {activePhoto.comment ? (
-                activePhoto.comment
-                  .split("\n")
-                  .filter(Boolean)
-                  .map((comment, index) => <p key={`${comment}-${index}`}>{comment}</p>)
-              ) : (
-                <p>Nenhum comentário nesta foto.</p>
-              )}
-            </section>
-            <footer>
-              <button type="button" onClick={() => setActivePhotoId(null)}>
-                Fechar
+            <footer className="gallery-conversation-dialog-footer">
+              <button
+                className={activePhoto.deletedAt ? "restore-photo" : "danger-action"}
+                type="button"
+                onClick={() =>
+                  void updatePhotoTrash(activePhoto.deletedAt ? "restore" : "trash", [
+                    activePhoto.id,
+                  ])
+                }
+              >
+                {activePhoto.deletedAt ? "↻ Restaurar foto" : "⌫ Mover para lixeira"}
               </button>
+              <small>
+                {activePhoto.deletedAt
+                  ? "A foto volta a aparecer na galeria da cliente ao ser restaurada."
+                  : "A foto ficará recuperável por 30 dias e sairá do link da cliente."}
+              </small>
             </footer>
           </section>
         </div>

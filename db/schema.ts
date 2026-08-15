@@ -50,11 +50,33 @@ export const galleryPhotos = sqliteTable(
     selected: integer("selected", { mode: "boolean" }).notNull().default(false),
     approved: integer("approved", { mode: "boolean" }).notNull().default(false),
     comment: text("comment").notNull().default(""),
+    deletedAt: text("deleted_at"),
     createdAt: text("created_at").notNull(),
   },
   (table) => [
     index("gallery_photos_gallery_idx").on(table.galleryId),
     index("gallery_photos_folder_idx").on(table.galleryId, table.folder),
+  ],
+);
+
+export const galleryPhotoComments = sqliteTable(
+  "gallery_photo_comments",
+  {
+    id: text("id").primaryKey(),
+    galleryId: text("gallery_id")
+      .notNull()
+      .references(() => galleries.id, { onDelete: "cascade" }),
+    photoId: text("photo_id")
+      .notNull()
+      .references(() => galleryPhotos.id, { onDelete: "cascade" }),
+    authorRole: text("author_role").notNull(),
+    authorName: text("author_name").notNull(),
+    message: text("message").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("gallery_photo_comments_photo_idx").on(table.photoId, table.createdAt),
+    index("gallery_photo_comments_gallery_idx").on(table.galleryId, table.createdAt),
   ],
 );
 

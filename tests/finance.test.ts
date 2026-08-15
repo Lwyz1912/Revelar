@@ -90,3 +90,60 @@ test("transforma recebimentos e custos de trabalhos em lançamentos", () => {
   assert.equal(result[1]?.status, "pending");
   assert.equal(result[1]?.workId, 7);
 });
+
+test("inclui gorjeta como ganho extra sem duplicar o valor recebido do contrato", () => {
+  const work: Work = {
+    id: 8,
+    title: "Casamento",
+    category: "Casamento",
+    clientIds: [1],
+    status: "scheduled",
+    date: "2026-08-15",
+    time: "15:00",
+    duration: "8h",
+    location: "Quinta",
+    team: ["Maryana"],
+    deliveryDate: "2026-09-10",
+    packageName: "Completo",
+    currency: "BRL",
+    totalValue: 4800,
+    entryValue: 2400,
+    installments: 2,
+    costs: 0,
+    incomeItems: [
+      {
+        id: "payment",
+        name: "Entrada do contrato",
+        category: "Pagamento",
+        tags: ["contrato"],
+        amount: 2400,
+        status: "received",
+        date: "2026-08-01",
+        countsTowardContract: true,
+      },
+      {
+        id: "tip",
+        name: "Gorjeta da cliente",
+        category: "Gorjeta",
+        tags: ["cliente"],
+        amount: 150,
+        status: "received",
+        date: "2026-08-15",
+        countsTowardContract: false,
+      },
+    ],
+    photos: { captured: 0, selected: 0, edited: 0, delivered: 0 },
+    stages: [],
+    attachments: [],
+  };
+
+  const result = workTransactions([work]);
+  const incomes = result.filter((item) => item.type === "income");
+
+  assert.equal(incomes.length, 2);
+  assert.equal(
+    incomes.reduce((sum, item) => sum + item.amount, 0),
+    2550,
+  );
+  assert.equal(incomes.find((item) => item.category === "Gorjeta")?.amount, 150);
+});

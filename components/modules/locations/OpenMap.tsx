@@ -26,6 +26,7 @@ export function OpenMap({
   const map = useRef<LeafletMap | null>(null);
   const markerLayer = useRef<LayerGroup | null>(null);
   const editableMarker = useRef<Marker | null>(null);
+  const lastEditablePosition = useRef<Coordinates | null>(null);
   const latestOnSelect = useRef(onSelect);
   const latestOnPositionChange = useRef(onPositionChange);
   const [ready, setReady] = useState(false);
@@ -70,6 +71,7 @@ export function OpenMap({
       map.current = null;
       markerLayer.current = null;
       editableMarker.current = null;
+      lastEditablePosition.current = null;
       setReady(false);
     };
   }, []);
@@ -109,7 +111,11 @@ export function OpenMap({
     let cancelled = false;
     void import("leaflet").then((L) => {
       if (cancelled || !map.current) return;
-      const shouldCenter = !editableMarker.current;
+      const previous = lastEditablePosition.current;
+      const shouldCenter =
+        !previous ||
+        Math.abs(previous.latitude - editablePosition.latitude) > 0.000001 ||
+        Math.abs(previous.longitude - editablePosition.longitude) > 0.000001;
       editableMarker.current?.remove();
       const icon = L.divIcon({
         className: "revelar-map-marker-wrap",
@@ -126,9 +132,18 @@ export function OpenMap({
         latestOnPositionChange.current?.({ latitude: next.lat, longitude: next.lng });
       });
       editableMarker.current = marker;
-      map.current.invalidateSize({ pan: false });
-      if (shouldCenter)
-        map.current.setView([editablePosition.latitude, editablePosition.longitude], 15);
+      lastEditablePosition.current = editablePosition;
+      const refresh = () => {
+        if (!map.current) return;
+        map.current.invalidateSize({ pan: false });
+        if (shouldCenter)
+          map.current.setView([editablePosition.latitude, editablePosition.longitude], 15, {
+            animate: false,
+          });
+      };
+      window.requestAnimationFrame(refresh);
+      window.setTimeout(refresh, 120);
+      window.setTimeout(refresh, 320);
     });
     return () => {
       cancelled = true;

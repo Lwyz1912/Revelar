@@ -18,7 +18,8 @@ export async function publicGalleryAccess(request: Request, slug: string) {
 
 export function publicPhotoWhere(gallery: GalleryRow) {
   if (gallery.phase === "delivery")
-    return "(preview_key IS NOT NULL OR high_key IS NOT NULL OR social_key IS NOT NULL)";
-  if (gallery.phase === "approval") return "(folder = 'edited' AND preview_key IS NOT NULL)";
-  return "(folder IN ('preview', 'originals') AND preview_key IS NOT NULL)";
+    return "deleted_at IS NULL AND (preview_key IS NOT NULL OR high_key IS NOT NULL OR social_key IS NOT NULL)";
+  if (gallery.phase === "approval")
+    return "deleted_at IS NULL AND (folder = 'edited' AND preview_key IS NOT NULL)";
+  return "deleted_at IS NULL AND (folder IN ('preview', 'originals') AND preview_key IS NOT NULL)";
 }

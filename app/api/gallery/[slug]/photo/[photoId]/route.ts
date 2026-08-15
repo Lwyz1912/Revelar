@@ -13,7 +13,7 @@ export async function GET(request: Request, context: RouteContext) {
   if (!access.authorized) return new Response("PIN necessário", { status: 401 });
   const gallery = access.gallery!;
   const photo = await galleryPhoto(photoId);
-  if (!photo || photo.gallery_id !== gallery.id)
+  if (!photo || photo.gallery_id !== gallery.id || photo.deleted_at)
     return new Response("Foto não encontrada", { status: 404 });
   const variant = new URL(request.url).searchParams.get("variant");
   if (variant && gallery.phase !== "delivery") {

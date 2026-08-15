@@ -1,6 +1,7 @@
 import type { Currency, GalleryFolder, GalleryPhase, WorkGallery } from "@/types/revelar";
 import { hashPin, isExpired, secureToken, sha256 } from "@/lib/server/gallery-security";
 import { getRuntimeBindings } from "@/lib/server/runtime-bindings";
+import { galleryBucket } from "@/lib/server/gallery-storage";
 
 type DbValue = string | number | null;
 type Row = Record<string, DbValue>;
@@ -320,6 +321,153 @@ export async function setPhotoApproval(
     .run();
 }
 
+export async function addGalleryPhotoComment(input: {
+  galleryId: string;
+  photoId: string;
+  authorRole: "client" | "photographer";
+  authorName: string;
+  message: string;
+}) {
+  const message = input.message.trim().slice(0, 1500);
+  if (!message) return;
+  const now = new Date().toISOString();
+  const [photo, structuredComment] = await Promise.all([
+    first<Row & { comment: string; created_at: string; client_name: string }>(
+      `SELECT p.comment, p.created_at, g.client_name
+       FROM gallery_photos p
+       JOIN galleries g ON g.id = p.gallery_id
+       WHERE p.id = ? AND p.gallery_id = ? LIMIT 1`,
+      input.photoId,
+      input.galleryId,
+    ),
+    first<Row & { id: string }>(
+      "SELECT id FROM gallery_photo_comments WHERE gallery_id = ? AND photo_id = ? LIMIT 1",
+      input.galleryId,
+      input.photoId,
+    ),
+  ]);
+  const legacyMessages =
+    !structuredComment && photo?.comment
+      ? String(photo.comment)
+          .split("\n")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+  const shouldReuseIncomingClientMessage =
+    input.authorRole === "client" && legacyMessages.length === 1 && legacyMessages[0] === message;
+  const legacyStatements = shouldReuseIncomingClientMessage
+    ? []
+    : legacyMessages.map((legacyMessage, index) => {
+        const baseTime = new Date(photo?.created_at || now).getTime();
+        const createdAt = new Date(baseTime + index).toISOString();
+        return database()
+          .prepare(
+            `INSERT OR IGNORE INTO gallery_photo_comments
+              (id, gallery_id, photo_id, author_role, author_name, message, created_at)
+             VALUES (?, ?, ?, 'client', ?, ?, ?)`,
+          )
+          .bind(
+            `legacy:${input.photoId}:${index}`,
+            input.galleryId,
+            input.photoId,
+            String(photo?.client_name || "Cliente").slice(0, 120),
+            legacyMessage.slice(0, 1500),
+            createdAt,
+          );
+      });
+  await database().batch([
+    ...legacyStatements,
+    database()
+      .prepare(
+        `INSERT INTO gallery_photo_comments
+          (id, gallery_id, photo_id, author_role, author_name, message, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        input.galleryId,
+        input.photoId,
+        input.authorRole,
+        input.authorName.trim().slice(0, 120) ||
+          (input.authorRole === "photographer" ? "Fotógrafa" : "Cliente"),
+        message,
+        now,
+      ),
+  ]);
+}
+
+export async function galleryPhotoComments(galleryId: string, photoId: string) {
+  const comments = await all<Row>(
+    `SELECT id, author_role, author_name, message, created_at
+     FROM gallery_photo_comments WHERE gallery_id = ? AND photo_id = ? ORDER BY created_at ASC`,
+    galleryId,
+    photoId,
+  );
+  return comments.map((comment) => ({
+    id: String(comment.id),
+    authorRole: String(comment.author_role) as "client" | "photographer",
+    authorName: String(comment.author_name),
+    message: String(comment.message),
+    createdAt: String(comment.created_at),
+  }));
+}
+
+export async function trashGalleryPhotos(galleryId: string, photoIds: string[]) {
+  const ids = [...new Set(photoIds)].slice(0, 200);
+  if (!ids.length) return;
+  const now = new Date().toISOString();
+  await database().batch(
+    ids.map((photoId) =>
+      database()
+        .prepare(
+          "UPDATE gallery_photos SET deleted_at = ?, selected = 0, approved = 0 WHERE id = ? AND gallery_id = ?",
+        )
+        .bind(now, photoId, galleryId),
+    ),
+  );
+}
+
+export async function restoreGalleryPhotos(galleryId: string, photoIds: string[]) {
+  const ids = [...new Set(photoIds)].slice(0, 200);
+  if (!ids.length) return;
+  await database().batch(
+    ids.map((photoId) =>
+      database()
+        .prepare("UPDATE gallery_photos SET deleted_at = NULL WHERE id = ? AND gallery_id = ?")
+        .bind(photoId, galleryId),
+    ),
+  );
+}
+
+export async function purgeExpiredGalleryPhotos(galleryId: string) {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const expired = await all<Row>(
+    `SELECT id, preview_key, original_key, high_key, social_key
+     FROM gallery_photos
+     WHERE gallery_id = ? AND deleted_at IS NOT NULL AND deleted_at <= ?`,
+    galleryId,
+    cutoff,
+  );
+  if (!expired.length) return;
+  const keys = [
+    ...new Set(
+      expired.flatMap((photo) =>
+        [photo.preview_key, photo.original_key, photo.high_key, photo.social_key]
+          .filter(Boolean)
+          .map(String),
+      ),
+    ),
+  ];
+  await Promise.all(keys.map((key) => galleryBucket().delete(key)));
+  await database().batch(
+    expired.map((photo) =>
+      database()
+        .prepare("DELETE FROM gallery_photos WHERE id = ? AND gallery_id = ?")
+        .bind(String(photo.id), galleryId),
+    ),
+  );
+}
+
 export async function recordGalleryEvent(
   galleryId: string,
   eventType: string,
@@ -368,6 +516,7 @@ export async function validGallerySession(galleryId: string, token?: string | nu
 }
 
 export async function serializeGallery(gallery: GalleryRow): Promise<WorkGallery> {
+  await purgeExpiredGalleryPhotos(gallery.id);
   const photos = await all<Row>(
     "SELECT * FROM gallery_photos WHERE gallery_id = ? ORDER BY created_at DESC",
     gallery.id,
@@ -380,6 +529,16 @@ export async function serializeGallery(gallery: GalleryRow): Promise<WorkGallery
     "SELECT id, event_type, detail, created_at FROM gallery_events WHERE gallery_id = ? ORDER BY created_at DESC LIMIT 40",
     gallery.id,
   );
+  const comments = await all<Row>(
+    `SELECT id, photo_id, author_role, author_name, message, created_at
+     FROM gallery_photo_comments WHERE gallery_id = ? ORDER BY created_at ASC`,
+    gallery.id,
+  );
+  const commentsByPhoto = new Map<string, typeof comments>();
+  comments.forEach((comment) => {
+    const photoId = String(comment.photo_id);
+    commentsByPhoto.set(photoId, [...(commentsByPhoto.get(photoId) || []), comment]);
+  });
   const serializedPhotos = photos.map((photo) => ({
     id: String(photo.id),
     folder: String(photo.folder) as GalleryFolder,
@@ -389,16 +548,25 @@ export async function serializeGallery(gallery: GalleryRow): Promise<WorkGallery
     selected: boolean(photo.selected),
     approved: boolean(photo.approved),
     comment: String(photo.comment || ""),
+    comments: (commentsByPhoto.get(String(photo.id)) || []).map((comment) => ({
+      id: String(comment.id),
+      authorRole: String(comment.author_role) as "client" | "photographer",
+      authorName: String(comment.author_name),
+      message: String(comment.message),
+      createdAt: String(comment.created_at),
+    })),
+    deletedAt: photo.deleted_at ? String(photo.deleted_at) : undefined,
     hasPreview: Boolean(photo.preview_key),
     hasOriginal: Boolean(photo.original_key),
     hasHigh: Boolean(photo.high_key),
     hasSocial: Boolean(photo.social_key),
   }));
-  const selected = serializedPhotos.filter((photo) => photo.selected).length;
-  const edited = serializedPhotos.filter(
+  const activePhotos = serializedPhotos.filter((photo) => !photo.deletedAt);
+  const selected = activePhotos.filter((photo) => photo.selected).length;
+  const edited = activePhotos.filter(
     (photo) => photo.folder === "edited" || photo.hasHigh || photo.hasSocial,
   ).length;
-  const delivered = serializedPhotos.filter((photo) => photo.folder === "delivered").length;
+  const delivered = activePhotos.filter((photo) => photo.folder === "delivered").length;
   const extraCount = Math.max(0, selected - number(gallery.selection_limit));
   return {
     id: gallery.id,
@@ -432,7 +600,7 @@ export async function serializeGallery(gallery: GalleryRow): Promise<WorkGallery
       createdAt: String(event.created_at),
     })),
     stats: {
-      captured: serializedPhotos.filter(
+      captured: activePhotos.filter(
         (photo) =>
           photo.folder === "preview" || (photo.folder === "originals" && !photo.hasPreview),
       ).length,
@@ -440,7 +608,7 @@ export async function serializeGallery(gallery: GalleryRow): Promise<WorkGallery
       edited,
       delivered,
       totalBytes:
-        serializedPhotos.reduce((sum, photo) => sum + photo.size, 0) +
+        activePhotos.reduce((sum, photo) => sum + photo.size, 0) +
         assets.reduce((sum, asset) => sum + number(asset.size), 0),
       extraCount,
       extraAmount: (extraCount * number(gallery.extra_price_cents)) / 100,

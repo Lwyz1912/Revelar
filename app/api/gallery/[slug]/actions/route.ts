@@ -1,5 +1,7 @@
 import { publicGalleryAccess } from "@/lib/server/gallery-public";
 import {
+  addGalleryPhotoComment,
+  galleryPhotoComments,
   galleryPhoto,
   recordGalleryEvent,
   setPhotoApproval,
@@ -37,46 +39,61 @@ export async function POST(request: Request, context: RouteContext) {
     );
     return Response.json({ ok: true });
   }
+  if (!input.photoId) return Response.json({ error: "Foto inválida." }, { status: 400 });
+  const photo = await galleryPhoto(input.photoId);
+  if (!photo || photo.gallery_id !== gallery.id) {
+    return Response.json({ error: "Foto não encontrada." }, { status: 404 });
+  }
+  if (photo.deleted_at) return Response.json({ error: "Esta foto foi removida" }, { status: 410 });
+  const message = input.comment?.trim();
+  if (input.action === "comment") {
+    if (!message)
+      return Response.json({ error: "Escreva um comentário antes de enviar." }, { status: 400 });
+    await addGalleryPhotoComment({
+      galleryId: gallery.id,
+      photoId: input.photoId,
+      authorRole: "client",
+      authorName: gallery.client_name,
+      message,
+    });
+    await recordGalleryEvent(
+      gallery.id,
+      "client_comment",
+      `Cliente comentou em ${photo.filename}`,
+      input.photoId,
+    );
+    return Response.json({
+      ok: true,
+      comments: await galleryPhotoComments(gallery.id, input.photoId),
+    });
+  }
   if (gallery.selection_locked) {
     return Response.json(
       { error: "A seleção está fechada. A fotógrafa pode reabri-la." },
       { status: 409 },
     );
   }
-  if (!input.photoId) return Response.json({ error: "Foto inválida." }, { status: 400 });
-  const photo = await galleryPhoto(input.photoId);
-  if (!photo || photo.gallery_id !== gallery.id) {
-    return Response.json({ error: "Foto não encontrada." }, { status: 404 });
-  }
   if (gallery.phase === "approval") {
-    const nextComment = input.comment?.trim()
-      ? [String(photo.comment || "").trim(), input.comment.trim()].filter(Boolean).join("\n")
-      : input.comment;
-    await setPhotoApproval(gallery.id, input.photoId, Boolean(input.value), nextComment);
+    await setPhotoApproval(gallery.id, input.photoId, Boolean(input.value));
     await recordGalleryEvent(
       gallery.id,
-      input.comment?.trim() ? "edit_comment" : "edit_approval",
-      input.comment?.trim()
-        ? `Cliente comentou em ${photo.filename}`
-        : `${photo.filename} ${input.value ? "aprovada" : "marcada para ajuste"}`,
+      "edit_approval",
+      `${photo.filename} ${input.value ? "aprovada" : "marcada para ajuste"}`,
       input.photoId,
     );
   } else if (gallery.phase === "selection") {
-    const nextComment = input.comment?.trim()
-      ? [String(photo.comment || "").trim(), input.comment.trim()].filter(Boolean).join("\n")
-      : input.comment;
-    await setPhotoSelection(gallery.id, input.photoId, Boolean(input.value), nextComment);
+    await setPhotoSelection(gallery.id, input.photoId, Boolean(input.value));
     await recordGalleryEvent(
       gallery.id,
-      input.comment?.trim() ? "selection_comment" : "photo_selected",
-      input.comment?.trim()
-        ? `Cliente comentou em ${photo.filename}`
-        : `${photo.filename} ${input.value ? "selecionada" : "removida da seleção"}`,
+      "photo_selected",
+      `${photo.filename} ${input.value ? "selecionada" : "removida da seleção"}`,
       input.photoId,
     );
   } else {
     return Response.json({ error: "A entrega não aceita novas seleções." }, { status: 409 });
   }
-  const latest = await galleryPhoto(input.photoId);
-  return Response.json({ ok: true, comment: String(latest?.comment || "") });
+  return Response.json({
+    ok: true,
+    comments: await galleryPhotoComments(gallery.id, input.photoId),
+  });
 }

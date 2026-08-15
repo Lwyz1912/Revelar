@@ -100,6 +100,8 @@ export function RevelarApp() {
     setAchievementUnlocks,
     referenceLibrary,
     setReferenceLibrary,
+    checklistTemplates,
+    setChecklistTemplates,
     storeSettings,
     setStoreSettings,
     cloudReady,
@@ -465,6 +467,8 @@ export function RevelarApp() {
             onPhotoExtras={registerPhotoExtras}
             referenceLibrary={referenceLibrary}
             setReferenceLibrary={setReferenceLibrary}
+            checklistTemplates={checklistTemplates}
+            setChecklistTemplates={setChecklistTemplates}
             toast={setToast}
           />
         ) : selectedClient ? (
