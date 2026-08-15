@@ -27,6 +27,7 @@ import type {
   AchievementUnlock,
   MoodboardReference,
   StoreSettings,
+  ChecklistTemplate,
 } from "@/types/revelar";
 
 const initialStoreSettings: StoreSettings = {
@@ -72,6 +73,10 @@ export function useRevelarData() {
     "revelar-reference-library",
     [],
   );
+  const [checklistTemplates, setChecklistTemplates] = useStoredJsonState<ChecklistTemplate[]>(
+    "revelar-checklist-templates",
+    [],
+  );
   const [storeSettings, setStoreSettings] = useStoredJsonState<StoreSettings>(
     "revelar-store-settings",
     initialStoreSettings,
@@ -100,6 +105,7 @@ export function useRevelarData() {
           diaryEntries: DiaryEntry[];
           achievementUnlocks: AchievementUnlock[];
           referenceLibrary: MoodboardReference[];
+          checklistTemplates: ChecklistTemplate[];
           storeSettings: StoreSettings;
         }>;
         if (Array.isArray(data.clients)) setClients(data.clients);
@@ -113,6 +119,7 @@ export function useRevelarData() {
         if (Array.isArray(data.diaryEntries)) setDiaryEntries(data.diaryEntries);
         if (Array.isArray(data.achievementUnlocks)) setAchievementUnlocks(data.achievementUnlocks);
         if (Array.isArray(data.referenceLibrary)) setReferenceLibrary(data.referenceLibrary);
+        if (Array.isArray(data.checklistTemplates)) setChecklistTemplates(data.checklistTemplates);
         if (data.storeSettings && typeof data.storeSettings === "object")
           setStoreSettings({ ...initialStoreSettings, ...data.storeSettings });
       })
@@ -135,6 +142,7 @@ export function useRevelarData() {
     setWorks,
     setAchievementUnlocks,
     setReferenceLibrary,
+    setChecklistTemplates,
     setStoreSettings,
   ]);
 
@@ -156,6 +164,7 @@ export function useRevelarData() {
           diaryEntries,
           achievementUnlocks,
           referenceLibrary,
+          checklistTemplates,
           storeSettings,
         }),
       }).catch(() => undefined);
@@ -174,6 +183,7 @@ export function useRevelarData() {
     diaryEntries,
     achievementUnlocks,
     referenceLibrary,
+    checklistTemplates,
     storeSettings,
   ]);
 
@@ -295,6 +305,8 @@ export function useRevelarData() {
     setAchievementUnlocks,
     referenceLibrary,
     setReferenceLibrary,
+    checklistTemplates,
+    setChecklistTemplates,
     storeSettings,
     setStoreSettings,
     cloudReady,

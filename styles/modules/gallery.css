@@ -873,6 +873,123 @@
   background: var(--surface);
 }
 
+.gallery-admin-grid article.is-bulk-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.gallery-photo-selector {
+  position: absolute;
+  z-index: 3;
+  top: 7px;
+  left: 7px;
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 7px;
+  background: rgb(255 255 255 / 92%);
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.gallery-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.gallery-bulk-actions strong {
+  color: var(--primary);
+  font-size: 9px;
+}
+.gallery-bulk-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.trash-expiry-note {
+  margin: 4px 9px 9px;
+  color: var(--danger);
+  font-size: 8px;
+}
+
+.gallery-photo-conversation {
+  display: grid;
+  gap: 10px;
+}
+.gallery-comment-thread {
+  max-height: 230px;
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.comment-bubble {
+  max-width: min(86%, 520px);
+  padding: 9px 11px;
+  border-radius: 10px 10px 10px 3px;
+  background: var(--surface-3);
+}
+.comment-bubble.photographer {
+  margin-left: auto;
+  border-radius: 10px 10px 3px 10px;
+  background: color-mix(in srgb, var(--primary) 11%, var(--surface));
+}
+.comment-bubble > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.comment-bubble > div strong {
+  color: var(--text);
+}
+.comment-bubble p {
+  margin: 5px 0 0;
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.gallery-reply-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.gallery-reply-box textarea {
+  min-height: 70px;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.gallery-reply-box button {
+  align-self: end;
+  min-height: 38px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+}
+.gallery-photo-modal footer .danger-action {
+  color: var(--danger);
+}
+.gallery-photo-modal footer .restore-action {
+  color: #356e42;
+}
+.photo-comment-history .comment-bubble {
+  max-width: 100%;
+}
+
 .gallery-admin-grid article > img,
 .gallery-admin-grid article > .raw-file-icon {
   width: 100%;

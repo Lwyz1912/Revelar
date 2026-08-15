@@ -8,6 +8,13 @@ type ClientPhoto = {
   selected: boolean;
   approved: boolean;
   comment: string;
+  comments: Array<{
+    id: string;
+    authorRole: "client" | "photographer";
+    authorName: string;
+    message: string;
+    createdAt: string;
+  }>;
   imageUrl: string;
   canDownloadHigh: boolean;
   canDownloadSocial: boolean;
@@ -68,26 +75,40 @@ export function ClientGallery({ slug }: { slug: string }) {
     window.setTimeout(() => setFeedback(""), 2400);
   };
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const response = await fetch(`/api/gallery/${slug}`, { cache: "no-store" });
-    if (!response.ok) {
-      setError(
-        response.status === 410 ? "Este link expirou." : "Não foi possível abrir a galeria.",
-      );
-      setLoading(false);
-      return;
-    }
-    const data = (await response.json()) as { locked: boolean; gallery: ClientGalleryData };
-    setLocked(data.locked);
-    if (!data.locked) setGallery(data.gallery);
-    setLoading(false);
-  }, [slug]);
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      const response = await fetch(`/api/gallery/${slug}`, { cache: "no-store" });
+      if (!response.ok) {
+        setError(
+          response.status === 410 ? "Este link expirou." : "Não foi possível abrir a galeria.",
+        );
+        if (!silent) setLoading(false);
+        return;
+      }
+      const data = (await response.json()) as { locked: boolean; gallery: ClientGalleryData };
+      setLocked(data.locked);
+      if (!data.locked) {
+        setGallery(data.gallery);
+        setActivePhoto((current) =>
+          current ? data.gallery.photos.find((photo) => photo.id === current.id) || null : current,
+        );
+      }
+      if (!silent) setLoading(false);
+    },
+    [slug],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (!gallery || locked) return;
+    const timer = window.setInterval(() => void load(true), 20_000);
+    return () => window.clearInterval(timer);
+  }, [gallery, load, locked]);
 
   useEffect(() => {
     const prevent = (event: Event) => event.preventDefault();
@@ -128,7 +149,7 @@ export function ClientGallery({ slug }: { slug: string }) {
   };
 
   const savePhoto = async (photo: ClientPhoto, value: boolean, nextComment?: string) => {
-    if (!gallery || gallery.selectionLocked) return;
+    if (!gallery || (gallery.selectionLocked && nextComment === undefined)) return;
     if (nextComment !== undefined && !nextComment.trim()) {
       showFeedback("Escreva um comentário antes de enviar");
       return;
@@ -149,10 +170,10 @@ export function ClientGallery({ slug }: { slug: string }) {
       const data = (await response.json()) as { error?: string };
       setError(data.error || "Não foi possível salvar.");
     } else {
-      const result = (await response.json().catch(() => ({ comment: undefined }))) as {
-        comment?: string;
+      const result = (await response.json().catch(() => ({ comments: undefined }))) as {
+        comments?: ClientPhoto["comments"];
       };
-      const savedComment = result.comment ?? nextComment;
+      const savedComments = result.comments;
       setGallery((current) =>
         current
           ? {
@@ -163,7 +184,9 @@ export function ClientGallery({ slug }: { slug: string }) {
                       ...item,
                       selected: current.phase === "selection" ? value : item.selected,
                       approved: current.phase === "approval" ? value : item.approved,
-                      comment: nextComment === undefined ? item.comment : savedComment || "",
+                      comment:
+                        nextComment === undefined ? item.comment : nextComment || item.comment,
+                      comments: savedComments || item.comments,
                     }
                   : item,
               ),
@@ -172,7 +195,13 @@ export function ClientGallery({ slug }: { slug: string }) {
       );
       if (nextComment !== undefined) {
         setActivePhoto((current) =>
-          current ? { ...current, comment: savedComment || current.comment } : current,
+          current
+            ? {
+                ...current,
+                comment: nextComment || current.comment,
+                comments: savedComments || current.comments,
+              }
+            : current,
         );
         setComment("");
         showFeedback("Comentário enviado para a fotógrafa");
@@ -415,8 +444,8 @@ export function ClientGallery({ slug }: { slug: string }) {
               {gallery.watermarkLabel} · {gallery.clientName} · PROVA
             </span>
           </div>
-          {gallery.phase !== "delivery" && (
-            <aside>
+          <aside>
+            {gallery.phase !== "delivery" && (
               <button
                 className="lightbox-choice"
                 type="button"
@@ -440,41 +469,63 @@ export function ClientGallery({ slug }: { slug: string }) {
                     ? "✓ Edição aprovada"
                     : "○ Aprovar esta edição"}
               </button>
-              {activePhoto.comment && (
-                <div className="photo-comment-history">
-                  <span>COMENTÁRIOS ENVIADOS</span>
-                  {activePhoto.comment
-                    .split("\n")
-                    .filter(Boolean)
-                    .map((item, index) => (
-                      <p key={`${item}-${index}`}>{item}</p>
-                    ))}
-                </div>
-              )}
-              <label>
-                <span>Novo comentário nesta foto</span>
-                <textarea
-                  value={comment}
-                  onChange={(event) => setComment(event.target.value)}
-                  placeholder="Ex.: ajustar a luz do rosto"
-                />
-              </label>
-              <button
-                className="save-comment"
-                type="button"
-                disabled={gallery.selectionLocked || saving === activePhoto.id || !comment.trim()}
-                onClick={() =>
-                  savePhoto(
-                    activePhoto,
-                    gallery.phase === "selection" ? activePhoto.selected : activePhoto.approved,
-                    comment,
-                  )
-                }
-              >
-                {saving === activePhoto.id ? "Enviando…" : "Enviar comentário"}
-              </button>
-            </aside>
-          )}
+            )}
+            {(activePhoto.comments.length > 0 || activePhoto.comment) && (
+              <div className="photo-comment-history">
+                <span>CONVERSA SOBRE ESTA FOTO</span>
+                {(activePhoto.comments.length
+                  ? activePhoto.comments
+                  : activePhoto.comment
+                      .split("\n")
+                      .filter(Boolean)
+                      .map((message, index) => ({
+                        id: `legacy-${index}`,
+                        authorRole: "client" as const,
+                        authorName: gallery.clientName,
+                        message,
+                        createdAt: "",
+                      }))
+                ).map((item) => (
+                  <article className={`comment-bubble ${item.authorRole}`} key={item.id}>
+                    <header>
+                      <strong>{item.authorName}</strong>
+                      {item.createdAt && (
+                        <small>
+                          {new Intl.DateTimeFormat("pt-BR", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          }).format(new Date(item.createdAt))}
+                        </small>
+                      )}
+                    </header>
+                    <p>{item.message}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+            <label>
+              <span>Novo comentário nesta foto</span>
+              <textarea
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                placeholder="Ex.: ajustar a luz do rosto"
+              />
+            </label>
+            <button
+              className="save-comment"
+              type="button"
+              disabled={saving === activePhoto.id || !comment.trim()}
+              onClick={() =>
+                savePhoto(
+                  activePhoto,
+                  gallery.phase === "selection" ? activePhoto.selected : activePhoto.approved,
+                  comment,
+                )
+              }
+            >
+              {saving === activePhoto.id ? "Enviando…" : "Enviar comentário"}
+            </button>
+          </aside>
         </div>
       )}
 

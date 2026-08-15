@@ -25,10 +25,12 @@ import type {
   Client,
   GalleryEvent,
   AppFileRef,
+  ChecklistTemplate,
   MoodboardReference,
   Work,
   WorkContractStatus,
   WorkCost,
+  WorkIncome,
   WorkGallery,
   WorkStage,
   WorkStatus,
@@ -42,8 +44,7 @@ type WorkDetailTab =
   | "finance"
   | "contract"
   | "gallery"
-  | "files"
-  | "costs";
+  | "files";
 
 type LocalAttachment = { url: string; type: string; size: number };
 
@@ -65,13 +66,12 @@ function attachmentKind(name: string, type = "") {
 
 const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> = [
   { id: "overview", label: "Visão geral", icon: "◇" },
-  { id: "moodboard", label: "Moodboard", icon: "✦" },
+  { id: "moodboard", label: "Direção visual", icon: "✦" },
   { id: "timeline", label: "Timeline", icon: "⌁" },
   { id: "finance", label: "Financeiro", icon: "＄" },
   { id: "contract", label: "Contrato", icon: "▱" },
   { id: "gallery", label: "Galeria", icon: "▧" },
   { id: "files", label: "Documentos", icon: "□" },
-  { id: "costs", label: "Custos", icon: "−" },
 ];
 
 export function WorkDetails({
@@ -85,6 +85,8 @@ export function WorkDetails({
   onPhotoExtras,
   referenceLibrary,
   setReferenceLibrary,
+  checklistTemplates,
+  setChecklistTemplates,
   toast,
 }: {
   work: Work;
@@ -97,6 +99,8 @@ export function WorkDetails({
   onPhotoExtras: (work: Work, gallery: WorkGallery) => void;
   referenceLibrary: MoodboardReference[];
   setReferenceLibrary: Dispatch<SetStateAction<MoodboardReference[]>>;
+  checklistTemplates: ChecklistTemplate[];
+  setChecklistTemplates: Dispatch<SetStateAction<ChecklistTemplate[]>>;
   toast: (message: string) => void;
 }) {
   const today = todayIso();
@@ -106,7 +110,14 @@ export function WorkDetails({
     work.stages.find((stage) => !stage.done)?.id || work.stages[0]?.id || "",
   );
   const [newStage, setNewStage] = useState("");
-  const [payment, setPayment] = useState("");
+  const [incomeDraft, setIncomeDraft] = useState({
+    name: "Pagamento do cliente",
+    category: "Pagamento" as WorkIncome["category"],
+    tags: "",
+    amount: 0,
+    status: "received" as WorkIncome["status"],
+    date: work.date,
+  });
   const [costDraft, setCostDraft] = useState({
     name: "",
     category: "Transporte",
@@ -115,6 +126,8 @@ export function WorkDetails({
     status: "planned" as WorkCost["status"],
     date: work.date,
   });
+  const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
+  const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
@@ -126,6 +139,7 @@ export function WorkDetails({
   const [savingPose, setSavingPose] = useState(false);
   const [savePoseToLibrary, setSavePoseToLibrary] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [newChecklistItem, setNewChecklistItem] = useState("");
   const localFiles: Record<string, LocalAttachment> = {};
   const [activities, setActivities] = useState<
     Array<{ id: string | number; icon: string; title: string; meta: string }>
@@ -164,6 +178,28 @@ export function WorkDetails({
           },
         ]
       : [];
+  const incomeItems: WorkIncome[] = work.incomeItems?.length
+    ? work.incomeItems
+    : work.entryValue > 0
+      ? [
+          {
+            id: `legacy-income-${work.id}`,
+            name: "Pagamentos recebidos",
+            category: "Pagamento",
+            tags: [work.category],
+            amount: work.entryValue,
+            status: "received",
+            date: work.date,
+            countsTowardContract: true,
+          },
+        ]
+      : [];
+  const receivedIncome = incomeItems
+    .filter((item) => item.status === "received")
+    .reduce((sum, item) => sum + item.amount, 0);
+  const paidCosts = costItems
+    .filter((item) => item.status === "paid")
+    .reduce((sum, item) => sum + item.amount, 0);
   const selectedStage = work.stages.find((stage) => stage.id === selectedStageId) || work.stages[0];
   const receivedPercent = work.totalValue
     ? Math.min(100, Math.round((work.entryValue / work.totalValue) * 100))
@@ -393,6 +429,60 @@ export function WorkDetails({
     update({ stages });
     addActivity("Ordem das etapas alterada", "↕");
   };
+  const addChecklistItem = () => {
+    if (!selectedStage || !newChecklistItem.trim()) return;
+    updateStage(selectedStage.id, {
+      checklist: [
+        ...(selectedStage.checklist || []),
+        { id: crypto.randomUUID(), label: newChecklistItem.trim(), done: false },
+      ],
+    });
+    setNewChecklistItem("");
+  };
+  const moveChecklistItem = (itemId: string, direction: -1 | 1) => {
+    if (!selectedStage) return;
+    const checklist = [...(selectedStage.checklist || [])];
+    const index = checklist.findIndex((item) => item.id === itemId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= checklist.length) return;
+    [checklist[index], checklist[target]] = [checklist[target], checklist[index]];
+    updateStage(selectedStage.id, { checklist });
+  };
+  const saveChecklistTemplate = () => {
+    if (!selectedStage?.checklist?.length) return;
+    const name = window.prompt("Nome deste modelo de checklist", selectedStage.label)?.trim();
+    if (!name) return;
+    const template: ChecklistTemplate = {
+      id: crypto.randomUUID(),
+      name,
+      items: selectedStage.checklist.map((item) => ({
+        id: crypto.randomUUID(),
+        label: item.label,
+      })),
+    };
+    setChecklistTemplates((current) => [template, ...current]);
+    toast("Modelo de checklist salvo para outros trabalhos");
+  };
+  const applyChecklistTemplate = (templateId: string) => {
+    if (!selectedStage) return;
+    const template = checklistTemplates.find((item) => item.id === templateId);
+    if (!template) return;
+    const completed = (selectedStage.checklist || []).filter((item) => item.done);
+    const completedLabels = new Set(completed.map((item) => item.label.trim().toLowerCase()));
+    updateStage(selectedStage.id, {
+      checklist: [
+        ...completed,
+        ...template.items
+          .filter((item) => !completedLabels.has(item.label.trim().toLowerCase()))
+          .map((item) => ({
+            id: crypto.randomUUID(),
+            label: item.label,
+            done: false,
+          })),
+      ],
+    });
+    toast(`Modelo “${template.name}” aplicado`);
+  };
   const addCustomStage = () => {
     const label = newStage.trim();
     if (!label) return;
@@ -415,19 +505,76 @@ export function WorkDetails({
     setSelectedStageId(id);
     addActivity(`Etapa “${label}” adicionada`, "＋");
   };
-  const registerPayment = () => {
-    const amount = Number(payment.replace(",", "."));
-    if (!amount || amount <= 0) return;
-    const received = Math.min(work.totalValue, work.entryValue + amount);
-    update({ entryValue: received });
-    setPayment("");
-    addActivity(`Pagamento de ${formatMoney(amount, work.currency)} registrado`, "＄");
-    toast("Pagamento registrado. Confirme manualmente a etapa correspondente.");
+  const addIncome = () => {
+    if (!incomeDraft.name.trim() || incomeDraft.amount <= 0) return;
+    const countsTowardContract = incomeDraft.category === "Pagamento";
+    const item: WorkIncome = {
+      id: editingIncomeId || `income-${Date.now()}`,
+      name: incomeDraft.name.trim(),
+      category: incomeDraft.category,
+      tags: incomeDraft.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      amount: incomeDraft.amount,
+      status: incomeDraft.status,
+      date: incomeDraft.date || work.date,
+      countsTowardContract,
+    };
+    const next = editingIncomeId
+      ? incomeItems.map((income) => (income.id === editingIncomeId ? item : income))
+      : [...incomeItems, item];
+    const contractReceived = Math.min(
+      work.totalValue,
+      next
+        .filter((income) => income.status === "received" && income.countsTowardContract)
+        .reduce((sum, income) => sum + income.amount, 0),
+    );
+    update({ incomeItems: next, entryValue: contractReceived });
+    setEditingIncomeId(null);
+    setIncomeDraft({
+      name: "Pagamento do cliente",
+      category: "Pagamento",
+      tags: "",
+      amount: 0,
+      status: "received",
+      date: work.date,
+    });
+    addActivity(`${item.category} de ${formatMoney(item.amount, work.currency)} registrada`, "＄");
+    toast(
+      item.category === "Gorjeta"
+        ? "Gorjeta registrada como ganho extra"
+        : "Receita registrada e sincronizada com o Financeiro",
+    );
+  };
+  const removeIncome = (id: string) => {
+    const removed = incomeItems.find((item) => item.id === id);
+    const next = incomeItems.filter((item) => item.id !== id);
+    const nextContractReceived = next
+      .filter((item) => item.countsTowardContract && item.status === "received")
+      .reduce((sum, item) => sum + item.amount, 0);
+    update({
+      incomeItems: next,
+      entryValue: removed?.countsTowardContract
+        ? Math.min(work.totalValue, nextContractReceived)
+        : work.entryValue,
+    });
+  };
+  const editIncome = (item: WorkIncome) => {
+    setEditingIncomeId(item.id);
+    setIncomeDraft({
+      name: item.name,
+      category: item.category,
+      tags: item.tags.join(", "),
+      amount: item.amount,
+      status: item.status,
+      date: item.date || work.date,
+    });
   };
   const addCost = () => {
     if (!costDraft.name.trim() || costDraft.amount <= 0) return;
     const item: WorkCost = {
-      id: `cost-${Date.now()}`,
+      id: editingCostId || `cost-${Date.now()}`,
       name: costDraft.name.trim(),
       category: costDraft.category || "Outros",
       tags: costDraft.tags
@@ -438,10 +585,11 @@ export function WorkDetails({
       status: costDraft.status,
       date: costDraft.date || work.date,
     };
-    const next = [...costItems, item].filter(
-      (cost) => !cost.id.startsWith("legacy-") || costItems.length === 1,
-    );
+    const next = editingCostId
+      ? costItems.map((cost) => (cost.id === editingCostId ? item : cost))
+      : [...costItems, item];
     update({ costItems: next, costs: next.reduce((sum, cost) => sum + cost.amount, 0) });
+    setEditingCostId(null);
     setCostDraft({
       name: "",
       category: "Transporte",
@@ -456,6 +604,17 @@ export function WorkDetails({
   const removeCost = (id: string) => {
     const next = costItems.filter((item) => item.id !== id);
     update({ costItems: next, costs: next.reduce((sum, item) => sum + item.amount, 0) });
+  };
+  const editCost = (item: WorkCost) => {
+    setEditingCostId(item.id);
+    setCostDraft({
+      name: item.name,
+      category: item.category,
+      tags: item.tags.join(", "),
+      amount: item.amount,
+      status: item.status,
+      date: item.date || work.date,
+    });
   };
   const addWorkFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
@@ -753,9 +912,43 @@ export function WorkDetails({
             <div className="detail-section-heading">
               <div>
                 <p>DIREÇÃO VISUAL</p>
-                <h2>Referências do trabalho</h2>
+                <h2>Conceito e referências</h2>
               </div>
               <span>Somente interno</span>
+            </div>
+            <div className="moodboard-actionbar">
+              <button
+                type="button"
+                onClick={() =>
+                  window.open(
+                    `https://unsplash.com/s/photos/${encodeURIComponent(`${work.category} photography inspiration poses`)}`,
+                    "_blank",
+                    "noopener,noreferrer",
+                  )
+                }
+              >
+                ⌕ Pesquisar
+              </button>
+              <button type="button" onClick={() => setLibraryOpen((current) => !current)}>
+                ▦ Biblioteca ({referenceLibrary.length})
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  toast("Geração com IA preparada; falta conectar o serviço de imagens")
+                }
+              >
+                ✦ Gerar com IA
+              </button>
+              <button className="primary-button" type="button" onClick={() => openPoseEditor()}>
+                ＋ Enviar referência
+              </button>
+            </div>
+            <div className="moodboard-section-title">
+              <div>
+                <span>REFERÊNCIAS PRINCIPAIS</span>
+                <p>Imagens que definem luz, enquadramento, cores e atmosfera.</p>
+              </div>
             </div>
             <div className="moodboard-reference-grid">
               {moodboard.references
@@ -767,6 +960,21 @@ export function WorkDetails({
                       alt={reference.title}
                     />
                     <strong>{reference.title}</strong>
+                    <button
+                      className="reference-remove"
+                      type="button"
+                      onClick={() =>
+                        updateMoodboard({
+                          ...moodboard,
+                          references: moodboard.references.filter(
+                            (item) => item.id !== reference.id,
+                          ),
+                        })
+                      }
+                      aria-label={`Remover ${reference.title}`}
+                    >
+                      ×
+                    </button>
                   </article>
                 ))}
               <button
@@ -818,38 +1026,8 @@ export function WorkDetails({
             <section className="pose-ideas-section">
               <div className="pose-ideas-heading">
                 <div>
-                  <span>REFERÊNCIAS E IDEIAS DE POSES</span>
-                  <p>
-                    Envie referências próprias, pesquise na internet ou reutilize sua biblioteca.
-                  </p>
-                </div>
-                <div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      window.open(
-                        `https://unsplash.com/s/photos/${encodeURIComponent(`${work.category} photography poses`)}`,
-                        "_blank",
-                        "noopener,noreferrer",
-                      )
-                    }
-                  >
-                    Pesquisar na internet
-                  </button>
-                  <button type="button" onClick={() => setLibraryOpen((current) => !current)}>
-                    Biblioteca ({referenceLibrary.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      toast("Geração com IA preparada; falta conectar o serviço de imagens")
-                    }
-                  >
-                    Gerar com IA
-                  </button>
-                  <button type="button" onClick={() => openPoseEditor()}>
-                    ＋ Enviar referência
-                  </button>
+                  <span>IDEIAS DE POSES</span>
+                  <p>Orientações específicas que podem ser consultadas durante o ensaio.</p>
                 </div>
               </div>
               {libraryOpen && (
@@ -945,9 +1123,12 @@ export function WorkDetails({
             </section>
           </section>
           <aside className="moodboard-side">
-            <section className="card">
-              <span>PALETA</span>
-              <div className="moodboard-palette">
+            <details className="card moodboard-collapsible" open>
+              <summary>
+                <span>PALETA</span>
+                <small>Editar cores</small>
+              </summary>
+              <div className="moodboard-palette moodboard-panel-content">
                 {moodboard.palette.map((color, index) => (
                   <label key={`${color}-${index}`} style={{ background: color }}>
                     <input
@@ -965,10 +1146,16 @@ export function WorkDetails({
                   </label>
                 ))}
               </div>
-            </section>
-            <section className="card">
-              <span>FOTOS OBRIGATÓRIAS</span>
-              <div className="moodboard-shots">
+            </details>
+            <details className="card moodboard-collapsible" open>
+              <summary>
+                <span>FOTOS OBRIGATÓRIAS</span>
+                <small>
+                  {moodboard.shotList.filter((shot) => shot.done).length}/
+                  {moodboard.shotList.length}
+                </small>
+              </summary>
+              <div className="moodboard-shots moodboard-panel-content">
                 {moodboard.shotList.map((shot) => (
                   <label key={shot.id}>
                     <input
@@ -1003,7 +1190,7 @@ export function WorkDetails({
                   ＋ Adicionar foto
                 </button>
               </div>
-            </section>
+            </details>
           </aside>
         </div>
       )}
@@ -1170,23 +1357,104 @@ export function WorkDetails({
                   </small>
                 </div>
                 <div className="stage-checklist">
-                  {(selectedStage.checklist || []).map((item) => (
-                    <button
-                      type="button"
-                      key={item.id}
-                      className={item.done ? "done" : ""}
-                      onClick={() =>
-                        updateStage(selectedStage.id, {
-                          checklist: selectedStage.checklist?.map((check) =>
-                            check.id === item.id ? { ...check, done: !check.done } : check,
-                          ),
-                        })
-                      }
-                    >
-                      <span>{item.done ? "✓" : ""}</span>
-                      {item.label}
-                    </button>
+                  {(selectedStage.checklist || []).map((item, index) => (
+                    <div className={item.done ? "done" : ""} key={item.id}>
+                      <button
+                        type="button"
+                        className="check-toggle"
+                        onClick={() =>
+                          updateStage(selectedStage.id, {
+                            checklist: selectedStage.checklist?.map((check) =>
+                              check.id === item.id ? { ...check, done: !check.done } : check,
+                            ),
+                          })
+                        }
+                        aria-label={item.done ? `Reabrir ${item.label}` : `Concluir ${item.label}`}
+                      >
+                        {item.done ? "✓" : ""}
+                      </button>
+                      <input
+                        value={item.label}
+                        onChange={(event) =>
+                          updateStage(selectedStage.id, {
+                            checklist: selectedStage.checklist?.map((check) =>
+                              check.id === item.id
+                                ? { ...check, label: event.target.value }
+                                : check,
+                            ),
+                          })
+                        }
+                        aria-label="Nome do item"
+                      />
+                      <span className="checklist-order-actions">
+                        <button
+                          type="button"
+                          onClick={() => moveChecklistItem(item.id, -1)}
+                          disabled={index === 0}
+                          aria-label="Mover para cima"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveChecklistItem(item.id, 1)}
+                          disabled={index === (selectedStage.checklist?.length || 0) - 1}
+                          aria-label="Mover para baixo"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-action"
+                          onClick={() =>
+                            updateStage(selectedStage.id, {
+                              checklist: selectedStage.checklist?.filter(
+                                (check) => check.id !== item.id,
+                              ),
+                            })
+                          }
+                          aria-label={`Excluir ${item.label}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    </div>
                   ))}
+                </div>
+                <div className="checklist-add-row">
+                  <input
+                    value={newChecklistItem}
+                    onChange={(event) => setNewChecklistItem(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addChecklistItem();
+                      }
+                    }}
+                    placeholder="Novo item personalizado"
+                  />
+                  <button type="button" onClick={addChecklistItem}>
+                    ＋ Adicionar
+                  </button>
+                </div>
+                <div className="checklist-template-actions">
+                  <select
+                    defaultValue=""
+                    onChange={(event) => {
+                      if (event.target.value) applyChecklistTemplate(event.target.value);
+                      event.target.value = "";
+                    }}
+                  >
+                    <option value="">Aplicar modelo…</option>
+                    {checklistTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={saveChecklistTemplate}>
+                    Salvar como modelo
+                  </button>
                 </div>
               </div>
               <div className="stage-subsection">
@@ -1232,52 +1500,273 @@ export function WorkDetails({
         <section className="tab-single card finance-tab">
           <div className="detail-section-heading">
             <div>
-              <p>FINANCEIRO</p>
-              <h2>Pagamentos do trabalho</h2>
+              <p>FINANCEIRO DO TRABALHO</p>
+              <h2>Recebimentos, ganhos e custos</h2>
             </div>
-            <span>{receivedPercent}% recebido</span>
+            <span>Sincronizado com o Financeiro geral</span>
           </div>
-          <div className="finance-detail-grid">
+          <div className="work-finance-summary">
             <article>
-              <span>VALOR TOTAL</span>
+              <span>CONTRATADO</span>
               <strong>{formatMoney(work.totalValue, work.currency)}</strong>
               <small>{work.packageName}</small>
             </article>
             <article>
-              <span>RECEBIDO</span>
+              <span>PAGO PELO CLIENTE</span>
               <strong>{formatMoney(work.entryValue, work.currency)}</strong>
-              <small>
-                {receivedPercent >= 50
-                  ? "Entrada mínima alcançada"
-                  : `Faltam ${formatMoney(work.totalValue / 2 - work.entryValue, work.currency)} para 50%`}
-              </small>
+              <small>{receivedPercent}% do contrato</small>
             </article>
             <article>
-              <span>SALDO</span>
+              <span>OUTROS GANHOS</span>
               <strong>
-                {formatMoney(Math.max(0, work.totalValue - work.entryValue), work.currency)}
+                {formatMoney(Math.max(0, receivedIncome - work.entryValue), work.currency)}
               </strong>
-              <small>{work.installments} parcela(s) combinadas</small>
+              <small>Gorjetas, adicionais e reembolsos</small>
+            </article>
+            <article className="result">
+              <span>RESULTADO ATUAL</span>
+              <strong>{formatMoney(receivedIncome - paidCosts, work.currency)}</strong>
+              <small>Entradas recebidas menos custos pagos</small>
             </article>
           </div>
-          <div className="progress large">
-            <i style={{ width: `${receivedPercent}%` }} />
+
+          <div className="work-finance-section">
+            <div className="work-finance-section-heading">
+              <div>
+                <span>RECEBIMENTOS E GANHOS</span>
+                <h3>Entradas deste trabalho</h3>
+              </div>
+              <small>{incomeItems.length} lançamento(s)</small>
+            </div>
+            <div className="income-entry-grid">
+              <label className="field">
+                <span>Descrição</span>
+                <input
+                  value={incomeDraft.name}
+                  onChange={(event) => setIncomeDraft({ ...incomeDraft, name: event.target.value })}
+                  placeholder="Ex.: gorjeta da cliente"
+                />
+              </label>
+              <label className="field">
+                <span>Tipo</span>
+                <select
+                  value={incomeDraft.category}
+                  onChange={(event) =>
+                    setIncomeDraft({
+                      ...incomeDraft,
+                      category: event.target.value as WorkIncome["category"],
+                      name:
+                        event.target.value === "Gorjeta" &&
+                        incomeDraft.name === "Pagamento do cliente"
+                          ? "Gorjeta da cliente"
+                          : incomeDraft.name,
+                    })
+                  }
+                >
+                  {(["Pagamento", "Gorjeta", "Adicional", "Reembolso", "Outro"] as const).map(
+                    (category) => (
+                      <option key={category}>{category}</option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label className="field">
+                <span>Tags</span>
+                <input
+                  value={incomeDraft.tags}
+                  onChange={(event) => setIncomeDraft({ ...incomeDraft, tags: event.target.value })}
+                  placeholder="cliente, casamento"
+                />
+              </label>
+              <label className="field">
+                <span>Valor ({work.currency})</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={incomeDraft.amount || ""}
+                  onChange={(event) =>
+                    setIncomeDraft({ ...incomeDraft, amount: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Data</span>
+                <input
+                  type="date"
+                  value={incomeDraft.date}
+                  onChange={(event) => setIncomeDraft({ ...incomeDraft, date: event.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>Situação</span>
+                <select
+                  value={incomeDraft.status}
+                  onChange={(event) =>
+                    setIncomeDraft({
+                      ...incomeDraft,
+                      status: event.target.value as WorkIncome["status"],
+                    })
+                  }
+                >
+                  <option value="received">Recebido</option>
+                  <option value="pending">Pendente</option>
+                </select>
+              </label>
+              <button className="primary-button" type="button" onClick={addIncome}>
+                {editingIncomeId ? "✓ Salvar ganho" : "＋ Adicionar ganho"}
+              </button>
+            </div>
+            <div className="work-money-list">
+              {incomeItems.map((item) => (
+                <article key={item.id}>
+                  <span>
+                    <strong>{item.name}</strong>
+                    <small>
+                      {formatDate(item.date)} · {item.category}
+                      {item.tags.length ? ` · #${item.tags.join(" #")}` : ""}
+                    </small>
+                  </span>
+                  <span className={`income-state ${item.status}`}>
+                    {item.status === "received" ? "Recebido" : "Pendente"}
+                  </span>
+                  <strong>＋ {formatMoney(item.amount, work.currency)}</strong>
+                  <span className="money-row-actions">
+                    <button
+                      type="button"
+                      onClick={() => editIncome(item)}
+                      aria-label={`Editar ${item.name}`}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeIncome(item.id)}
+                      aria-label={`Remover ${item.name}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                </article>
+              ))}
+              {incomeItems.length === 0 && <p>Nenhuma entrada registrada.</p>}
+            </div>
           </div>
-          <div className="payment-register">
-            <label className="field">
-              <span>Novo pagamento ({work.currency === "BRL" ? "R$" : "€"})</span>
-              <input
-                type="number"
-                min="0"
-                value={payment}
-                onChange={(event) => setPayment(event.target.value)}
-                placeholder="0,00"
-              />
-            </label>
-            <button className="primary-button" type="button" onClick={registerPayment}>
-              Registrar pagamento
-            </button>
+
+          <div className="work-finance-section">
+            <div className="work-finance-section-heading">
+              <div>
+                <span>CUSTOS</span>
+                <h3>Gastos deste trabalho</h3>
+              </div>
+              <small>{formatMoney(work.costs, work.currency)} cadastrados</small>
+            </div>
+            <div className="cost-entry-grid compact-finance-entry">
+              <label className="field">
+                <span>Nome do custo</span>
+                <input
+                  value={costDraft.name}
+                  onChange={(event) => setCostDraft({ ...costDraft, name: event.target.value })}
+                  placeholder="Ex.: combustível para o casamento"
+                />
+              </label>
+              <label className="field">
+                <span>Categoria</span>
+                <input
+                  list="work-cost-categories"
+                  value={costDraft.category}
+                  onChange={(event) => setCostDraft({ ...costDraft, category: event.target.value })}
+                />
+                <datalist id="work-cost-categories">
+                  <option value="Transporte" />
+                  <option value="Equipamento" />
+                  <option value="Alimentação" />
+                  <option value="Aluguel" />
+                  <option value="Equipe" />
+                  <option value="Impressão" />
+                  <option value="Cliente" />
+                </datalist>
+              </label>
+              <label className="field">
+                <span>Tags</span>
+                <input
+                  value={costDraft.tags}
+                  onChange={(event) => setCostDraft({ ...costDraft, tags: event.target.value })}
+                  placeholder="viagem, casamento"
+                />
+              </label>
+              <label className="field">
+                <span>Valor ({work.currency})</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={costDraft.amount || ""}
+                  onChange={(event) =>
+                    setCostDraft({ ...costDraft, amount: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Data</span>
+                <input
+                  type="date"
+                  value={costDraft.date}
+                  onChange={(event) => setCostDraft({ ...costDraft, date: event.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>Situação</span>
+                <select
+                  value={costDraft.status}
+                  onChange={(event) =>
+                    setCostDraft({ ...costDraft, status: event.target.value as WorkCost["status"] })
+                  }
+                >
+                  <option value="planned">Previsto</option>
+                  <option value="paid">Pago</option>
+                </select>
+              </label>
+              <button className="primary-button" type="button" onClick={addCost}>
+                {editingCostId ? "✓ Salvar custo" : "＋ Adicionar custo"}
+              </button>
+            </div>
+            <div className="work-money-list costs-list">
+              {costItems.map((item) => (
+                <article key={item.id}>
+                  <span>
+                    <strong>{item.name}</strong>
+                    <small>
+                      {formatDate(item.date)} · {item.category}
+                      {item.tags.length ? ` · #${item.tags.join(" #")}` : ""}
+                    </small>
+                  </span>
+                  <span className={`cost-state ${item.status}`}>
+                    {item.status === "paid" ? "Pago" : "Previsto"}
+                  </span>
+                  <strong>− {formatMoney(item.amount, work.currency)}</strong>
+                  <span className="money-row-actions">
+                    <button
+                      type="button"
+                      onClick={() => editCost(item)}
+                      aria-label={`Editar ${item.name}`}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeCost(item.id)}
+                      aria-label={`Remover ${item.name}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                </article>
+              ))}
+              {costItems.length === 0 && <p>Nenhum custo cadastrado.</p>}
+            </div>
           </div>
+
           <div className="payment-milestones">
             <div className={receivedPercent >= 50 ? "ready" : "blocked"}>
               <span>{receivedPercent >= 50 ? "✓" : "⌛"}</span>
@@ -1323,8 +1812,8 @@ export function WorkDetails({
             </div>
           </div>
           <p className="automation-note">
-            ◇ No futuro, pagamentos integrados poderão atualizar estas etapas automaticamente. A
-            confirmação permanece manual nesta versão.
+            ◇ Pagamentos contam para o contrato; gorjetas e ganhos adicionais aumentam o resultado
+            sem alterar o saldo que a cliente ainda deve.
           </p>
         </section>
       )}
@@ -1509,142 +1998,6 @@ export function WorkDetails({
                 <span>□</span>
                 <h2>Nenhum arquivo anexado</h2>
                 <p>Adicione contratos, comprovantes ou referências.</p>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {tab === "costs" && (
-        <section className="tab-single card">
-          <div className="detail-section-heading">
-            <div>
-              <p>CUSTOS DETALHADOS</p>
-              <h2>Origem de cada gasto</h2>
-            </div>
-            <span>Sincronizado com o Financeiro</span>
-          </div>
-          <div className="cost-summary">
-            <article>
-              <span>RECEITA</span>
-              <strong>{formatMoney(work.totalValue, work.currency)}</strong>
-            </article>
-            <b>−</b>
-            <article>
-              <span>CUSTOS</span>
-              <strong>{formatMoney(work.costs, work.currency)}</strong>
-            </article>
-            <b>=</b>
-            <article className="result">
-              <span>RESULTADO</span>
-              <strong>{formatMoney(work.totalValue - work.costs, work.currency)}</strong>
-            </article>
-          </div>
-          <div className="cost-entry-grid">
-            <label className="field">
-              <span>Nome do custo</span>
-              <input
-                value={costDraft.name}
-                onChange={(event) => setCostDraft({ ...costDraft, name: event.target.value })}
-                placeholder="Ex.: combustível para o casamento"
-              />
-            </label>
-            <label className="field">
-              <span>Categoria</span>
-              <input
-                list="work-cost-categories"
-                value={costDraft.category}
-                onChange={(event) => setCostDraft({ ...costDraft, category: event.target.value })}
-              />
-              <datalist id="work-cost-categories">
-                <option value="Transporte" />
-                <option value="Equipamento" />
-                <option value="Alimentação" />
-                <option value="Aluguel" />
-                <option value="Equipe" />
-                <option value="Impressão" />
-                <option value="Cliente" />
-              </datalist>
-            </label>
-            <label className="field">
-              <span>Tags</span>
-              <input
-                value={costDraft.tags}
-                onChange={(event) => setCostDraft({ ...costDraft, tags: event.target.value })}
-                placeholder="viagem, casamento"
-              />
-            </label>
-            <label className="field">
-              <span>Valor ({work.currency})</span>
-              <input
-                type="number"
-                min="0"
-                value={costDraft.amount || ""}
-                onChange={(event) =>
-                  setCostDraft({ ...costDraft, amount: Number(event.target.value) })
-                }
-              />
-            </label>
-            <label className="field">
-              <span>Data</span>
-              <input
-                type="date"
-                value={costDraft.date}
-                onChange={(event) => setCostDraft({ ...costDraft, date: event.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Situação</span>
-              <select
-                value={costDraft.status}
-                onChange={(event) =>
-                  setCostDraft({ ...costDraft, status: event.target.value as WorkCost["status"] })
-                }
-              >
-                <option value="planned">Previsto</option>
-                <option value="paid">Pago</option>
-              </select>
-            </label>
-            <button className="primary-button cost-add-button" type="button" onClick={addCost}>
-              ＋ Adicionar custo
-            </button>
-          </div>
-          <div className="cost-list-head">
-            <span>Gasto</span>
-            <span>Categoria / tags</span>
-            <span>Situação</span>
-            <span>Valor</span>
-            <span />
-          </div>
-          <div className="cost-item-list">
-            {costItems.map((item) => (
-              <article key={item.id}>
-                <span>
-                  <strong>{item.name}</strong>
-                  <small>{formatDate(item.date)}</small>
-                </span>
-                <span>
-                  <strong>{item.category}</strong>
-                  <small>
-                    {item.tags.length ? item.tags.map((tag) => `#${tag}`).join(" ") : "Sem tags"}
-                  </small>
-                </span>
-                <span className={`cost-state ${item.status}`}>
-                  {item.status === "paid" ? "Pago" : "Previsto"}
-                </span>
-                <strong>{formatMoney(item.amount, work.currency)}</strong>
-                <button
-                  type="button"
-                  onClick={() => removeCost(item.id)}
-                  aria-label={`Remover ${item.name}`}
-                >
-                  ×
-                </button>
-              </article>
-            ))}
-            {costItems.length === 0 && (
-              <div className="finance-empty">
-                <p>Nenhum custo cadastrado neste trabalho.</p>
               </div>
             )}
           </div>

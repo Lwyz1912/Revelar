@@ -1408,3 +1408,39 @@
     animation: none !important;
   }
 }
+
+@media (max-width: 720px) {
+  .work-finance-summary,
+  .income-entry-grid,
+  .compact-finance-entry {
+    grid-template-columns: 1fr;
+  }
+  .work-money-list article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .work-money-list article > .income-state,
+  .work-money-list article > .cost-state {
+    grid-column: 1;
+  }
+  .moodboard-actionbar {
+    grid-template-columns: 1fr 1fr;
+    display: grid;
+  }
+  .moodboard-actionbar .primary-button {
+    margin-left: 0;
+  }
+  .moodboard-collapsible:not([open]) .moodboard-panel-content {
+    display: none;
+  }
+  .checklist-add-row,
+  .checklist-template-actions {
+    grid-template-columns: 1fr;
+  }
+  .gallery-bulk-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .gallery-reply-box {
+    grid-template-columns: 1fr;
+  }
+}

@@ -209,6 +209,23 @@ export type WorkCost = {
   date: string;
 };
 
+export type WorkIncome = {
+  id: string;
+  name: string;
+  category: "Pagamento" | "Gorjeta" | "Adicional" | "Reembolso" | "Outro";
+  tags: string[];
+  amount: number;
+  status: "pending" | "received";
+  date: string;
+  countsTowardContract: boolean;
+};
+
+export type ChecklistTemplate = {
+  id: string;
+  name: string;
+  items: Array<{ id: string; label: string }>;
+};
+
 export type FinanceTransaction = {
   id: string;
   type: TransactionType;
@@ -337,6 +354,7 @@ export type Work = {
   installments: number;
   costs: number;
   costItems?: WorkCost[];
+  incomeItems?: WorkIncome[];
   photos: { captured: number; selected: number; edited: number; delivered: number };
   stages: WorkStage[];
   attachments: Array<string | AppFileRef>;
@@ -414,10 +432,20 @@ export type GalleryPhoto = {
   selected: boolean;
   approved: boolean;
   comment: string;
+  comments: GalleryComment[];
+  deletedAt?: string;
   hasPreview: boolean;
   hasOriginal: boolean;
   hasHigh: boolean;
   hasSocial: boolean;
+};
+
+export type GalleryComment = {
+  id: string;
+  authorRole: "client" | "photographer";
+  authorName: string;
+  message: string;
+  createdAt: string;
 };
 
 export type GalleryAsset = {

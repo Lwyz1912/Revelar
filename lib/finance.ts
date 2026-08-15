@@ -50,27 +50,38 @@ export function workTransactions(works: Work[]): FinanceTransaction[] {
               },
             ]
           : [];
-      const entries: FinanceTransaction[] =
-        work.entryValue > 0
+      const incomes = work.incomeItems?.length
+        ? work.incomeItems
+        : work.entryValue > 0
           ? [
               {
-                id: `work-income-${work.id}`,
-                type: "income",
-                scope: "professional",
-                description: `Recebimento · ${work.title}`,
-                amount: work.entryValue,
-                currency: work.currency,
-                date: work.date,
-                category: "Cliente",
+                id: `legacy-${work.id}`,
+                name: "Pagamentos recebidos",
+                category: "Pagamento" as const,
                 tags: [work.category],
-                account: "Conta principal",
-                paymentMethod: "Transferência",
-                status: "received",
-                workId: work.id,
-                origin: work.title,
+                amount: work.entryValue,
+                status: "received" as const,
+                date: work.date,
+                countsTowardContract: true,
               },
             ]
           : [];
+      const entries: FinanceTransaction[] = incomes.map((income) => ({
+        id: `work-income-${work.id}-${income.id}`,
+        type: "income",
+        scope: "professional",
+        description: income.name,
+        amount: income.amount,
+        currency: work.currency,
+        date: income.date || work.date,
+        category: income.category,
+        tags: income.tags,
+        account: "Conta principal",
+        paymentMethod: "Pix / transferência",
+        status: income.status,
+        workId: work.id,
+        origin: work.title,
+      }));
 
       return [
         ...entries,
