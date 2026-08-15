@@ -1,3 +1,4 @@
+import { defaultProfessionalSettings } from "@/config/settings";
 import { getRuntimeBindings } from "@/lib/server/runtime-bindings";
 
 async function ensureProfessionalSettingsTable() {
@@ -28,6 +29,17 @@ export async function readProfessionalSettings(ownerEmail: string) {
   } catch {
     return null;
   }
+}
+
+export async function professionalDisplayName(ownerEmail: string, fallback: string) {
+  const stored = await readProfessionalSettings(ownerEmail);
+  const profile =
+    stored?.data && typeof stored.data === "object"
+      ? (stored.data as { profile?: { name?: unknown } }).profile
+      : undefined;
+  const savedName = typeof profile?.name === "string" ? profile.name.trim() : "";
+  const defaultName = defaultProfessionalSettings.profile.name.trim();
+  return (savedName || defaultName || fallback.trim() || "Profissional").slice(0, 120);
 }
 
 export async function writeProfessionalSettings(ownerEmail: string, data: unknown) {

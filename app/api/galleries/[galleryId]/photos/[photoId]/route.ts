@@ -7,6 +7,7 @@ import {
   serializeGallery,
 } from "@/lib/server/gallery-repository";
 import { privateObjectResponse } from "@/lib/server/gallery-storage";
+import { professionalDisplayName } from "@/lib/server/professional-settings-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -45,18 +46,19 @@ export async function PATCH(request: Request, context: RouteContext) {
   const input = (await request.json().catch(() => ({}))) as { message?: string };
   if (!input.message?.trim())
     return Response.json({ error: "Escreva uma resposta" }, { status: 400 });
+  const responderName = await professionalDisplayName(user.email, user.displayName);
   await addGalleryPhotoComment({
     galleryId,
     photoId,
     authorRole: "photographer",
-    authorName: user.displayName,
+    authorName: responderName,
     message: input.message,
   });
   await recordGalleryEvent(
     galleryId,
     "photographer_reply",
-    `${user.displayName} respondeu um comentário`,
+    `${responderName} respondeu um comentário`,
     photoId,
   );
-  return Response.json({ gallery: await serializeGallery(gallery) });
+  return Response.json({ gallery: await serializeGallery(gallery), responderName });
 }

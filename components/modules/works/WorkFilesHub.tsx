@@ -86,6 +86,7 @@ export function WorkFilesHub({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [replyDraft, setReplyDraft] = useState("");
+  const [responderName, setResponderName] = useState("Profissional");
   const [watermarkFile, setWatermarkFile] = useState<File | null>(null);
   const [pinTouched, setPinTouched] = useState(false);
   const [settings, setSettings] = useState({
@@ -101,6 +102,8 @@ export function WorkFilesHub({
   const socialPhotoInput = useRef<HTMLInputElement>(null);
   const deliveryInput = useRef<HTMLInputElement>(null);
   const watermarkInput = useRef<HTMLInputElement>(null);
+  const conversationThread = useRef<HTMLDivElement>(null);
+  const replyInput = useRef<HTMLTextAreaElement>(null);
   const callbacks = useRef({ onStats, onEvents, onPhotoExtras });
 
   useEffect(() => {
@@ -118,8 +121,12 @@ export function WorkFilesHub({
       setLoading(false);
       return;
     }
-    const data = (await response.json()) as { gallery: WorkGallery | null };
+    const data = (await response.json()) as {
+      gallery: WorkGallery | null;
+      responderName?: string;
+    };
     setGallery(data.gallery);
+    if (data.responderName) setResponderName(data.responderName);
     if (data.gallery) {
       setSettings({
         pin: "",
@@ -198,8 +205,12 @@ export function WorkFilesHub({
     });
     if (response.status === 401) setAuthRequired(true);
     else if (response.ok) {
-      const data = (await response.json()) as { gallery: WorkGallery };
+      const data = (await response.json()) as {
+        gallery: WorkGallery;
+        responderName?: string;
+      };
       setGallery(data.gallery);
+      if (data.responderName) setResponderName(data.responderName);
       toast("Galeria privada criada");
     }
     setBusy(false);
@@ -335,8 +346,12 @@ export function WorkFilesHub({
       body: JSON.stringify({ message: replyDraft }),
     });
     if (response.ok) {
-      const data = (await response.json()) as { gallery: WorkGallery };
+      const data = (await response.json()) as {
+        gallery: WorkGallery;
+        responderName?: string;
+      };
       setGallery(data.gallery);
+      if (data.responderName) setResponderName(data.responderName);
       setReplyDraft("");
       toast("Resposta enviada para a cliente");
     } else {
@@ -371,6 +386,40 @@ export function WorkFilesHub({
     return gallery.photos.filter((photo) => photo.folder === folder && !photo.deletedAt);
   }, [folder, gallery]);
   const activePhoto = gallery?.photos.find((photo) => photo.id === activePhotoId) || null;
+  const activeConversation = useMemo(
+    () =>
+      activePhoto
+        ? activePhoto.comments.length
+          ? activePhoto.comments
+          : activePhoto.comment
+              .split("\n")
+              .filter(Boolean)
+              .map((message, index) => ({
+                id: `legacy-${index}`,
+                authorRole: "client" as const,
+                authorName: clientName,
+                message,
+                createdAt: "",
+              }))
+        : [],
+    [activePhoto, clientName],
+  );
+
+  useEffect(() => {
+    if (!activePhotoId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const thread = conversationThread.current;
+      if (thread) thread.scrollTop = thread.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeConversation.length, activePhotoId]);
+
+  useEffect(() => {
+    const input = replyInput.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+  }, [replyDraft]);
 
   if (loading) return <div className="gallery-manager-loading">Preparando arquivos…</div>;
 
@@ -724,93 +773,123 @@ export function WorkFilesHub({
       {activePhoto && (
         <div className="modal-backdrop" role="presentation" onMouseDown={closePhoto}>
           <section
-            className="gallery-client-activity-dialog"
+            className="gallery-client-activity-dialog gallery-conversation-dialog"
             role="dialog"
             aria-modal="true"
+            aria-labelledby="photo-conversation-title"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <header>
+            <header className="gallery-conversation-dialog-header">
               <div>
                 <span>RETORNO DO CLIENTE</span>
-                <h2>{activePhoto.filename}</h2>
+                <h2 id="photo-conversation-title">{activePhoto.filename}</h2>
               </div>
-              <button type="button" onClick={closePhoto}>
+              <button type="button" onClick={closePhoto} aria-label="Fechar conversa">
                 ×
               </button>
             </header>
-            {activePhoto.hasPreview ? (
-              <img
-                src={`/api/galleries/${gallery.id}/photos/${activePhoto.id}`}
-                alt={activePhoto.filename}
-              />
-            ) : (
-              <div className="raw-file-icon">ARQUIVO</div>
-            )}
-            <div className="gallery-client-statuses">
-              <span className={activePhoto.selected ? "active" : ""}>
-                {activePhoto.selected ? "♥ Escolhida pelo cliente" : "Não escolhida"}
-              </span>
-              <span className={activePhoto.approved ? "active" : ""}>
-                {activePhoto.approved ? "✓ Edição aprovada" : "Aguardando aprovação"}
-              </span>
-            </div>
-            <section className="gallery-photo-conversation">
-              <strong>Conversa sobre esta foto</strong>
-              <div className="gallery-comment-thread">
-                {(activePhoto.comments.length
-                  ? activePhoto.comments
-                  : activePhoto.comment
-                      .split("\n")
-                      .filter(Boolean)
-                      .map((message, index) => ({
-                        id: `legacy-${index}`,
-                        authorRole: "client" as const,
-                        authorName: clientName,
-                        message,
-                        createdAt: "",
-                      }))
-                ).map((comment) => (
-                  <article className={`comment-bubble ${comment.authorRole}`} key={comment.id}>
-                    <header>
-                      <strong>{comment.authorName}</strong>
-                      {comment.createdAt && (
-                        <small>
-                          {new Intl.DateTimeFormat("pt-BR", {
-                            dateStyle: "short",
-                            timeStyle: "short",
-                          }).format(new Date(comment.createdAt))}
-                        </small>
-                      )}
-                    </header>
-                    <p>{comment.message}</p>
-                  </article>
-                ))}
-                {!activePhoto.comments.length && !activePhoto.comment && (
-                  <p>Nenhum comentário nesta foto.</p>
-                )}
-              </div>
-              {!activePhoto.deletedAt && (
-                <div className="gallery-reply-box">
-                  <label htmlFor="photographer-reply">Responder como Maryana</label>
-                  <textarea
-                    id="photographer-reply"
-                    rows={3}
-                    value={replyDraft}
-                    onChange={(event) => setReplyDraft(event.target.value)}
-                    placeholder="Escreva uma resposta para a cliente"
+            <div className="gallery-conversation-dialog-body">
+              <div className="gallery-conversation-preview">
+                {activePhoto.hasPreview ? (
+                  <img
+                    src={`/api/galleries/${gallery.id}/photos/${activePhoto.id}`}
+                    alt={activePhoto.filename}
                   />
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={() => void replyToPhoto()}
-                    disabled={busy || !replyDraft.trim()}
-                  >
-                    {busy ? "Enviando…" : "Enviar resposta"}
-                  </button>
+                ) : (
+                  <div className="raw-file-icon">ARQUIVO</div>
+                )}
+                <div className="gallery-client-statuses">
+                  <span className={activePhoto.selected ? "active" : ""}>
+                    {activePhoto.selected ? "♥ Escolhida pelo cliente" : "Não escolhida"}
+                  </span>
+                  <span className={activePhoto.approved ? "active" : ""}>
+                    {activePhoto.approved ? "✓ Edição aprovada" : "Aguardando aprovação"}
+                  </span>
                 </div>
-              )}
-            </section>
-            <footer>
+              </div>
+              <section className="gallery-photo-conversation">
+                <header className="gallery-conversation-heading">
+                  <div>
+                    <strong>Conversa sobre esta foto</strong>
+                    <small>
+                      {activeConversation.length || "Nenhuma"}{" "}
+                      {activeConversation.length === 1 ? "mensagem" : "mensagens"}
+                    </small>
+                  </div>
+                  <span>
+                    Respondendo como <strong>{responderName}</strong>
+                  </span>
+                </header>
+                <div className="gallery-comment-thread" ref={conversationThread} aria-live="polite">
+                  {activeConversation.map((comment) => (
+                    <article className={`comment-bubble ${comment.authorRole}`} key={comment.id}>
+                      <header className="comment-meta">
+                        <strong>{comment.authorName}</strong>
+                        {comment.createdAt && (
+                          <small>
+                            {new Intl.DateTimeFormat("pt-BR", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            }).format(new Date(comment.createdAt))}
+                          </small>
+                        )}
+                      </header>
+                      <p>{comment.message}</p>
+                    </article>
+                  ))}
+                  {!activeConversation.length && (
+                    <div className="gallery-conversation-empty">
+                      <span>◇</span>
+                      <p>A conversa desta foto começa aqui.</p>
+                    </div>
+                  )}
+                </div>
+                {!activePhoto.deletedAt && (
+                  <form
+                    className="gallery-message-composer"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void replyToPhoto();
+                    }}
+                  >
+                    <textarea
+                      ref={replyInput}
+                      id="photographer-reply"
+                      rows={1}
+                      value={replyDraft}
+                      onChange={(event) => setReplyDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter" &&
+                          !event.shiftKey &&
+                          !event.nativeEvent.isComposing &&
+                          !window.matchMedia("(pointer: coarse)").matches
+                        ) {
+                          event.preventDefault();
+                          if (!busy && replyDraft.trim()) void replyToPhoto();
+                        }
+                      }}
+                      aria-label={`Responder como ${responderName}`}
+                      placeholder="Escreva uma resposta…"
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy || !replyDraft.trim()}
+                      aria-label={busy ? "Enviando resposta" : "Enviar resposta"}
+                    >
+                      {busy ? (
+                        <span className="composer-spinner" aria-hidden="true" />
+                      ) : (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3.8 4.2 21 12 3.8 19.8l2.1-6.3L15 12l-9.1-1.5-2.1-6.3Z" />
+                        </svg>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </section>
+            </div>
+            <footer className="gallery-conversation-dialog-footer">
               <button
                 className={activePhoto.deletedAt ? "restore-photo" : "danger-action"}
                 type="button"
@@ -822,9 +901,11 @@ export function WorkFilesHub({
               >
                 {activePhoto.deletedAt ? "↻ Restaurar foto" : "⌫ Mover para lixeira"}
               </button>
-              <button type="button" onClick={closePhoto}>
-                Fechar
-              </button>
+              <small>
+                {activePhoto.deletedAt
+                  ? "A foto volta a aparecer na galeria da cliente ao ser restaurada."
+                  : "A foto ficará recuperável por 30 dias e sairá do link da cliente."}
+              </small>
             </footer>
           </section>
         </div>

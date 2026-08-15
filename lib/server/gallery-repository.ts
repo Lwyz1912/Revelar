@@ -331,7 +331,52 @@ export async function addGalleryPhotoComment(input: {
   const message = input.message.trim().slice(0, 1500);
   if (!message) return;
   const now = new Date().toISOString();
+  const [photo, structuredComment] = await Promise.all([
+    first<Row & { comment: string; created_at: string; client_name: string }>(
+      `SELECT p.comment, p.created_at, g.client_name
+       FROM gallery_photos p
+       JOIN galleries g ON g.id = p.gallery_id
+       WHERE p.id = ? AND p.gallery_id = ? LIMIT 1`,
+      input.photoId,
+      input.galleryId,
+    ),
+    first<Row & { id: string }>(
+      "SELECT id FROM gallery_photo_comments WHERE gallery_id = ? AND photo_id = ? LIMIT 1",
+      input.galleryId,
+      input.photoId,
+    ),
+  ]);
+  const legacyMessages =
+    !structuredComment && photo?.comment
+      ? String(photo.comment)
+          .split("\n")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+  const shouldReuseIncomingClientMessage =
+    input.authorRole === "client" && legacyMessages.length === 1 && legacyMessages[0] === message;
+  const legacyStatements = shouldReuseIncomingClientMessage
+    ? []
+    : legacyMessages.map((legacyMessage, index) => {
+        const baseTime = new Date(photo?.created_at || now).getTime();
+        const createdAt = new Date(baseTime + index).toISOString();
+        return database()
+          .prepare(
+            `INSERT OR IGNORE INTO gallery_photo_comments
+              (id, gallery_id, photo_id, author_role, author_name, message, created_at)
+             VALUES (?, ?, ?, 'client', ?, ?, ?)`,
+          )
+          .bind(
+            `legacy:${input.photoId}:${index}`,
+            input.galleryId,
+            input.photoId,
+            String(photo?.client_name || "Cliente").slice(0, 120),
+            legacyMessage.slice(0, 1500),
+            createdAt,
+          );
+      });
   await database().batch([
+    ...legacyStatements,
     database()
       .prepare(
         `INSERT INTO gallery_photo_comments
@@ -348,9 +393,6 @@ export async function addGalleryPhotoComment(input: {
         message,
         now,
       ),
-    database()
-      .prepare("UPDATE gallery_photos SET comment = ? WHERE id = ? AND gallery_id = ?")
-      .bind(message, input.photoId, input.galleryId),
   ]);
 }
 
