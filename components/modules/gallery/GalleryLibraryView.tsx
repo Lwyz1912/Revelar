@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { galleryFolderLabels, initialDemoGalleries, type DemoGallery } from "@/data/demo-galleries";
 import { formatSize } from "@/lib/format";
 import type { GalleryFolder, GalleryPhase, Work, WorkGallery } from "@/types/revelar";
+import { useUrlStringState } from "@/hooks/use-url-state";
 
 type Props = { works: Work[]; onOpenWork: (work: Work) => void; toast: (message: string) => void };
 type DemoPhotoState = { selected: boolean; approved: boolean; comment: string };
@@ -12,6 +13,9 @@ type DemoState = { photos: Record<string, DemoPhotoState>; locks: Record<string,
 
 const storageKey = "revelar:demo-gallery-state:v1";
 const folderOrder: GalleryFolder[] = ["preview", "selection", "edited", "delivered", "originals"];
+const galleryModes = ["demo", "real"] as const;
+const galleryViews = ["cards", "list"] as const;
+const galleryPhases = ["all", "selection", "approval", "delivery"] as const;
 
 function freshDemoState(): DemoState {
   return {
@@ -44,16 +48,24 @@ function folderState(status: "ready" | "active" | "waiting") {
 }
 
 export function GalleryLibraryView({ works, onOpenWork, toast }: Props) {
-  const [mode, setMode] = useState<"demo" | "real">("demo");
-  const [view, setView] = useState<"cards" | "list">("cards");
-  const [search, setSearch] = useState("");
-  const [phase, setPhase] = useState<"all" | GalleryPhase>("all");
-  const [category, setCategory] = useState("all");
+  const [mode, setMode] = useUrlStringState("galleryMode", "demo", galleryModes);
+  const [view, setView] = useUrlStringState("galleryView", "cards", galleryViews);
+  const [search, setSearch] = useUrlStringState<string>("galleryQ", "");
+  const [phase, setPhase] = useUrlStringState<"all" | GalleryPhase>(
+    "galleryPhase",
+    "all",
+    galleryPhases,
+  );
+  const [category, setCategory] = useUrlStringState<string>("galleryCategory", "all");
   const [real, setReal] = useState<WorkGallery[]>([]);
   const [loading, setLoading] = useState(true);
   const [realError, setRealError] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeFolder, setActiveFolder] = useState<GalleryFolder>("preview");
+  const [selectedId, setSelectedId] = useUrlStringState<string>("gallery", "");
+  const [activeFolder, setActiveFolder] = useUrlStringState<GalleryFolder>(
+    "galleryFolder",
+    "preview",
+    folderOrder,
+  );
   const [clientPreview, setClientPreview] = useState(false);
   const [focusPhotoId, setFocusPhotoId] = useState<string | null>(null);
   const [demo, setDemo] = useState<DemoState>(() => {
@@ -127,7 +139,7 @@ export function GalleryLibraryView({ works, onOpenWork, toast }: Props) {
 
   const resetDemo = () => {
     setDemo(freshDemoState());
-    setSelectedId(null);
+    setSelectedId("");
     setClientPreview(false);
     toast("Dados de demonstração restaurados");
   };
@@ -189,7 +201,7 @@ export function GalleryLibraryView({ works, onOpenWork, toast }: Props) {
 
     return (
       <section className="gallery-library gallery-detail">
-        <button className="gallery-back" type="button" onClick={() => setSelectedId(null)}>
+        <button className="gallery-back" type="button" onClick={() => setSelectedId("")}>
           ← Todas as galerias
         </button>
         <header className="gallery-detail-heading">

@@ -11,6 +11,11 @@ import type {
   DiaryEntry,
   Work,
 } from "@/types/revelar";
+import { useUrlStringState } from "@/hooks/use-url-state";
+
+const diaryTabs = ["diary", "timeline", "achievements"] as const;
+const diaryCategories = ["Todas", ...achievementCategories] as const;
+const diaryTiers = ["Todos", ...achievementTiers] as const;
 
 export function DiaryView({
   entries,
@@ -27,11 +32,19 @@ export function DiaryView({
   achievementUnlocks: AchievementUnlock[];
   toast: (message: string) => void;
 }) {
-  const [tab, setTab] = useState<"diary" | "timeline" | "achievements">("diary");
+  const [tab, setTab] = useUrlStringState("diaryTab", "diary", diaryTabs);
   const [writing, setWriting] = useState(false);
-  const [category, setCategory] = useState<"Todas" | AchievementCategory>("Todas");
-  const [tier, setTier] = useState<"Todos" | AchievementTier>("Todos");
-  const [achievementSearch, setAchievementSearch] = useState("");
+  const [category, setCategory] = useUrlStringState<"Todas" | AchievementCategory>(
+    "achievementsCategory",
+    "Todas",
+    diaryCategories,
+  );
+  const [tier, setTier] = useUrlStringState<"Todos" | AchievementTier>(
+    "achievementsTier",
+    "Todos",
+    diaryTiers,
+  );
+  const [achievementSearch, setAchievementSearch] = useUrlStringState<string>("achievementsQ", "");
   const unlockedCount = achievements.filter((achievement) => achievement.unlocked).length;
   const achievementById = useMemo(
     () => new Map(achievements.map((achievement) => [achievement.id, achievement])),

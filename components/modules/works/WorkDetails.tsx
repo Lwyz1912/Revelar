@@ -36,6 +36,7 @@ import type {
   WorkStatus,
 } from "@/types/revelar";
 import { WorkFilesHub } from "@/components/modules/works/WorkFilesHub";
+import { useUrlStringState } from "@/hooks/use-url-state";
 
 type WorkDetailTab =
   | "overview"
@@ -73,6 +74,7 @@ const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> 
   { id: "gallery", label: "Galeria", icon: "▧" },
   { id: "files", label: "Documentos", icon: "□" },
 ];
+const workDetailTabIds = workDetailTabs.map((item) => item.id);
 
 export function WorkDetails({
   work,
@@ -105,7 +107,7 @@ export function WorkDetails({
 }) {
   const today = todayIso();
   const soonLimit = addDays(today, 4);
-  const [tab, setTab] = useState<WorkDetailTab>("overview");
+  const [tab, setTab] = useUrlStringState<WorkDetailTab>("workTab", "overview", workDetailTabIds);
   const [selectedStageId, setSelectedStageId] = useState(
     work.stages.find((stage) => !stage.done)?.id || work.stages[0]?.id || "",
   );
