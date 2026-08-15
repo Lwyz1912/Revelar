@@ -11,6 +11,10 @@ import type {
   TransactionType,
   Work,
 } from "@/types/revelar";
+import { useUrlStringState } from "@/hooks/use-url-state";
+
+const financeScopes = ["all", "professional", "personal"] as const;
+const transactionKinds = ["all", "income", "expense", "transfer"] as const;
 
 export function FinancialView({
   works,
@@ -30,8 +34,16 @@ export function FinancialView({
   toast: (message: string) => void;
 }) {
   const today = todayIso();
-  const [scope, setScope] = useState<"all" | FinanceScope>("all");
-  const [kind, setKind] = useState<"all" | TransactionType>("all");
+  const [scope, setScope] = useUrlStringState<"all" | FinanceScope>(
+    "financeScope",
+    "all",
+    financeScopes,
+  );
+  const [kind, setKind] = useUrlStringState<"all" | TransactionType>(
+    "financeKind",
+    "all",
+    transactionKinds,
+  );
   const [newOpen, setNewOpen] = useState(false);
   const [showConversion, setShowConversion] = useState(false);
   const [eurRate, setEurRate] = useState(6.35);

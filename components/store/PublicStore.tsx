@@ -9,6 +9,9 @@ import {
   productDiscountActive,
 } from "@/lib/products";
 import type { Currency, Product, ProductKind, StoreSettings } from "@/types/revelar";
+import { useUrlStringState } from "@/hooks/use-url-state";
+
+const storeCategories = ["all", "package", "album", "photo", "course", "pdf", "preset"] as const;
 
 type CartItem = {
   key: string;
@@ -47,7 +50,11 @@ export function PublicStore() {
   const [products, setProducts] = useState<Product[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [category, setCategory] = useState<"all" | ProductKind>("all");
+  const [category, setCategory] = useUrlStringState<"all" | ProductKind>(
+    "category",
+    "all",
+    storeCategories,
+  );
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [cart, setCart] = useState<CartItem[]>([]);

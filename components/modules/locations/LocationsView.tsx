@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { OpenMap } from "@/components/modules/locations/OpenMap";
 import type { PhotoLocation, Work } from "@/types/revelar";
+import { useUrlStringState } from "@/hooks/use-url-state";
 
 type LocationDraft = Omit<PhotoLocation, "id" | "workIds" | "cover">;
 type SearchResult = {
@@ -47,12 +48,16 @@ export function LocationsView({
   works: Work[];
   toast: (message: string) => void;
 }) {
-  const [country, setCountry] = useState<PhotoLocation["country"]>("Brasil");
+  const [country, setCountry] = useUrlStringState<PhotoLocation["country"]>(
+    "locationsCountry",
+    "Brasil",
+    ["Brasil", "Portugal"],
+  );
   const visible = useMemo(
     () => locations.filter((location) => location.country === country),
     [country, locations],
   );
-  const [selectedId, setSelectedId] = useState(visible[0]?.id || locations[0]?.id || "");
+  const [selectedId, setSelectedId] = useUrlStringState<string>("location", "");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<LocationDraft>(() => blankDraft("Brasil"));
   const [search, setSearch] = useState("");

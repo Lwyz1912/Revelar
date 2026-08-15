@@ -31,6 +31,11 @@ import type {
   StoreOrder,
   StoreSettings,
 } from "@/types/revelar";
+import { useUrlStringState } from "@/hooks/use-url-state";
+
+const productKinds = ["all", "course", "pdf", "preset", "photo", "album", "package"] as const;
+const productStatuses = ["all", "active", "draft", "hidden", "archived", "deleted"] as const;
+const productViews = ["catalog", "orders"] as const;
 
 export function ProductsView({
   products,
@@ -59,10 +64,18 @@ export function ProductsView({
   setStoreSettings: Dispatch<SetStateAction<StoreSettings>>;
   toast: (message: string) => void;
 }) {
-  const [search, setSearch] = useState("");
-  const [kind, setKind] = useState<"all" | ProductKind>("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | ProductStatus>("all");
-  const [adminView, setAdminView] = useState<"catalog" | "orders">("catalog");
+  const [search, setSearch] = useUrlStringState<string>("productsQ", "");
+  const [kind, setKind] = useUrlStringState<"all" | ProductKind>(
+    "productsKind",
+    "all",
+    productKinds,
+  );
+  const [statusFilter, setStatusFilter] = useUrlStringState<"all" | ProductStatus>(
+    "productsStatus",
+    "all",
+    productStatuses,
+  );
+  const [adminView, setAdminView] = useUrlStringState("productsView", "catalog", productViews);
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
