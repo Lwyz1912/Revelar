@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { formatMoney, initials } from "@/lib/format";
 import { isAppFileRef } from "@/lib/app-files.client";
 import type { Client, Contract, Currency, FinanceTransaction, Quote, Work } from "@/types/revelar";
+import { useUrlStringState } from "@/hooks/use-url-state";
 
 type ClientTab = "summary" | "works" | "finance" | "files" | "timeline" | "notes";
 
@@ -16,6 +17,7 @@ const tabs: Array<{ id: ClientTab; label: string }> = [
   { id: "timeline", label: "Timeline" },
   { id: "notes", label: "Anotações" },
 ];
+const tabIds = tabs.map((item) => item.id);
 
 export function ClientDetails({
   client,
@@ -48,7 +50,7 @@ export function ClientDetails({
   onArchive: () => void;
   toast: (message: string) => void;
 }) {
-  const [tab, setTab] = useState<ClientTab>("summary");
+  const [tab, setTab] = useUrlStringState<ClientTab>("clientTab", "summary", tabIds);
   const [notes, setNotes] = useState(client.notes || "");
   const clientWorks = useMemo(
     () => works.filter((work) => work.clientIds.includes(client.id)),

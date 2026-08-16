@@ -63,6 +63,39 @@ import { SettingsModal } from "@/components/shared/SettingsModal";
 import { HelpCenter } from "@/components/shared/HelpCenter";
 import { Toast } from "@/components/shared/Toast";
 import { createMissingUnlocks, evaluateAchievements } from "@/lib/achievements";
+import {
+  clearUrlParams,
+  useUrlBooleanState,
+  useUrlNullableNumberState,
+  useUrlStringState,
+} from "@/hooks/use-url-state";
+
+const availableSections = navItems
+  .filter((item) => item.available)
+  .map((item) => item.label) as AvailableSection[];
+const clientFilters = ["all", "person", "company", "archived"] as const;
+const workStatuses = [
+  "all",
+  "planning",
+  "scheduled",
+  "editing",
+  "delivery",
+  "completed",
+  "archived",
+  "cancelled",
+] as const;
+const workCategories = [
+  "all",
+  "Casamento",
+  "Pré-wedding",
+  "Ensaio pessoal",
+  "Família",
+  "Aniversário",
+  "Editorial para loja",
+  "Evento",
+  "Estúdio",
+] as const;
+const agendaViews = ["month", "week", "day", "list"] as const;
 
 export function RevelarApp() {
   const {
@@ -116,23 +149,43 @@ export function RevelarApp() {
     requestBrowserPermission,
   } = useNotifications();
   const { message: toast, showToast: setToast } = useToast();
-  const [activeNav, setActiveNav] = useState<AvailableSection>("Visão geral");
+  const [activeNav, setActiveNav] = useUrlStringState<AvailableSection>(
+    "section",
+    "Visão geral",
+    availableSections,
+  );
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [clientSearch, setClientSearch] = useState("");
-  const [clientFilter, setClientFilter] = useState<"all" | ClientType | "archived">("all");
+  const [clientSearch, setClientSearch] = useUrlStringState<string>("clientsQ", "");
+  const [clientFilter, setClientFilter] = useUrlStringState<"all" | ClientType | "archived">(
+    "clientsFilter",
+    "all",
+    clientFilters,
+  );
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<number | null>(null);
-  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
-  const [workSearch, setWorkSearch] = useState("");
-  const [workStatus, setWorkStatus] = useState<"all" | WorkStatus>("all");
-  const [workCategory, setWorkCategory] = useState<"all" | WorkCategory>("all");
+  const [selectedClientId, setSelectedClientId] = useUrlNullableNumberState("client");
+  const [workSearch, setWorkSearch] = useUrlStringState<string>("worksQ", "");
+  const [workStatus, setWorkStatus] = useUrlStringState<"all" | WorkStatus>(
+    "worksStatus",
+    "all",
+    workStatuses,
+  );
+  const [workCategory, setWorkCategory] = useUrlStringState<"all" | WorkCategory>(
+    "worksCategory",
+    "all",
+    workCategories,
+  );
   const [newWorkOpen, setNewWorkOpen] = useState(false);
   const [newWorkClientId, setNewWorkClientId] = useState<number | undefined>();
-  const [selectedWorkId, setSelectedWorkId] = useState<number | null>(null);
-  const [notificationsCenterOpen, setNotificationsCenterOpen] = useState(false);
-  const [agendaInitialView, setAgendaInitialView] = useState<AgendaViewMode>("month");
+  const [selectedWorkId, setSelectedWorkId] = useUrlNullableNumberState("work");
+  const [notificationsCenterOpen, setNotificationsCenterOpen] = useUrlBooleanState("notifications");
+  const [agendaInitialView, setAgendaInitialView] = useUrlStringState<AgendaViewMode>(
+    "agendaView",
+    "month",
+    agendaViews,
+  );
   const [achievementCelebration, setAchievementCelebration] =
     useState<AchievementCelebrationState | null>(null);
   const achievementTrackingStarted = useRef(false);
@@ -201,6 +254,29 @@ export function RevelarApp() {
     );
   }, [achievementUnlocks, achievements, cloudReady, setAchievementUnlocks, setToast]);
 
+  useEffect(() => {
+    if (!cloudReady) return;
+    if (selectedWorkId !== null && !works.some((work) => work.id === selectedWorkId)) {
+      setSelectedWorkId(null);
+      clearUrlParams("work", "workTab");
+      setToast("Esse trabalho não está mais disponível. Voltamos para a lista anterior.");
+    }
+    if (selectedClientId !== null && !clients.some((client) => client.id === selectedClientId)) {
+      setSelectedClientId(null);
+      clearUrlParams("client", "clientTab");
+      setToast("Esse cliente não está mais disponível. Voltamos para a lista anterior.");
+    }
+  }, [
+    clients,
+    cloudReady,
+    selectedClientId,
+    selectedWorkId,
+    setSelectedClientId,
+    setSelectedWorkId,
+    setToast,
+    works,
+  ]);
+
   const navigate = (label: AppSection) => {
     setSearchOpen(false);
     const item = navItems.find((navigationItem) => navigationItem.label === label);
@@ -210,6 +286,7 @@ export function RevelarApp() {
       }
       setSelectedWorkId(null);
       setSelectedClientId(null);
+      clearUrlParams("workTab", "clientTab");
       setNotificationsCenterOpen(false);
       setActiveNav(label as AvailableSection);
       return;
@@ -244,6 +321,7 @@ export function RevelarApp() {
   };
 
   const openClient = (client: Client) => {
+    clearUrlParams("workTab", "clientTab");
     setSelectedWorkId(null);
     setNotificationsCenterOpen(false);
     setSelectedClientId(client.id);
@@ -266,7 +344,10 @@ export function RevelarApp() {
     setActiveNav("Trabalhos");
     setToast(`${data.title} foi criado com ${data.stages.length} etapas`);
   };
-  const openWork = (work: Work) => setSelectedWorkId(work.id);
+  const openWork = (work: Work) => {
+    clearUrlParams("workTab", "clientTab");
+    setSelectedWorkId(work.id);
+  };
   const updateWork = (updated: Work) =>
     setWorks((current) => current.map((work) => (work.id === updated.id ? updated : work)));
   const duplicateWork = (work: Work) => {
@@ -459,7 +540,10 @@ export function RevelarApp() {
             key={selectedWork.id}
             work={selectedWork}
             clients={clients}
-            onBack={() => setSelectedWorkId(null)}
+            onBack={() => {
+              clearUrlParams("workTab");
+              setSelectedWorkId(null);
+            }}
             onUpdate={updateWork}
             onDuplicate={duplicateWork}
             onArchive={archiveWork}
@@ -479,7 +563,10 @@ export function RevelarApp() {
             quotes={quotes}
             contracts={contracts}
             currency={currency}
-            onBack={() => setSelectedClientId(null)}
+            onBack={() => {
+              clearUrlParams("clientTab");
+              setSelectedClientId(null);
+            }}
             onEdit={() => {
               setEditingClientId(selectedClient.id);
               setNewClientOpen(true);

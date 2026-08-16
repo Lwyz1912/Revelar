@@ -21,6 +21,22 @@ import type {
   EventTimezone,
   Work,
 } from "@/types/revelar";
+import { useUrlStringState } from "@/hooks/use-url-state";
+
+const agendaViews = ["month", "week", "day", "list"] as const;
+const agendaKinds = [
+  "all",
+  "session",
+  "deadline",
+  "payment",
+  "delivery",
+  "stage",
+  "meeting",
+  "personal",
+  "blocked",
+] as const;
+const isIsoDate = (value: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
 
 export function AgendaView({
   works,
@@ -40,9 +56,18 @@ export function AgendaView({
   toast: (message: string) => void;
 }) {
   const today = todayIso();
-  const [view, setView] = useState<AgendaViewMode>(initialView);
-  const [focusDate, setFocusDate] = useState(today);
-  const [kindFilter, setKindFilter] = useState<"all" | AgendaEventKind>("all");
+  const [view, setView] = useUrlStringState<AgendaViewMode>("agendaView", initialView, agendaViews);
+  const [focusDate, setFocusDate] = useUrlStringState<string>(
+    "agendaDate",
+    today,
+    undefined,
+    isIsoDate,
+  );
+  const [kindFilter, setKindFilter] = useUrlStringState<"all" | AgendaEventKind>(
+    "agendaKind",
+    "all",
+    agendaKinds,
+  );
   const [selectedEvent, setSelectedEvent] = useState<AgendaEvent | null>(null);
   const [dayPanelOpen, setDayPanelOpen] = useState(false);
   const [newEventOpen, setNewEventOpen] = useState(false);
