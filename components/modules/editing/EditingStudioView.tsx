@@ -18,6 +18,7 @@ import type {
   EditingAlbum,
   EditingPhoto,
   EditingPreset,
+  WorkGallery,
 } from "@/types/revelar";
 
 type LibraryResponse = {
@@ -27,9 +28,10 @@ type LibraryResponse = {
 };
 
 const demo = buildDemoEditingData();
+type NumericEditingAdjustmentKey = keyof Omit<EditingAdjustments, "xmp">;
 const adjustmentGroups: Array<{
   label: string;
-  fields: Array<{ key: keyof EditingAdjustments; label: string; min?: number }>;
+  fields: Array<{ key: NumericEditingAdjustmentKey; label: string; min?: number }>;
 }> = [
   {
     label: "Luz e cor",
@@ -71,16 +73,17 @@ function filenameWithoutExtension(filename: string) {
 }
 
 function effectVariables(adjustments: EditingAdjustments, original = false) {
+  const visibleAdjustments = adjustments.xmp ? neutralAdjustments : adjustments;
   return {
-    "--edit-grain": original ? 0 : adjustments.grain / 100,
-    "--edit-vignette": original ? 0 : adjustments.vignette / 100,
-    "--edit-halation": original ? 0 : adjustments.halation / 100,
-    "--edit-leak": original ? 0 : adjustments.lightLeak / 100,
-    "--edit-dust": original ? 0 : adjustments.dust / 100,
-    "--edit-chromatic": original ? 0 : adjustments.chromatic / 100,
-    "--edit-motion": original ? 0 : adjustments.motionTrail / 100,
-    "--edit-cool-shadows": original ? 0 : adjustments.coolShadows / 100,
-    "--edit-warm-highlights": original ? 0 : adjustments.warmHighlights / 100,
+    "--edit-grain": original ? 0 : visibleAdjustments.grain / 100,
+    "--edit-vignette": original ? 0 : visibleAdjustments.vignette / 100,
+    "--edit-halation": original ? 0 : visibleAdjustments.halation / 100,
+    "--edit-leak": original ? 0 : visibleAdjustments.lightLeak / 100,
+    "--edit-dust": original ? 0 : visibleAdjustments.dust / 100,
+    "--edit-chromatic": original ? 0 : visibleAdjustments.chromatic / 100,
+    "--edit-motion": original ? 0 : visibleAdjustments.motionTrail / 100,
+    "--edit-cool-shadows": original ? 0 : visibleAdjustments.coolShadows / 100,
+    "--edit-warm-highlights": original ? 0 : visibleAdjustments.warmHighlights / 100,
   } as CSSProperties;
 }
 
@@ -95,6 +98,11 @@ function FilteredImage({
   adjustments: EditingAdjustments;
   original?: boolean;
 }) {
+  if (!original && adjustments.xmp) {
+    return (
+      <RenderedPreviewImage src={src} alt={alt} adjustments={adjustments} maxDimension={720} lazy />
+    );
+  }
   const filter = original ? "none" : editingCssFilter(adjustments);
   const hasTrail = !original && adjustments.motionTrail > 0;
   return (
@@ -123,6 +131,128 @@ function FilteredImage({
   );
 }
 
+const renderedPreviewCache = new Map<string, Promise<Blob>>();
+const renderPipelineVersion = "xmp-v17";
+const presetReferencePhoto = "/demo/presets/reference-portrait.webp";
+const presetReferenceThumbnail = "/demo/presets/reference-portrait-thumb.webp";
+
+function cachedRenderedPreview(src: string, adjustments: EditingAdjustments, maxDimension: number) {
+  const lossless = maxDimension >= 1000;
+  const key = `${renderPipelineVersion}|${src}|${maxDimension}|${lossless}|${JSON.stringify(adjustments)}`;
+  const cached = renderedPreviewCache.get(key);
+  if (cached) return cached;
+  if (renderedPreviewCache.size > 160) renderedPreviewCache.clear();
+  const rendering = renderEditedPhoto(src, adjustments, {
+    mimeType: lossless ? "image/png" : "image/jpeg",
+    quality: lossless ? undefined : 0.92,
+    maxDimension,
+  }).catch((error) => {
+    renderedPreviewCache.delete(key);
+    throw error;
+  });
+  renderedPreviewCache.set(key, rendering);
+  return rendering;
+}
+
+function RenderedPreviewImage({
+  src,
+  alt,
+  adjustments,
+  original = false,
+  maxDimension = 1600,
+  lazy = false,
+  placeholderSrc,
+  renderDelayMs = 120,
+}: {
+  src: string;
+  alt: string;
+  adjustments: EditingAdjustments;
+  original?: boolean;
+  maxDimension?: number;
+  lazy?: boolean;
+  placeholderSrc?: string;
+  renderDelayMs?: number;
+}) {
+  const previewKey = `${renderPipelineVersion}|${src}|${maxDimension}|${original}|${JSON.stringify(adjustments)}`;
+  const [renderedPreview, setRenderedPreview] = useState<{
+    key: string;
+    src: string;
+    url: string;
+  }>();
+  const [visible, setVisible] = useState(!lazy);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const renderedUrlRef = useRef<string | undefined>(undefined);
+  const renderedUrl = visible && renderedPreview?.src === src ? renderedPreview.url : undefined;
+  const renderedPreviewIsCurrent = renderedPreview?.key === previewKey;
+
+  useEffect(() => {
+    if (!lazy) return;
+    const element = imageRef.current;
+    if (!element || typeof IntersectionObserver === "undefined") {
+      const timer = window.setTimeout(() => setVisible(true), 0);
+      return () => window.clearTimeout(timer);
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "240px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [lazy, src]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (original || !visible) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timer = window.setTimeout(() => {
+      void cachedRenderedPreview(src, adjustments, maxDimension)
+        .then((blob) => {
+          const url = URL.createObjectURL(blob);
+          if (cancelled) {
+            URL.revokeObjectURL(url);
+            return;
+          }
+          if (renderedUrlRef.current) URL.revokeObjectURL(renderedUrlRef.current);
+          renderedUrlRef.current = url;
+          setRenderedPreview({ key: previewKey, src, url });
+        })
+        .catch(() => undefined);
+    }, renderDelayMs);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [adjustments, maxDimension, original, previewKey, renderDelayMs, src, visible]);
+
+  useEffect(
+    () => () => {
+      if (renderedUrlRef.current) URL.revokeObjectURL(renderedUrlRef.current);
+    },
+    [],
+  );
+
+  return (
+    <img
+      ref={imageRef}
+      className="editing-effect-main"
+      src={original ? src : renderedUrl || placeholderSrc || src}
+      alt={alt}
+      loading={lazy ? "lazy" : undefined}
+      aria-busy={!original && visible && !renderedPreviewIsCurrent}
+    />
+  );
+}
+
 function FilmTextureDefinitions() {
   return (
     <svg className="editing-filter-definitions" aria-hidden="true" focusable="false">
@@ -142,16 +272,18 @@ function FilmTextureDefinitions() {
   );
 }
 
-export function EditingStudioView({
+function LegacyEditingStudioView({
   toast,
   initialAlbumId,
   initialPhotoId,
   initialMode = "studio",
+  onBackToHistory,
 }: {
   toast: (message: string) => void;
   initialAlbumId?: string;
   initialPhotoId?: string;
   initialMode?: "quick" | "studio";
+  onBackToHistory?: () => void;
 }) {
   const [albums, setAlbums] = useState<EditingAlbum[]>(demo.albums);
   const [photos, setPhotos] = useState<EditingPhoto[]>(demo.photos);
@@ -167,8 +299,32 @@ export function EditingStudioView({
   const [albumDialog, setAlbumDialog] = useState(false);
   const [albumName, setAlbumName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [interactivePreview, setInteractivePreview] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const presetInput = useRef<HTMLInputElement>(null);
+  const previewSettleTimer = useRef<number | undefined>(undefined);
+
+  const requestInteractivePreview = () => {
+    setInteractivePreview(true);
+    if (previewSettleTimer.current) window.clearTimeout(previewSettleTimer.current);
+    previewSettleTimer.current = window.setTimeout(() => {
+      previewSettleTimer.current = undefined;
+      setInteractivePreview(false);
+    }, 220);
+  };
+
+  const settleInteractivePreview = () => {
+    if (previewSettleTimer.current) window.clearTimeout(previewSettleTimer.current);
+    previewSettleTimer.current = undefined;
+    setInteractivePreview(false);
+  };
+
+  useEffect(
+    () => () => {
+      if (previewSettleTimer.current) window.clearTimeout(previewSettleTimer.current);
+    },
+    [],
+  );
 
   const presets = [...builtInPresets, ...privatePresets];
   const shelfPresets = builtInPresets.filter(
@@ -395,12 +551,18 @@ export function EditingStudioView({
   };
 
   if (activePhoto) {
-    const effectVars = effectVariables(adjustments, showOriginal);
+    const effectVars = effectVariables(neutralAdjustments);
+    const activePreset = presetId ? presets.find((preset) => preset.id === presetId) : undefined;
+    const activePresetName = activePreset?.name || (edited ? "Ajustes personalizados" : "Original");
     return (
       <div className="editing-studio editor-open">
         <FilmTextureDefinitions />
         <header className="editing-editor-bar">
-          <button type="button" className="back-button" onClick={() => setActivePhotoId(null)}>
+          <button
+            type="button"
+            className="back-button"
+            onClick={() => (onBackToHistory ? onBackToHistory() : setActivePhotoId(null))}
+          >
             ←
           </button>
           <div>
@@ -439,11 +601,14 @@ export function EditingStudioView({
           <section className="editing-canvas-area">
             <div className="editing-photo-stage">
               <div className="editing-photo-effects" style={effectVars}>
-                <FilteredImage
-                  src={activePhoto.previewUrl}
+                <RenderedPreviewImage
+                  src={activePhoto.originalUrl}
                   alt={activePhoto.filename}
                   adjustments={adjustments}
                   original={showOriginal}
+                  maxDimension={interactivePreview ? 640 : 2048}
+                  placeholderSrc={activePhoto.previewUrl}
+                  renderDelayMs={interactivePreview ? 90 : 70}
                 />
               </div>
               <button
@@ -457,38 +622,45 @@ export function EditingStudioView({
                 {showOriginal ? "Original" : "Segure para comparar"}
               </button>
             </div>
-            <div className="editing-preset-strip" aria-label="Presets">
-              <button
-                type="button"
-                className={!presetId && !edited ? "active" : ""}
-                onClick={() => {
-                  setPresetId(undefined);
-                  setPresetIntensity(100);
-                  setAdjustments(neutralAdjustments);
-                }}
-              >
-                <span>
-                  <img src={activePhoto.previewUrl} alt="" />
-                </span>
-                Original
-              </button>
-              {presets.map((preset) => (
+            <div className="editing-preset-dock">
+              <div className="editing-active-preset" aria-live="polite">
+                <span>Preset selecionado</span>
+                <strong>{activePresetName}</strong>
+              </div>
+              <div className="editing-preset-strip" aria-label="Presets">
                 <button
                   type="button"
-                  key={preset.id}
-                  className={presetId === preset.id ? "active" : ""}
-                  onClick={() => choosePreset(preset)}
+                  className={!presetId && !edited ? "active" : ""}
+                  onClick={() => {
+                    setPresetId(undefined);
+                    setPresetIntensity(100);
+                    setAdjustments(neutralAdjustments);
+                  }}
                 >
-                  <span style={effectVariables(preset.adjustments)}>
-                    <FilteredImage
-                      src={activePhoto.previewUrl}
-                      alt=""
-                      adjustments={preset.adjustments}
-                    />
+                  <span>
+                    <img src={presetReferenceThumbnail} alt="" />
                   </span>
-                  {preset.name}
+                  <span className="editing-preset-name">Original</span>
                 </button>
-              ))}
+                {presets.map((preset) => (
+                  <button
+                    type="button"
+                    key={preset.id}
+                    className={presetId === preset.id ? "active" : ""}
+                    onClick={() => choosePreset(preset)}
+                    title={preset.name}
+                  >
+                    <span style={effectVariables(preset.adjustments)}>
+                      <FilteredImage
+                        src={presetReferenceThumbnail}
+                        alt=""
+                        adjustments={preset.adjustments}
+                      />
+                    </span>
+                    <span className="editing-preset-name">{preset.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -503,9 +675,14 @@ export function EditingStudioView({
                   min="0"
                   max="100"
                   value={presetIntensity}
+                  onPointerDown={requestInteractivePreview}
+                  onPointerUp={settleInteractivePreview}
+                  onPointerCancel={settleInteractivePreview}
+                  onBlur={settleInteractivePreview}
                   onChange={(event) => {
                     const value = Number(event.target.value);
                     const preset = presets.find((item) => item.id === presetId);
+                    requestInteractivePreview();
                     setPresetIntensity(value);
                     if (preset) setAdjustments(blendAdjustments(preset.adjustments, value));
                   }}
@@ -538,12 +715,29 @@ export function EditingStudioView({
                       min={field.min ?? -100}
                       max="100"
                       value={adjustments[field.key]}
-                      onChange={(event) =>
-                        setAdjustments((current) => ({
-                          ...current,
-                          [field.key]: Number(event.target.value),
-                        }))
-                      }
+                      onPointerDown={requestInteractivePreview}
+                      onPointerUp={settleInteractivePreview}
+                      onPointerCancel={settleInteractivePreview}
+                      onBlur={settleInteractivePreview}
+                      onChange={(event) => {
+                        requestInteractivePreview();
+                        setAdjustments((current) => {
+                          const changesWhiteBalance =
+                            field.key === "temperature" || field.key === "tint";
+                          return {
+                            ...current,
+                            [field.key]: Number(event.target.value),
+                            xmp: current.xmp
+                              ? {
+                                  ...current.xmp,
+                                  absoluteWhiteBalance: changesWhiteBalance
+                                    ? false
+                                    : current.xmp.absoluteWhiteBalance,
+                                }
+                              : undefined,
+                          };
+                        });
+                      }}
                     />
                   </label>
                 ))}
@@ -567,6 +761,18 @@ export function EditingStudioView({
               </p>
             </div>
           </aside>
+        </div>
+      </div>
+    );
+  }
+
+  if (initialPhotoId) {
+    return (
+      <div className="editing-studio">
+        <div className="editing-empty">
+          <span>◌</span>
+          <h2>Preparando a foto…</h2>
+          <p>Carregando o original protegido e o histórico de edição.</p>
         </div>
       </div>
     );
@@ -657,7 +863,7 @@ export function EditingStudioView({
                     style={effectVariables(preset.adjustments)}
                   >
                     <FilteredImage
-                      src={demo.photos[index % demo.photos.length].previewUrl}
+                      src={presetReferenceThumbnail}
                       alt=""
                       adjustments={preset.adjustments}
                     />
@@ -811,6 +1017,494 @@ export function EditingStudioView({
               Criar álbum
             </button>
           </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type StudioSection = "presets" | "photos";
+type PresetCollection = "2shoot" | "imported";
+
+function galleryPhotoUrl(galleryId: string, photoId: string) {
+  return `/api/galleries/${galleryId}/photos/${photoId}`;
+}
+
+export function EditingStudioView({
+  toast,
+  initialAlbumId,
+  initialPhotoId,
+  initialMode = "studio",
+}: {
+  toast: (message: string) => void;
+  initialAlbumId?: string;
+  initialPhotoId?: string;
+  initialMode?: "quick" | "studio";
+}) {
+  const [section, setSection] = useState<StudioSection>(initialPhotoId ? "photos" : "presets");
+  const [collection, setCollection] = useState<PresetCollection>("2shoot");
+  const [library, setLibrary] = useState<LibraryResponse>({ albums: [], photos: [], presets: [] });
+  const [galleries, setGalleries] = useState<WorkGallery[]>([]);
+  const [galleriesLoaded, setGalleriesLoaded] = useState(false);
+  const [editingPhotoId, setEditingPhotoId] = useState<string | null>(initialPhotoId || null);
+  const [presetSearch, setPresetSearch] = useState("");
+  const [photoSearch, setPhotoSearch] = useState("");
+  const [presetCategory, setPresetCategory] = useState<string>("Todos");
+  const [previewPreset, setPreviewPreset] = useState<EditingPreset | null>(null);
+  const [galleryPicker, setGalleryPicker] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const presetInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/editing")
+      .then(async (response) => (response.ok ? ((await response.json()) as LibraryResponse) : null))
+      .then((data) => {
+        if (data && !cancelled) setLibrary(data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (editingPhotoId) {
+    const photo = library.photos.find((item) => item.id === editingPhotoId);
+    return (
+      <LegacyEditingStudioView
+        key={editingPhotoId}
+        toast={toast}
+        initialAlbumId={photo?.albumId || initialAlbumId}
+        initialPhotoId={editingPhotoId}
+        initialMode={initialMode}
+        onBackToHistory={() => {
+          setEditingPhotoId(null);
+          setSection("photos");
+        }}
+      />
+    );
+  }
+
+  const allPresets = collection === "2shoot" ? builtInPresets : library.presets;
+  const visiblePresets = allPresets.filter((preset) => {
+    const query = presetSearch.trim().toLocaleLowerCase("pt-BR");
+    return (
+      (presetCategory === "Todos" || preset.category === presetCategory) &&
+      (!query ||
+        preset.name.toLocaleLowerCase("pt-BR").includes(query) ||
+        preset.camera.toLocaleLowerCase("pt-BR").includes(query) ||
+        preset.description.toLocaleLowerCase("pt-BR").includes(query))
+    );
+  });
+  const categories =
+    collection === "2shoot" ? presetCategories : (["Todos", "Importados"] as const);
+  const visiblePhotos = library.photos.filter((photo) =>
+    photo.filename
+      .toLocaleLowerCase("pt-BR")
+      .includes(photoSearch.trim().toLocaleLowerCase("pt-BR")),
+  );
+
+  const reloadLibrary = async () => {
+    const response = await fetch("/api/editing", { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = (await response.json()) as LibraryResponse;
+    setLibrary(data);
+    return data;
+  };
+
+  const openGallery = async () => {
+    setGalleryPicker(true);
+    setGalleriesLoaded(false);
+    try {
+      const response = await fetch("/api/galleries", { cache: "no-store" });
+      if (!response.ok) throw new Error("Não foi possível abrir a Galeria interna");
+      const data = (await response.json()) as { galleries: WorkGallery[] };
+      setGalleries(data.galleries || []);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível abrir a Galeria interna");
+      setGalleries([]);
+    } finally {
+      setGalleriesLoaded(true);
+    }
+  };
+
+  const startEditing = async (galleryId: string, photoId: string) => {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/galleries/${galleryId}/edit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ photoIds: [photoId] }),
+      });
+      const result = (await response.json()) as { photoIds?: string[]; error?: string };
+      if (!response.ok || !result.photoIds?.[0]) {
+        throw new Error(result.error || "Não foi possível preparar a foto para edição.");
+      }
+      await reloadLibrary();
+      setGalleryPicker(false);
+      setEditingPhotoId(result.photoIds[0]);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível abrir a foto.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const importPreset = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    try {
+      const preset = await parseImportedPreset(file);
+      const response = await fetch("/api/editing/presets", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(preset),
+      });
+      if (!response.ok) throw new Error("Não foi possível guardar este preset.");
+      const data = (await response.json()) as LibraryResponse;
+      setLibrary(data);
+      setCollection("imported");
+      setPresetCategory("Todos");
+      toast(`${preset.name} adicionado aos Presets importados`);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível importar o preset.");
+    } finally {
+      event.target.value = "";
+      setBusy(false);
+    }
+  };
+
+  const galleryGroups = galleries
+    .map((gallery) => ({
+      gallery,
+      photos: gallery.photos.filter(
+        (photo) => !photo.deletedAt && photo.hasPreview && photo.folder !== "edited",
+      ),
+    }))
+    .filter((group) => group.photos.length);
+
+  return (
+    <div className="editing-studio editing-library-v2">
+      <FilmTextureDefinitions />
+      <input ref={presetInput} hidden type="file" accept=".xmp,.dng" onChange={importPreset} />
+      <section className="editing-heading editing-v2-heading">
+        <div>
+          <p>LABORATÓRIO CRIATIVO</p>
+          <h1>Presets e edição</h1>
+          <span>Escolha um estilo ou continue uma foto enviada pela Galeria.</span>
+        </div>
+        <div className="editing-heading-actions">
+          <button type="button" onClick={() => presetInput.current?.click()} disabled={busy}>
+            Importar XMP/DNG
+          </button>
+          <button className="primary-button" type="button" onClick={() => void openGallery()}>
+            ＋ Editar foto da Galeria
+          </button>
+        </div>
+      </section>
+
+      <nav className="editing-main-tabs" aria-label="Área do estúdio">
+        <button
+          className={section === "presets" ? "active" : ""}
+          type="button"
+          onClick={() => setSection("presets")}
+        >
+          <strong>Presets</strong>
+          <span>{builtInPresets.length + library.presets.length} estilos disponíveis</span>
+        </button>
+        <button
+          className={section === "photos" ? "active" : ""}
+          type="button"
+          onClick={() => setSection("photos")}
+        >
+          <strong>Fotos para editar</strong>
+          <span>{library.photos.length} no histórico</span>
+        </button>
+      </nav>
+
+      {section === "presets" ? (
+        <section className="preset-library-shell">
+          <div className="preset-library-intro">
+            <div>
+              <span>CATÁLOGO DE ESTILOS</span>
+              <h2>Escolha o acabamento</h2>
+              <p>
+                Clicar em um preset mostra apenas a prévia. O editor só abre quando você escolhe uma
+                foto.
+              </p>
+            </div>
+            <div className="preset-collections">
+              <button
+                className={collection === "2shoot" ? "active" : ""}
+                type="button"
+                onClick={() => {
+                  setCollection("2shoot");
+                  setPresetCategory("Todos");
+                }}
+              >
+                2shoot <small>{builtInPresets.length}</small>
+              </button>
+              <button
+                className={collection === "imported" ? "active" : ""}
+                type="button"
+                onClick={() => {
+                  setCollection("imported");
+                  setPresetCategory("Todos");
+                }}
+              >
+                Importados <small>{library.presets.length}</small>
+              </button>
+            </div>
+          </div>
+          <div className="preset-library-toolbar">
+            <label>
+              <span>⌕</span>
+              <input
+                value={presetSearch}
+                onChange={(event) => setPresetSearch(event.target.value)}
+                placeholder="Buscar preset ou coleção"
+              />
+            </label>
+            <div>
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  className={presetCategory === category ? "active" : ""}
+                  type="button"
+                  onClick={() => setPresetCategory(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
+          {visiblePresets.length ? (
+            <div className="preset-card-grid">
+              {visiblePresets.map((preset) => {
+                return (
+                  <button key={preset.id} type="button" onClick={() => setPreviewPreset(preset)}>
+                    <span className="preset-card-image" style={effectVariables(preset.adjustments)}>
+                      <FilteredImage
+                        src={presetReferenceThumbnail}
+                        alt=""
+                        adjustments={preset.adjustments}
+                      />
+                      <i>{preset.category}</i>
+                      <em>PRÉVIA</em>
+                    </span>
+                    <span className="preset-card-copy">
+                      <small>{collection === "2shoot" ? "2SHOOT" : "IMPORTADO"}</small>
+                      <strong>{preset.name}</strong>
+                      <p>{preset.description}</p>
+                      {preset.compatibility === "partial" && (
+                        <span className="preset-compatibility">Compatibilidade parcial</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="editing-empty">
+              <span>⌕</span>
+              <h2>Nenhum preset encontrado</h2>
+              <p>
+                {collection === "imported"
+                  ? "Importe um XMP para criar sua coleção pessoal."
+                  : "Tente outro termo ou categoria."}
+              </p>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="editing-history-shell">
+          <div className="editing-history-head">
+            <div>
+              <span>FILA E HISTÓRICO</span>
+              <h2>Fotos para editar</h2>
+              <p>Somente fotos escolhidas na Galeria interna aparecem aqui.</p>
+            </div>
+            <button className="primary-button" type="button" onClick={() => void openGallery()}>
+              ＋ Escolher na Galeria
+            </button>
+          </div>
+          <label className="editing-history-search">
+            <span>⌕</span>
+            <input
+              value={photoSearch}
+              onChange={(event) => setPhotoSearch(event.target.value)}
+              placeholder="Buscar foto pelo nome"
+            />
+          </label>
+          {visiblePhotos.length ? (
+            <div className="editing-history-grid">
+              {visiblePhotos.map((photo) => (
+                <article key={photo.id}>
+                  <button type="button" onClick={() => setEditingPhotoId(photo.id)}>
+                    <span className="editing-history-image">
+                      <RenderedPreviewImage
+                        src={photo.originalUrl}
+                        alt={photo.filename}
+                        adjustments={photo.adjustments}
+                        maxDimension={720}
+                        lazy
+                      />
+                      {photo.editedUrl ? <i>VERSÃO SALVA</i> : <i>EM EDIÇÃO</i>}
+                    </span>
+                    <span>
+                      <strong>{photo.filename}</strong>
+                      <small>
+                        {photo.editedUrl ? "Editada" : "Aguardando edição"} ·{" "}
+                        {new Intl.DateTimeFormat("pt-BR").format(new Date(photo.updatedAt))}
+                      </small>
+                      <b>Continuar edição →</b>
+                    </span>
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="editing-empty">
+              <span>▧</span>
+              <h2>Nenhuma foto na fila</h2>
+              <p>Escolha uma foto existente na Galeria interna para começar.</p>
+              <button className="primary-button" type="button" onClick={() => void openGallery()}>
+                Escolher foto
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {previewPreset && (
+        <div
+          className="preset-preview-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Prévia de ${previewPreset.name}`}
+        >
+          <button
+            className="close"
+            type="button"
+            onClick={() => setPreviewPreset(null)}
+            aria-label="Fechar"
+          >
+            ×
+          </button>
+          <div className="preset-preview-before">
+            <span>ORIGINAL</span>
+            <img src={presetReferencePhoto} alt="Exemplo sem preset" />
+          </div>
+          <div className="preset-preview-after" style={effectVariables(neutralAdjustments)}>
+            <span>COM PRESET</span>
+            <RenderedPreviewImage
+              src={presetReferencePhoto}
+              alt={`Exemplo com ${previewPreset.name}`}
+              adjustments={previewPreset.adjustments}
+              maxDimension={1200}
+            />
+          </div>
+          <aside>
+            <small>
+              {previewPreset.collection === "2shoot" ? "PRESET 2SHOOT" : "PRESET IMPORTADO"}
+            </small>
+            <h2>{previewPreset.name}</h2>
+            <p>{previewPreset.description}</p>
+            {previewPreset.compatibility === "partial" && (
+              <div className="preset-compatibility-note" role="note">
+                <strong>Compatibilidade parcial</strong>
+                {previewPreset.compatibilityNotes?.map((note) => (
+                  <span key={note}>{note}</span>
+                ))}
+              </div>
+            )}
+            <dl>
+              <div>
+                <dt>Categoria</dt>
+                <dd>{previewPreset.category}</dd>
+              </div>
+              <div>
+                <dt>Coleção</dt>
+                <dd>{previewPreset.camera}</dd>
+              </div>
+            </dl>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => {
+                setPreviewPreset(null);
+                void openGallery();
+              }}
+            >
+              Escolher uma foto para editar
+            </button>
+          </aside>
+        </div>
+      )}
+
+      {galleryPicker && (
+        <div
+          className="gallery-picker-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Escolher foto da Galeria"
+        >
+          <div className="gallery-picker-card">
+            <button
+              className="close"
+              type="button"
+              onClick={() => setGalleryPicker(false)}
+              aria-label="Fechar"
+            >
+              ×
+            </button>
+            <span>GALERIA INTERNA</span>
+            <h2>Qual foto você quer editar?</h2>
+            <p>A foto original continuará protegida na Galeria.</p>
+            {!galleriesLoaded ? (
+              <div className="editing-empty">
+                <span>◌</span>
+                <h2>Carregando suas fotos…</h2>
+              </div>
+            ) : galleryGroups.length ? (
+              <div className="gallery-picker-groups">
+                {galleryGroups.map(({ gallery, photos }) => {
+                  return (
+                    <section key={gallery.id}>
+                      <header>
+                        <strong>{gallery.name}</strong>
+                        <small>{photos.length} fotos</small>
+                      </header>
+                      <div>
+                        {photos.map((photo) => (
+                          <button
+                            key={photo.id}
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void startEditing(gallery.id, photo.id)}
+                          >
+                            <img
+                              src={galleryPhotoUrl(gallery.id, photo.id)}
+                              alt={photo.caption || photo.filename}
+                            />
+                            <span>{photo.caption || photo.filename}</span>
+                            {photo.editingPhotoId && <i>NO HISTÓRICO</i>}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="editing-empty">
+                <span>▧</span>
+                <h2>Nenhuma foto disponível</h2>
+                <p>Adicione fotos à Galeria interna e volte aqui para começar a edição.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

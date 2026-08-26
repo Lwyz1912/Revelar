@@ -1,4 +1,5 @@
-import type { EditingAdjustments, EditingPreset } from "@/types/revelar";
+import { twoShootPresets } from "@/data/two-shoot-presets.generated";
+import type { EditingAdjustments, EditingPreset, XmpColorRecipe } from "@/types/revelar";
 
 export const neutralAdjustments: EditingAdjustments = {
   exposure: 0,
@@ -21,436 +22,70 @@ export const neutralAdjustments: EditingAdjustments = {
   warmHighlights: 0,
 };
 
-function recipe(changes: Partial<EditingAdjustments>): EditingAdjustments {
-  return { ...neutralAdjustments, ...changes };
-}
-
-export const builtInPresets: EditingPreset[] = [
-  {
-    id: "revelar-aurora-35",
-    name: "Aurora 35",
-    camera: "AURORA 35",
-    description: "Pastel frio, luz cremosa e sombras azuladas.",
-    builtIn: true,
-    category: "Filme",
-    adjustments: recipe({
-      exposure: 9,
-      contrast: -18,
-      highlights: -24,
-      shadows: 27,
-      temperature: -9,
-      tint: 8,
-      saturation: -13,
-      fade: 17,
-      grain: 10,
-      halation: 13,
-      softness: 18,
-      coolShadows: 24,
-      warmHighlights: 7,
-    }),
-  },
-  {
-    id: "revelar-rose-flash",
-    name: "Rosa Flash",
-    camera: "ROSA FLASH 02",
-    description: "Compacta rosada, flash claro e brilho delicado.",
-    builtIn: true,
-    category: "Compacta",
-    adjustments: recipe({
-      exposure: 11,
-      contrast: 4,
-      highlights: 14,
-      shadows: -5,
-      temperature: -3,
-      tint: 22,
-      saturation: 10,
-      fade: 5,
-      grain: 7,
-      halation: 15,
-      chromatic: 5,
-      softness: 9,
-      coolShadows: 8,
-      warmHighlights: 12,
-    }),
-  },
-  {
-    id: "revelar-solar-77",
-    name: "Solar 77",
-    camera: "SOLAR 77",
-    description: "Amarelo de fim de tarde, contraste baixo e calor intenso.",
-    builtIn: true,
-    category: "Filme",
-    adjustments: recipe({
-      exposure: 7,
-      contrast: -8,
-      highlights: -19,
-      shadows: 18,
-      temperature: 35,
-      tint: 2,
-      saturation: 7,
-      fade: 10,
-      grain: 17,
-      halation: 22,
-      lightLeak: 7,
-      softness: 8,
-      warmHighlights: 31,
-    }),
-  },
-  {
-    id: "revelar-pixel-sea",
-    name: "Pixel Mar",
-    camera: "PIXEL MAR 03",
-    description: "Azuis digitais, flash frio e aparência de compacta 2000.",
-    builtIn: true,
-    category: "Compacta",
-    adjustments: recipe({
-      exposure: 6,
-      contrast: 17,
-      highlights: 13,
-      shadows: -15,
-      temperature: -23,
-      tint: -4,
-      saturation: 20,
-      grain: 5,
-      chromatic: 12,
-      coolShadows: 28,
-    }),
-  },
-  {
-    id: "revelar-velvet-64",
-    name: "Veludo 64",
-    camera: "VELUDO 64",
-    description: "Terrosos suaves, preto lavado e textura de álbum antigo.",
-    builtIn: true,
-    category: "Filme",
-    adjustments: recipe({
-      exposure: 2,
-      contrast: -13,
-      highlights: -28,
-      shadows: 21,
-      temperature: 17,
-      tint: 7,
-      saturation: -15,
-      fade: 22,
-      grain: 23,
-      vignette: 5,
-      softness: 12,
-      warmHighlights: 15,
-    }),
-  },
-  {
-    id: "revelar-coast-200",
-    name: "Costa 200",
-    camera: "COSTA 200",
-    description: "Azul lavado, luz de praia e filme de baixa saturação.",
-    builtIn: true,
-    category: "Filme",
-    adjustments: recipe({
-      exposure: 8,
-      contrast: -7,
-      highlights: -16,
-      shadows: 23,
-      temperature: -18,
-      tint: -6,
-      saturation: -8,
-      fade: 16,
-      grain: 14,
-      softness: 7,
-      coolShadows: 33,
-      warmHighlights: 5,
-    }),
-  },
-  {
-    id: "revelar-ember-400",
-    name: "Brasa 400",
-    camera: "BRASA 400",
-    description: "Vermelhos densos, dourado forte e grão de filme rápido.",
-    builtIn: true,
-    category: "Filme",
-    adjustments: recipe({
-      exposure: 1,
-      contrast: 19,
-      highlights: -10,
-      shadows: -14,
-      temperature: 28,
-      tint: 11,
-      saturation: 14,
-      fade: 4,
-      grain: 29,
-      vignette: 12,
-      halation: 20,
-      warmHighlights: 28,
-    }),
-  },
-  {
-    id: "revelar-mist-160",
-    name: "Névoa 160",
-    camera: "NÉVOA 160",
-    description: "Pele clara, tons leitosos e foco suavizado.",
-    builtIn: true,
-    category: "Natural",
-    adjustments: recipe({
-      exposure: 12,
-      contrast: -21,
-      highlights: -25,
-      shadows: 31,
-      temperature: 9,
-      tint: 9,
-      saturation: -11,
-      fade: 18,
-      grain: 7,
-      halation: 18,
-      softness: 27,
-      warmHighlights: 10,
-    }),
-  },
-  {
-    id: "revelar-echo-02",
-    name: "Rastro 02",
-    camera: "RASTRO 02",
-    description: "Movimento arrastado, cores deslocadas e flash noturno.",
-    builtIn: true,
-    category: "Experimental",
-    adjustments: recipe({
-      exposure: 4,
-      contrast: 21,
-      highlights: 15,
-      shadows: -23,
-      temperature: -8,
-      tint: 17,
-      saturation: 9,
-      grain: 16,
-      vignette: 15,
-      halation: 18,
-      chromatic: 32,
-      motionTrail: 58,
-      coolShadows: 23,
-    }),
-  },
-  {
-    id: "revelar-amber-zx",
-    name: "Âmbar ZX",
-    camera: "ÂMBAR ZX",
-    description: "Calor digital, verdes dourados e contraste nostálgico.",
-    builtIn: true,
-    category: "Compacta",
-    adjustments: recipe({
-      exposure: 3,
-      contrast: 14,
-      highlights: -8,
-      shadows: -7,
-      temperature: 31,
-      tint: -7,
-      saturation: 13,
-      fade: 5,
-      grain: 11,
-      halation: 12,
-      warmHighlights: 26,
-    }),
-  },
-  {
-    id: "revelar-lume-35",
-    name: "Lume 35",
-    camera: "LUME 35",
-    description: "Filme claro, verdes suaves e luz difusa.",
-    builtIn: true,
-    category: "Filme",
-    adjustments: recipe({
-      exposure: 9,
-      contrast: -11,
-      highlights: -30,
-      shadows: 24,
-      temperature: 8,
-      tint: -10,
-      saturation: -7,
-      fade: 13,
-      grain: 12,
-      halation: 10,
-      softness: 10,
-      coolShadows: 9,
-      warmHighlights: 12,
-    }),
-  },
-  {
-    id: "revelar-isla-100",
-    name: "Ilha 100",
-    camera: "ILHA 100",
-    description: "Ciano luminoso, contraste limpo e lembrança de férias.",
-    builtIn: true,
-    category: "Compacta",
-    adjustments: recipe({
-      exposure: 8,
-      contrast: 12,
-      highlights: 7,
-      shadows: -8,
-      temperature: -15,
-      tint: -3,
-      saturation: 17,
-      grain: 4,
-      chromatic: 8,
-      coolShadows: 25,
-      warmHighlights: 5,
-    }),
-  },
-  {
-    id: "revelar-street-400",
-    name: "Rua 400",
-    camera: "RUA 400",
-    description: "Contraste urbano, flash direto e sombras verde-azuladas.",
-    builtIn: true,
-    category: "Flash",
-    adjustments: recipe({
-      exposure: 2,
-      contrast: 28,
-      highlights: 16,
-      shadows: -27,
-      temperature: -7,
-      tint: -9,
-      saturation: 5,
-      grain: 24,
-      vignette: 17,
-      chromatic: 11,
-      coolShadows: 31,
-      warmHighlights: 9,
-    }),
-  },
-  {
-    id: "revelar-portrait-160",
-    name: "Retrato 160",
-    camera: "RETRATO 160",
-    description: "Pele cremosa, pêssego discreto e realces protegidos.",
-    builtIn: true,
-    category: "Natural",
-    adjustments: recipe({
-      exposure: 7,
-      contrast: -9,
-      highlights: -31,
-      shadows: 24,
-      temperature: 15,
-      tint: 8,
-      saturation: -5,
-      fade: 10,
-      grain: 9,
-      softness: 8,
-      warmHighlights: 18,
-    }),
-  },
-  {
-    id: "revelar-portrait-160-ii",
-    name: "Retrato 160 II",
-    camera: "RETRATO 160 II",
-    description: "Variação rosada, mais luminosa e com preto macio.",
-    builtIn: true,
-    category: "Natural",
-    adjustments: recipe({
-      exposure: 10,
-      contrast: -14,
-      highlights: -26,
-      shadows: 29,
-      temperature: 9,
-      tint: 14,
-      saturation: -8,
-      fade: 15,
-      grain: 10,
-      halation: 8,
-      softness: 13,
-      coolShadows: 6,
-      warmHighlights: 17,
-    }),
-  },
-  {
-    id: "revelar-negative-sun",
-    name: "Negativo Solar",
-    camera: "NEGATIVO SOLAR",
-    description: "Sombras ciano, luz âmbar e resposta de negativo colorido.",
-    builtIn: true,
-    category: "Experimental",
-    adjustments: recipe({
-      exposure: 4,
-      contrast: 8,
-      highlights: -20,
-      shadows: 13,
-      temperature: 5,
-      tint: -4,
-      saturation: -2,
-      fade: 9,
-      grain: 18,
-      halation: 14,
-      chromatic: 7,
-      coolShadows: 38,
-      warmHighlights: 34,
-    }),
-  },
-  {
-    id: "revelar-mono",
-    name: "Mono 400",
-    camera: "MONO 400",
-    description: "Preto e branco macio com textura clássica.",
-    builtIn: true,
-    category: "Mono",
-    adjustments: recipe({
-      contrast: 15,
-      highlights: -12,
-      shadows: 8,
-      saturation: -100,
-      fade: 10,
-      grain: 30,
-      vignette: 13,
-    }),
-  },
-  {
-    id: "revelar-mono-hard",
-    name: "Press 1600",
-    camera: "PRESS 1600",
-    description: "Preto e branco cru, contrastado e granulado.",
-    builtIn: true,
-    category: "Mono",
-    adjustments: recipe({
-      exposure: -2,
-      contrast: 42,
-      highlights: -7,
-      shadows: -28,
-      saturation: -100,
-      grain: 48,
-      vignette: 18,
-      dust: 12,
-    }),
-  },
-  {
-    id: "revelar-mono-soft",
-    name: "Silver Soft",
-    camera: "SILVER SOFT",
-    description: "Cinzas suaves, pele luminosa e grão fino.",
-    builtIn: true,
-    category: "Mono",
-    adjustments: recipe({
-      exposure: 8,
-      contrast: -5,
-      highlights: -27,
-      shadows: 26,
-      saturation: -100,
-      fade: 13,
-      grain: 18,
-      halation: 8,
-    }),
-  },
-];
+export const builtInPresets = twoShootPresets;
 
 export const presetCategories = [
   "Todos",
-  "Filme",
-  "Compacta",
-  "Flash",
-  "Experimental",
-  "Mono",
-  "Natural",
+  "Filme e vintage",
+  "Portra",
+  "Digital compacta",
+  "Preto e branco",
+  "Praia e oceano",
+  "Floresta e verde",
+  "Editorial",
 ] as const;
 
 export function blendAdjustments(adjustments: EditingAdjustments, intensity: number) {
   const factor = Math.max(0, Math.min(100, intensity)) / 100;
-  return Object.fromEntries(
-    Object.entries(adjustments).map(([key, value]) => [key, Math.round(value * factor)]),
-  ) as EditingAdjustments;
+  const blended = Object.fromEntries(
+    Object.entries(adjustments)
+      .filter(([key]) => key !== "xmp")
+      .map(([key, value]) => [key, Math.round(Number(value) * factor)]),
+  ) as unknown as EditingAdjustments;
+  if (adjustments.xmp) {
+    blended.xmp = {
+      ...adjustments.xmp,
+      whites: Math.round(adjustments.xmp.whites * factor),
+      blacks: Math.round(adjustments.xmp.blacks * factor),
+      vibrance: Math.round(adjustments.xmp.vibrance * factor),
+      clarity: Math.round(adjustments.xmp.clarity * factor),
+      dehaze: Math.round(adjustments.xmp.dehaze * factor),
+      texture: Math.round(adjustments.xmp.texture * factor),
+      grayscale: factor > 0.5 && adjustments.xmp.grayscale,
+      hue: adjustments.xmp.hue.map((value) => Math.round(value * factor)),
+      colorSaturation: adjustments.xmp.colorSaturation.map((value) => Math.round(value * factor)),
+      luminance: adjustments.xmp.luminance.map((value) => Math.round(value * factor)),
+      toneCurve: blendCurve(adjustments.xmp.toneCurve, factor),
+      redCurve: blendCurve(adjustments.xmp.redCurve, factor),
+      greenCurve: blendCurve(adjustments.xmp.greenCurve, factor),
+      blueCurve: blendCurve(adjustments.xmp.blueCurve, factor),
+      shadowSaturation: Math.round(adjustments.xmp.shadowSaturation * factor),
+      shadowLuminance: Math.round(adjustments.xmp.shadowLuminance * factor),
+      midtoneSaturation: Math.round(adjustments.xmp.midtoneSaturation * factor),
+      midtoneLuminance: Math.round(adjustments.xmp.midtoneLuminance * factor),
+      highlightSaturation: Math.round(adjustments.xmp.highlightSaturation * factor),
+      highlightLuminance: Math.round(adjustments.xmp.highlightLuminance * factor),
+      grainSize: Math.round(adjustments.xmp.grainSize * factor),
+      grainFrequency: Math.round(adjustments.xmp.grainFrequency * factor),
+      vignetteMidpoint: Math.round(50 + (adjustments.xmp.vignetteMidpoint - 50) * factor),
+      vignetteFeather: Math.round(adjustments.xmp.vignetteFeather * factor),
+      vignetteRoundness: Math.round(adjustments.xmp.vignetteRoundness * factor),
+      sharpness: Math.round(adjustments.xmp.sharpness * factor),
+      sharpenRadius: adjustments.xmp.sharpenRadius * factor,
+      sharpenDetail: Math.round(adjustments.xmp.sharpenDetail * factor),
+      sharpenMasking: Math.round(adjustments.xmp.sharpenMasking * factor),
+      luminanceNoiseReduction: Math.round(adjustments.xmp.luminanceNoiseReduction * factor),
+      colorNoiseReduction: Math.round(adjustments.xmp.colorNoiseReduction * factor),
+      shadowTint: Math.round(adjustments.xmp.shadowTint * factor),
+    };
+  }
+  return blended;
+}
+
+function blendCurve(curve: Array<[number, number]>, factor: number) {
+  return curve.map(
+    ([input, output]) => [input, Math.round(input + (output - input) * factor)] as [number, number],
+  );
 }
 
 export function clampAdjustment(value: number) {
@@ -460,18 +95,95 @@ export function clampAdjustment(value: number) {
 export function normalizeAdjustments(
   value?: Partial<EditingAdjustments> | null,
 ): EditingAdjustments {
-  return Object.fromEntries(
+  const normalized = Object.fromEntries(
     Object.keys(neutralAdjustments).map((key) => [
       key,
-      clampAdjustment(value?.[key as keyof EditingAdjustments] ?? 0),
+      clampAdjustment(Number(value?.[key as keyof EditingAdjustments] ?? 0)),
     ]),
-  ) as EditingAdjustments;
+  ) as unknown as EditingAdjustments;
+  if (value?.xmp) normalized.xmp = normalizeXmpRecipe(value.xmp);
+  if (normalized.xmp?.absoluteWhiteBalance) {
+    normalized.temperature = 0;
+    normalized.tint = 0;
+  }
+  return normalized;
+}
+
+function normalizeCurve(value?: Array<[number, number]>) {
+  const curve = (value || [])
+    .filter((point) => Array.isArray(point) && point.length === 2)
+    .map(
+      ([input, output]) =>
+        [Math.max(0, Math.min(255, Number(input))), Math.max(0, Math.min(255, Number(output)))] as [
+          number,
+          number,
+        ],
+    )
+    .sort((a, b) => a[0] - b[0]);
+  return curve.length >= 2
+    ? curve
+    : ([
+        [0, 0],
+        [255, 255],
+      ] as Array<[number, number]>);
+}
+
+function normalizeXmpRecipe(value: Partial<XmpColorRecipe>): XmpColorRecipe {
+  const list = (items?: number[]) =>
+    Array.from({ length: 8 }, (_, index) => clampAdjustment(Number(items?.[index] || 0)));
+  return {
+    whites: clampAdjustment(Number(value.whites || 0)),
+    blacks: clampAdjustment(Number(value.blacks || 0)),
+    vibrance: clampAdjustment(Number(value.vibrance || 0)),
+    clarity: clampAdjustment(Number(value.clarity || 0)),
+    dehaze: clampAdjustment(Number(value.dehaze || 0)),
+    texture: clampAdjustment(Number(value.texture || 0)),
+    grayscale: Boolean(value.grayscale),
+    hue: list(value.hue),
+    colorSaturation: list(value.colorSaturation),
+    luminance: list(value.luminance),
+    toneCurve: normalizeCurve(value.toneCurve),
+    redCurve: normalizeCurve(value.redCurve),
+    greenCurve: normalizeCurve(value.greenCurve),
+    blueCurve: normalizeCurve(value.blueCurve),
+    shadowHue: Number(value.shadowHue || 0),
+    shadowSaturation: clampAdjustment(Number(value.shadowSaturation || 0)),
+    shadowLuminance: clampAdjustment(Number(value.shadowLuminance || 0)),
+    midtoneHue: Number(value.midtoneHue || 0),
+    midtoneSaturation: clampAdjustment(Number(value.midtoneSaturation || 0)),
+    midtoneLuminance: clampAdjustment(Number(value.midtoneLuminance || 0)),
+    highlightHue: Number(value.highlightHue || 0),
+    highlightSaturation: clampAdjustment(Number(value.highlightSaturation || 0)),
+    highlightLuminance: clampAdjustment(Number(value.highlightLuminance || 0)),
+    balance: clampAdjustment(Number(value.balance || 0)),
+    blending: clampAdjustment(Number(value.blending ?? 50)),
+    grainSize: clampAdjustment(Number(value.grainSize || 0)),
+    grainFrequency: clampAdjustment(Number(value.grainFrequency || 0)),
+    vignetteMidpoint: Math.max(0, Math.min(100, Number(value.vignetteMidpoint ?? 50))),
+    vignetteFeather: Math.max(0, Math.min(100, Number(value.vignetteFeather ?? 50))),
+    vignetteRoundness: clampAdjustment(Number(value.vignetteRoundness || 0)),
+    sharpness: Math.max(0, Math.min(150, Number(value.sharpness || 0))),
+    sharpenRadius: Math.max(0, Math.min(3, Number(value.sharpenRadius || 0))),
+    sharpenDetail: Math.max(0, Math.min(100, Number(value.sharpenDetail || 0))),
+    sharpenMasking: Math.max(0, Math.min(100, Number(value.sharpenMasking || 0))),
+    luminanceNoiseReduction: Math.max(0, Math.min(100, Number(value.luminanceNoiseReduction || 0))),
+    colorNoiseReduction: Math.max(0, Math.min(100, Number(value.colorNoiseReduction || 0))),
+    shadowTint: clampAdjustment(Number(value.shadowTint || 0)),
+    absoluteWhiteBalance: Boolean(value.absoluteWhiteBalance),
+  };
 }
 
 export function editingCssFilter(adjustments: EditingAdjustments) {
-  const brightness = 1 + adjustments.exposure / 180 + adjustments.shadows / 500;
-  const contrast = 1 + adjustments.contrast / 100 - adjustments.fade / 230;
-  const saturation = Math.max(0, 1 + adjustments.saturation / 100);
+  const xmp = adjustments.xmp;
+  const brightness =
+    1 + adjustments.exposure / 180 + adjustments.shadows / 500 + (xmp?.whites || 0) / 950;
+  const contrast =
+    1 +
+    adjustments.contrast / 100 -
+    adjustments.fade / 230 +
+    (xmp?.clarity || 0) / 420 +
+    (xmp?.dehaze || 0) / 350;
+  const saturation = Math.max(0, 1 + adjustments.saturation / 100 + (xmp?.vibrance || 0) / 180);
   const sepia = Math.max(0, adjustments.temperature) / 260;
   const hue = adjustments.tint / 7 - adjustments.temperature / 18;
   const softness = Math.max(0, adjustments.softness) / 85;
@@ -497,6 +209,124 @@ function readName(source: string, fallback: string) {
   return value?.trim().slice(0, 80) || fallback.replace(/\.(xmp|dng)$/i, "");
 }
 
+const xmpColors = ["Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Magenta"];
+
+function readCurve(source: string, name: string): Array<[number, number]> {
+  const inline = source.match(new RegExp(`\\bcrs:${name}=["']([^"']+)["']`, "i"))?.[1];
+  if (inline) {
+    const values = inline.split(",").map(Number).filter(Number.isFinite);
+    return Array.from({ length: Math.floor(values.length / 2) }, (_, index) => [
+      values[index * 2],
+      values[index * 2 + 1],
+    ]);
+  }
+  const block = source.match(new RegExp(`<crs:${name}>[\\s\\S]*?<\\/crs:${name}>`, "i"))?.[0] || "";
+  return [...block.matchAll(/<rdf:li>([\d.+-]+)\s*,\s*([\d.+-]+)<\/rdf:li>/gi)].map((match) => [
+    Number(match[1]),
+    Number(match[2]),
+  ]);
+}
+
+function xmpRecipe(source: string): XmpColorRecipe {
+  const shadowHue = readNumber(source, ["ColorGradeShadowHue", "SplitToningShadowHue"]) ?? 0;
+  const shadowSaturation =
+    readNumber(source, ["ColorGradeShadowSat", "SplitToningShadowSaturation"]) ?? 0;
+  const highlightHue =
+    readNumber(source, ["ColorGradeHighlightHue", "SplitToningHighlightHue"]) ?? 0;
+  const highlightSaturation =
+    readNumber(source, ["ColorGradeHighlightSat", "SplitToningHighlightSaturation"]) ?? 0;
+  return normalizeXmpRecipe({
+    whites: readNumber(source, ["Whites2012"]) ?? 0,
+    blacks: readNumber(source, ["Blacks2012"]) ?? 0,
+    vibrance: readNumber(source, ["Vibrance"]) ?? 0,
+    clarity: readNumber(source, ["Clarity2012"]) ?? 0,
+    dehaze: readNumber(source, ["Dehaze"]) ?? 0,
+    texture: readNumber(source, ["Texture"]) ?? 0,
+    grayscale:
+      /crs:ConvertToGrayscale=["']True["']/i.test(source) ||
+      (readNumber(source, ["Saturation"]) ?? 0) <= -100,
+    hue: xmpColors.map(
+      (color) => readNumber(source, [`HueAdjustment${color}`, `Hue${color}`]) ?? 0,
+    ),
+    colorSaturation: xmpColors.map(
+      (color) => readNumber(source, [`SaturationAdjustment${color}`, `Saturation${color}`]) ?? 0,
+    ),
+    luminance: xmpColors.map(
+      (color) => readNumber(source, [`LuminanceAdjustment${color}`, `Luminance${color}`]) ?? 0,
+    ),
+    toneCurve: readCurve(source, "ToneCurvePV2012"),
+    redCurve: readCurve(source, "ToneCurvePV2012Red"),
+    greenCurve: readCurve(source, "ToneCurvePV2012Green"),
+    blueCurve: readCurve(source, "ToneCurvePV2012Blue"),
+    shadowHue,
+    shadowSaturation,
+    shadowLuminance: readNumber(source, ["ColorGradeShadowLum"]) ?? 0,
+    midtoneHue: readNumber(source, ["ColorGradeMidtoneHue"]) ?? 0,
+    midtoneSaturation: readNumber(source, ["ColorGradeMidtoneSat"]) ?? 0,
+    midtoneLuminance: readNumber(source, ["ColorGradeMidtoneLum"]) ?? 0,
+    highlightHue,
+    highlightSaturation,
+    highlightLuminance: readNumber(source, ["ColorGradeHighlightLum"]) ?? 0,
+    balance: readNumber(source, ["ColorGradeBalance", "SplitToningBalance"]) ?? 0,
+    blending: readNumber(source, ["ColorGradeBlending"]) ?? 50,
+    grainSize: readNumber(source, ["GrainSize"]) ?? 0,
+    grainFrequency: readNumber(source, ["GrainFrequency"]) ?? 0,
+    vignetteMidpoint: readNumber(source, ["PostCropVignetteMidpoint", "VignetteMidpoint"]) ?? 50,
+    vignetteFeather: readNumber(source, ["PostCropVignetteFeather"]) ?? 50,
+    vignetteRoundness: readNumber(source, ["PostCropVignetteRoundness"]) ?? 0,
+    sharpness: readNumber(source, ["Sharpness"]) ?? 0,
+    sharpenRadius: readNumber(source, ["SharpenRadius", "SharpeningRadius"]) ?? 0,
+    sharpenDetail: readNumber(source, ["SharpenDetail", "SharpeningDetail"]) ?? 0,
+    sharpenMasking: readNumber(source, ["SharpenEdgeMasking", "SharpeningMasking"]) ?? 0,
+    luminanceNoiseReduction: readNumber(source, ["LuminanceSmoothing"]) ?? 0,
+    colorNoiseReduction: readNumber(source, ["ColorNoiseReduction"]) ?? 0,
+    shadowTint: readNumber(source, ["ShadowTint"]) ?? 0,
+    absoluteWhiteBalance:
+      readNumber(source, ["Temperature"]) !== undefined &&
+      readNumber(source, ["IncrementalTemperature"]) === undefined,
+  });
+}
+
+function xmpCompatibilityNotes(source: string) {
+  const notes: string[] = [];
+  const hasAbsoluteWhiteBalance =
+    readNumber(source, ["Temperature"]) !== undefined &&
+    readNumber(source, ["IncrementalTemperature"]) === undefined;
+  if (hasAbsoluteWhiteBalance) {
+    notes.push(
+      "Balanço de branco absoluto do RAW é mantido neutro em JPG/PNG para evitar dupla correção.",
+    );
+  }
+  if (/<crs:(?:Masking|GradientBasedCorrections|RetouchInfo|CorrectionMasks)>/i.test(source)) {
+    notes.push("Máscaras e ajustes locais ainda não são reproduzidos.");
+  }
+  const cameraProfile = source.match(/\bcrs:CameraProfile=["']([^"']+)["']/i)?.[1];
+  if (cameraProfile && !/^(?:embedded|adobe standard)$/i.test(cameraProfile)) {
+    notes.push(`Perfil de câmera “${cameraProfile}” depende do arquivo RAW original.`);
+  }
+  const lensCorrectionEnabled =
+    (readNumber(source, ["LensProfileEnable"]) ?? 0) > 0 ||
+    (readNumber(source, ["AutoLateralCA"]) ?? 0) > 0;
+  if (lensCorrectionEnabled) {
+    notes.push("Correção de lente depende dos metadados da câmera e da lente originais.");
+  }
+  const hasPerspectiveCorrection =
+    Math.abs(readNumber(source, ["PerspectiveVertical"]) ?? 0) > 0 ||
+    Math.abs(readNumber(source, ["PerspectiveHorizontal"]) ?? 0) > 0 ||
+    Math.abs(readNumber(source, ["PerspectiveRotate"]) ?? 0) > 0 ||
+    Math.abs((readNumber(source, ["PerspectiveScale"]) ?? 100) - 100) > 0;
+  if (hasPerspectiveCorrection) {
+    notes.push("Transformações de perspectiva ainda não são reproduzidas.");
+  }
+  const hasAdvancedDefringe =
+    (readNumber(source, ["DefringePurpleAmount"]) ?? 0) > 0 ||
+    (readNumber(source, ["DefringeGreenAmount"]) ?? 0) > 0;
+  if (hasAdvancedDefringe) {
+    notes.push("Remoção avançada de franjas cromáticas é aproximada pelo editor.");
+  }
+  return notes;
+}
+
 export async function parseImportedPreset(file: File): Promise<EditingPreset> {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension !== "xmp" && extension !== "dng") {
@@ -516,26 +346,41 @@ export async function parseImportedPreset(file: File): Promise<EditingPreset> {
     );
   }
   const exposure = readNumber(extracted, ["Exposure2012", "Exposure"]) ?? 0;
+  const recipe = xmpRecipe(extracted);
+  const incrementalTemperature = readNumber(extracted, ["IncrementalTemperature"]);
+  const incrementalTint = readNumber(extracted, ["IncrementalTint"]);
+  const compatibilityNotes = xmpCompatibilityNotes(extracted);
   const adjustments = normalizeAdjustments({
     exposure: exposure * 24,
     contrast: readNumber(extracted, ["Contrast2012", "Contrast"]) ?? 0,
     highlights: readNumber(extracted, ["Highlights2012", "Highlights"]) ?? 0,
     shadows: readNumber(extracted, ["Shadows2012", "Shadows"]) ?? 0,
-    temperature: ((readNumber(extracted, ["Temperature"]) ?? 5500) - 5500) / 28,
-    tint: readNumber(extracted, ["Tint"]) ?? 0,
+    temperature: recipe.absoluteWhiteBalance ? 0 : (incrementalTemperature ?? 0),
+    tint: recipe.absoluteWhiteBalance ? 0 : (incrementalTint ?? 0),
     saturation: readNumber(extracted, ["Saturation"]) ?? 0,
     grain: readNumber(extracted, ["GrainAmount"]) ?? 0,
     vignette: -(readNumber(extracted, ["PostCropVignetteAmount", "VignetteAmount"]) ?? 0),
-    fade: Math.max(0, readNumber(extracted, ["Blacks2012"]) ?? 0),
+    fade: 0,
+    softness: 0,
+    coolShadows: 0,
+    warmHighlights: 0,
+    xmp: recipe,
   });
   return {
     id: `imported-${crypto.randomUUID()}`,
     name: readName(extracted, file.name),
     camera: extension === "dng" ? "DNG IMPORTADO" : "XMP IMPORTADO",
-    description: "Conversão aproximada dos ajustes compatíveis do Lightroom.",
+    description:
+      compatibilityNotes.length > 0
+        ? "Receita XMP importada com compatibilidade parcial."
+        : "Receita XMP importada com ajustes compatíveis.",
     adjustments,
     builtIn: false,
     source: extension,
+    collection: "imported",
+    category: "Importados",
+    compatibility: compatibilityNotes.length > 0 ? "partial" : "full",
+    compatibilityNotes,
   };
 }
 

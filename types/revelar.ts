@@ -44,6 +44,48 @@ export type EditingAdjustments = {
   motionTrail: number;
   coolShadows: number;
   warmHighlights: number;
+  xmp?: XmpColorRecipe;
+};
+
+export type XmpColorRecipe = {
+  whites: number;
+  blacks: number;
+  vibrance: number;
+  clarity: number;
+  dehaze: number;
+  texture: number;
+  grayscale: boolean;
+  hue: number[];
+  colorSaturation: number[];
+  luminance: number[];
+  toneCurve: Array<[number, number]>;
+  redCurve: Array<[number, number]>;
+  greenCurve: Array<[number, number]>;
+  blueCurve: Array<[number, number]>;
+  shadowHue: number;
+  shadowSaturation: number;
+  shadowLuminance: number;
+  midtoneHue: number;
+  midtoneSaturation: number;
+  midtoneLuminance: number;
+  highlightHue: number;
+  highlightSaturation: number;
+  highlightLuminance: number;
+  balance: number;
+  blending: number;
+  grainSize: number;
+  grainFrequency: number;
+  vignetteMidpoint: number;
+  vignetteFeather: number;
+  vignetteRoundness: number;
+  sharpness: number;
+  sharpenRadius: number;
+  sharpenDetail: number;
+  sharpenMasking: number;
+  luminanceNoiseReduction: number;
+  colorNoiseReduction: number;
+  shadowTint: number;
+  absoluteWhiteBalance: boolean;
 };
 
 export type EditingPreset = {
@@ -54,7 +96,10 @@ export type EditingPreset = {
   adjustments: EditingAdjustments;
   builtIn: boolean;
   source?: "xmp" | "dng" | "custom";
-  category?: "Filme" | "Compacta" | "Flash" | "Experimental" | "Mono" | "Natural";
+  category?: string;
+  collection?: "2shoot" | "imported";
+  compatibility?: "full" | "partial";
+  compatibilityNotes?: string[];
 };
 
 export type EditingAlbum = {
