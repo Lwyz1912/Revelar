@@ -1,97 +1,92 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { galleryFolderLabels, initialDemoGalleries, type DemoGallery } from "@/data/demo-galleries";
 import { formatSize } from "@/lib/format";
-import type { GalleryFolder, GalleryPhase, Work, WorkGallery } from "@/types/revelar";
+import type { Work, WorkGallery } from "@/types/revelar";
 import { useUrlStringState } from "@/hooks/use-url-state";
 
-type Props = { works: Work[]; onOpenWork: (work: Work) => void; toast: (message: string) => void };
-type DemoPhotoState = { selected: boolean; approved: boolean; comment: string };
-type DemoState = { photos: Record<string, DemoPhotoState>; locks: Record<string, boolean> };
+type Props = {
+  works: Work[];
+  onOpenWork: (work: Work) => void;
+  onOpenEditor: (albumId: string, photoId: string, mode: "quick" | "studio") => void;
+  toast: (message: string) => void;
+};
 
-const storageKey = "revelar:demo-gallery-state:v1";
-const folderOrder: GalleryFolder[] = ["preview", "selection", "edited", "delivered", "originals"];
-const galleryModes = ["demo", "real"] as const;
-const galleryViews = ["cards", "list"] as const;
-const galleryPhases = ["all", "selection", "approval", "delivery"] as const;
+type LibraryFilter = "all" | "linked" | "independent" | "recent";
+type PhotoFilter = "all" | "originals" | "edited" | "favorites" | "trash";
+const libraryFilters = ["all", "linked", "independent", "recent"] as const;
+const photoFilters = ["all", "originals", "edited", "favorites", "trash"] as const;
 
-function freshDemoState(): DemoState {
-  return {
-    photos: Object.fromEntries(
-      initialDemoGalleries.flatMap((gallery) =>
-        gallery.photos.map((photo) => [
-          photo.id,
-          { selected: photo.selected, approved: photo.approved, comment: photo.comment },
-        ]),
-      ),
-    ),
-    locks: Object.fromEntries(
-      initialDemoGalleries.map((gallery) => [gallery.id, gallery.selectionLocked]),
-    ),
-  };
+function today() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function phaseLabel(phase: GalleryPhase) {
-  return phase === "selection" ? "Seleção" : phase === "approval" ? "Aprovação" : "Entrega";
-}
-
-function phaseStatus(phase: GalleryPhase, locked: boolean) {
-  if (phase === "delivery") return "Entrega liberada";
-  if (phase === "approval") return locked ? "Aprovação confirmada" : "Aguardando aprovação";
-  return locked ? "Seleção confirmada" : "Seleção aberta";
-}
-
-function folderState(status: "ready" | "active" | "waiting") {
-  return status === "ready" ? "Pronta" : status === "active" ? "Em andamento" : "Aguardando";
-}
-
-export function GalleryLibraryView({ works, onOpenWork, toast }: Props) {
-  const [mode, setMode] = useUrlStringState("galleryMode", "demo", galleryModes);
-  const [view, setView] = useUrlStringState("galleryView", "cards", galleryViews);
-  const [search, setSearch] = useUrlStringState<string>("galleryQ", "");
-  const [phase, setPhase] = useUrlStringState<"all" | GalleryPhase>(
-    "galleryPhase",
-    "all",
-    galleryPhases,
+function displayDate(value?: string) {
+  if (!value) return "Sem data definida";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(
+    new Date(`${value.slice(0, 10)}T12:00:00`),
   );
-  const [category, setCategory] = useUrlStringState<string>("galleryCategory", "all");
-  const [real, setReal] = useState<WorkGallery[]>([]);
+}
+
+function imageUrl(galleryId: string, photoId: string, variant?: "original") {
+  return `/api/galleries/${galleryId}/photos/${photoId}${variant ? `?variant=${variant}` : ""}`;
+}
+
+export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: Props) {
+  const [galleries, setGalleries] = useState<WorkGallery[]>([]);
   const [loading, setLoading] = useState(true);
-  const [realError, setRealError] = useState("");
-  const [selectedId, setSelectedId] = useUrlStringState<string>("gallery", "");
-  const [activeFolder, setActiveFolder] = useUrlStringState<GalleryFolder>(
-    "galleryFolder",
-    "preview",
-    folderOrder,
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useUrlStringState<string>("galleryQ", "");
+  const [filter, setFilter] = useUrlStringState<LibraryFilter>(
+    "galleryFilter",
+    "all",
+    libraryFilters,
   );
-  const [clientPreview, setClientPreview] = useState(false);
-  const [focusPhotoId, setFocusPhotoId] = useState<string | null>(null);
-  const [demo, setDemo] = useState<DemoState>(() => {
-    if (typeof window === "undefined") return freshDemoState();
-    try {
-      return JSON.parse(window.localStorage.getItem(storageKey) || "null") || freshDemoState();
-    } catch {
-      return freshDemoState();
-    }
-  });
+  const [selectedId, setSelectedId] = useUrlStringState<string>("gallery", "");
+  const [photoFilter, setPhotoFilter] = useUrlStringState<PhotoFilter>(
+    "galleryFolder",
+    "all",
+    photoFilters,
+  );
+  const [newAlbumOpen, setNewAlbumOpen] = useState(false);
+  const [editingAlbum, setEditingAlbum] = useState<WorkGallery | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [albumDate, setAlbumDate] = useState(today());
+  const [workId, setWorkId] = useState("");
+  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [caption, setCaption] = useState("");
+  const [tags, setTags] = useState("");
+  const [rating, setRating] = useState(0);
+  const [recentCutoff] = useState(() => Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(demo));
-  }, [demo]);
+  const load = async () => {
+    try {
+      const response = await fetch("/api/galleries", { cache: "no-store" });
+      const data = (await response.json()) as { galleries?: WorkGallery[]; error?: string };
+      if (!response.ok) throw new Error(data.error || "Não foi possível carregar os álbuns.");
+      setGalleries(data.galleries || []);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível carregar os álbuns.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     void fetch("/api/galleries", { cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Não foi possível carregar as galerias reais.");
-        return (await response.json()) as { galleries: WorkGallery[] };
-      })
-      .then((data) => {
-        if (mounted) setReal(data.galleries);
+        const data = (await response.json()) as { galleries?: WorkGallery[]; error?: string };
+        if (!response.ok) throw new Error(data.error || "Não foi possível carregar os álbuns.");
+        if (mounted) setGalleries(data.galleries || []);
       })
       .catch((error: Error) => {
-        if (mounted) setRealError(error.message);
+        if (mounted) toast(error.message);
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -99,473 +94,701 @@ export function GalleryLibraryView({ works, onOpenWork, toast }: Props) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [toast]);
 
-  const matches = useCallback(
-    (title: string, client: string, itemPhase: GalleryPhase, itemCategory: string) => {
-      const query = search.trim().toLocaleLowerCase("pt-BR");
-      return (
-        (!query ||
-          title.toLocaleLowerCase("pt-BR").includes(query) ||
-          client.toLocaleLowerCase("pt-BR").includes(query)) &&
-        (phase === "all" || phase === itemPhase) &&
-        (category === "all" || category === itemCategory)
+  const selectedGallery = galleries.find((gallery) => gallery.id === selectedId) || null;
+  const activePhotos = selectedGallery?.photos.filter((photo) => !photo.deletedAt) || [];
+  const focused = selectedGallery?.photos.find((photo) => photo.id === focusedId) || null;
+
+  const visibleGalleries = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("pt-BR");
+    return galleries.filter((gallery) => {
+      const matchesQuery =
+        !query ||
+        [gallery.name, gallery.clientName, gallery.workTitle].some((value) =>
+          value.toLocaleLowerCase("pt-BR").includes(query),
+        );
+      const matchesFilter =
+        filter === "all" ||
+        (filter === "linked" && gallery.workId !== undefined) ||
+        (filter === "independent" && gallery.workId === undefined) ||
+        (filter === "recent" &&
+          Boolean(gallery.albumDate && new Date(gallery.albumDate).getTime() >= recentCutoff));
+      return matchesQuery && matchesFilter;
+    });
+  }, [filter, galleries, recentCutoff, search]);
+
+  const visiblePhotos = selectedGallery
+    ? selectedGallery.photos.filter((photo) => {
+        if (photoFilter === "trash") return Boolean(photo.deletedAt);
+        if (photo.deletedAt) return false;
+        if (photoFilter === "originals") return photo.hasOriginal || photo.folder === "originals";
+        if (photoFilter === "edited")
+          return photo.folder === "edited" || Boolean(photo.editingPhotoId);
+        if (photoFilter === "favorites") return photo.rating >= 4;
+        return true;
+      })
+    : [];
+
+  const openPhotoDetails = (photoId: string) => {
+    const photo = selectedGallery?.photos.find((item) => item.id === photoId);
+    if (!photo) return;
+    setFocusedId(photo.id);
+    setNote(photo.internalNote || "");
+    setCaption(photo.caption || "");
+    setTags(photo.tags.join(", "));
+    setRating(photo.rating || 0);
+  };
+
+  const resetAlbumForm = () => {
+    setName("");
+    setDescription("");
+    setAlbumDate(today());
+    setWorkId("");
+    setEditingAlbum(null);
+  };
+
+  const openEditAlbum = (gallery: WorkGallery) => {
+    setEditingAlbum(gallery);
+    setName(gallery.name);
+    setDescription(gallery.description);
+    setAlbumDate(gallery.albumDate?.slice(0, 10) || today());
+    setWorkId(gallery.workId === undefined ? "" : String(gallery.workId));
+    setNewAlbumOpen(true);
+  };
+
+  const saveAlbum = async () => {
+    setBusy(true);
+    try {
+      const linkedWork = works.find((work) => work.id === Number(workId));
+      const response = await fetch(
+        editingAlbum ? `/api/galleries/${editingAlbum.id}` : "/api/galleries",
+        {
+          method: editingAlbum ? "PATCH" : "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name,
+            description,
+            albumDate,
+            workId: linkedWork?.id,
+            workTitle: linkedWork?.title,
+            clientName: editingAlbum?.clientName || "",
+          }),
+        },
       );
-    },
-    [category, phase, search],
-  );
-
-  const visibleDemo = useMemo(
-    () =>
-      initialDemoGalleries.filter((gallery) =>
-        matches(gallery.workTitle, gallery.clientName, gallery.phase, gallery.category),
-      ),
-    [matches],
-  );
-  const visibleReal = useMemo(
-    () =>
-      real.filter((gallery) =>
-        matches(
-          gallery.workTitle,
-          gallery.clientName,
-          gallery.phase,
-          works.find((work) => work.id === gallery.workId)?.category || "Galeria",
-        ),
-      ),
-    [matches, real, works],
-  );
-  const selectedDemo = initialDemoGalleries.find((gallery) => gallery.id === selectedId) || null;
-  const selectedReal = real.find((gallery) => gallery.id === selectedId) || null;
-
-  const resetDemo = () => {
-    setDemo(freshDemoState());
-    setSelectedId("");
-    setClientPreview(false);
-    toast("Dados de demonstração restaurados");
-  };
-  const setPhoto = (photoId: string, update: Partial<DemoPhotoState>) =>
-    setDemo((current) => ({
-      ...current,
-      photos: { ...current.photos, [photoId]: { ...current.photos[photoId], ...update } },
-    }));
-  const setLocked = (gallery: DemoGallery, locked: boolean) => {
-    setDemo((current) => ({ ...current, locks: { ...current.locks, [gallery.id]: locked } }));
-    toast(locked ? "Etapa confirmada no modo demonstração" : "Etapa reaberta para teste");
+      const data = (await response.json()) as { gallery?: WorkGallery; error?: string };
+      if (!response.ok || !data.gallery) throw new Error(data.error || "Não foi possível salvar.");
+      setGalleries((current) =>
+        editingAlbum
+          ? current.map((gallery) => (gallery.id === data.gallery!.id ? data.gallery! : gallery))
+          : [data.gallery!, ...current],
+      );
+      setSelectedId(data.gallery.id);
+      setNewAlbumOpen(false);
+      resetAlbumForm();
+      toast(
+        editingAlbum ? "Álbum atualizado" : "Álbum criado. Agora você pode adicionar as fotos.",
+      );
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível salvar o álbum.");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (selectedDemo || selectedReal) {
-    const isDemo = mode === "demo" && Boolean(selectedDemo);
-    const gallery = isDemo ? selectedDemo! : selectedReal!;
-    const work = works.find((item) => item.id === gallery.workId);
-    const locked = isDemo ? Boolean(demo.locks[gallery.id]) : gallery.selectionLocked;
-    const photos = isDemo
-      ? selectedDemo!.photos.map((photo) => ({
-          ...photo,
-          ...demo.photos[photo.id],
-          folder: undefined as GalleryFolder | undefined,
-        }))
-      : selectedReal!.photos.map((photo) => ({
-          ...photo,
-          image: `/api/galleries/${selectedReal!.id}/photos/${photo.id}`,
-        }));
-    const filteredPhotos = photos.filter((photo) =>
-      activeFolder === "selection"
-        ? photo.selected
-        : activeFolder === "edited"
-          ? isDemo
-            ? photo.selected
-            : photo.folder === "edited"
-          : activeFolder === "delivered"
-            ? isDemo
-              ? photo.approved
-              : photo.folder === "delivered"
-            : activeFolder === "originals"
-              ? isDemo || photo.folder === "originals"
-              : isDemo || photo.folder === "preview",
+  const uploadPhotos = async (files: FileList | File[]) => {
+    if (!selectedGallery || !files.length) return;
+    setBusy(true);
+    let sent = 0;
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) continue;
+      const form = new FormData();
+      form.append("file", file);
+      form.append("preview", file);
+      form.append("folder", "originals");
+      const response = await fetch(`/api/galleries/${selectedGallery.id}/upload`, {
+        method: "POST",
+        body: form,
+      });
+      if (response.ok) sent += 1;
+    }
+    await load();
+    setBusy(false);
+    toast(sent ? `${sent} foto(s) adicionada(s) ao álbum` : "Nenhuma foto pôde ser enviada");
+  };
+
+  const savePhotoDetails = async () => {
+    if (!selectedGallery || !focused) return;
+    setBusy(true);
+    const response = await fetch(`/api/galleries/${selectedGallery.id}/photos/${focused.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ internalNote: note, caption, tags: tags.split(","), rating }),
+    });
+    const data = (await response.json()) as { gallery?: WorkGallery; error?: string };
+    setBusy(false);
+    if (!response.ok || !data.gallery)
+      return toast(data.error || "Não foi possível salvar a ficha da foto.");
+    setGalleries((current) =>
+      current.map((gallery) => (gallery.id === data.gallery!.id ? data.gallery! : gallery)),
     );
-    const selectionCount = photos.filter((photo) => photo.selected).length;
-    const approvedCount = photos.filter((photo) => photo.approved).length;
-    const focused = photos.find((photo) => photo.id === focusPhotoId) || null;
-    const folderCount = (folder: GalleryFolder) => {
-      if (folder === "selection") return selectionCount;
-      if (isDemo) return selectedDemo!.folders.find((item) => item.id === folder)?.count || 0;
-      if (folder === "edited")
-        return selectedReal!.photos.filter(
-          (photo) => photo.folder === "edited" || photo.hasHigh || photo.hasSocial,
-        ).length;
-      return selectedReal!.photos.filter((photo) => photo.folder === folder).length;
-    };
-    const totalBytes = isDemo
-      ? selectedDemo!.folders.reduce((sum, folder) => sum + folder.bytes, 0)
-      : selectedReal!.stats.totalBytes;
+    toast("Informações internas salvas");
+  };
 
-    return (
-      <section className="gallery-library gallery-detail">
-        <button className="gallery-back" type="button" onClick={() => setSelectedId("")}>
-          ← Todas as galerias
+  const sendToEditor = async (photoIds: string[], mode: "quick" | "studio") => {
+    if (!selectedGallery || !photoIds.length) return;
+    setBusy(true);
+    const response = await fetch(`/api/galleries/${selectedGallery.id}/edit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ photoIds }),
+    });
+    const data = (await response.json()) as {
+      albumId?: string;
+      photoIds?: string[];
+      error?: string;
+    };
+    setBusy(false);
+    if (!response.ok || !data.albumId || !data.photoIds?.length)
+      return toast(data.error || "Não foi possível preparar a edição.");
+    onOpenEditor(data.albumId, data.photoIds[0], mode);
+  };
+
+  const trashSelected = async () => {
+    if (!selectedGallery || !selectedPhotos.length) return;
+    setBusy(true);
+    const response = await fetch(`/api/galleries/${selectedGallery.id}/photos`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "trash", photoIds: selectedPhotos }),
+    });
+    const data = (await response.json()) as { gallery?: WorkGallery; error?: string };
+    setBusy(false);
+    if (!response.ok || !data.gallery)
+      return toast(data.error || "Não foi possível mover as fotos.");
+    setGalleries((current) =>
+      current.map((gallery) => (gallery.id === data.gallery!.id ? data.gallery! : gallery)),
+    );
+    setSelectedPhotos([]);
+    toast("Fotos movidas para a lixeira por 30 dias");
+  };
+
+  const restoreSelected = async () => {
+    if (!selectedGallery || !selectedPhotos.length) return;
+    setBusy(true);
+    const response = await fetch(`/api/galleries/${selectedGallery.id}/photos`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "restore", photoIds: selectedPhotos }),
+    });
+    const data = (await response.json()) as { gallery?: WorkGallery; error?: string };
+    setBusy(false);
+    if (!response.ok || !data.gallery)
+      return toast(data.error || "Não foi possível restaurar as fotos.");
+    setGalleries((current) =>
+      current.map((gallery) => (gallery.id === data.gallery!.id ? data.gallery! : gallery)),
+    );
+    setSelectedPhotos([]);
+    toast("Fotos restauradas no álbum");
+  };
+
+  const renderAlbumDialog = () => (
+    <div
+      className="album-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-label={editingAlbum ? "Editar álbum" : "Novo álbum"}
+    >
+      <div className="album-dialog-card">
+        <button
+          className="modal-close"
+          type="button"
+          onClick={() => {
+            setNewAlbumOpen(false);
+            resetAlbumForm();
+          }}
+          aria-label="Fechar"
+        >
+          ×
         </button>
-        <header className="gallery-detail-heading">
-          <div>
-            <span className={`gallery-phase phase-${gallery.phase}`}>
-              {phaseLabel(gallery.phase)}
+        <span>ORGANIZAÇÃO INTERNA</span>
+        <h2>{editingAlbum ? "Editar álbum" : "Criar novo álbum"}</h2>
+        <p>O vínculo com trabalho é opcional e serve apenas como atalho interno.</p>
+        <label>
+          <span>Nome do álbum</span>
+          <input
+            autoFocus
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder={`Envio de fotos ${new Intl.DateTimeFormat("pt-BR").format(new Date())}`}
+          />
+        </label>
+        <label>
+          <span>Descrição</span>
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Sobre este ensaio ou conjunto de imagens…"
+          />
+        </label>
+        <div className="album-dialog-row">
+          <label>
+            <span>Data</span>
+            <input
+              type="date"
+              value={albumDate}
+              onChange={(event) => setAlbumDate(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Trabalho vinculado (opcional)</span>
+            <select
+              value={workId}
+              disabled={Boolean(editingAlbum)}
+              onChange={(event) => setWorkId(event.target.value)}
+            >
+              <option value="">Nenhum trabalho</option>
+              {works.map((work) => (
+                <option key={work.id} value={work.id}>
+                  {work.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="album-dialog-actions">
+          <button
+            type="button"
+            onClick={() => {
+              setNewAlbumOpen(false);
+              resetAlbumForm();
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            className="primary"
+            type="button"
+            onClick={() => void saveAlbum()}
+            disabled={busy}
+          >
+            {busy ? "Salvando…" : editingAlbum ? "Salvar alterações" : "Criar álbum"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (selectedGallery) {
+    const linkedWork = works.find((work) => work.id === selectedGallery.workId);
+    return (
+      <section className="gallery-library internal-gallery detail">
+        <header className="internal-gallery-detail-head">
+          <button type="button" className="gallery-back" onClick={() => setSelectedId("")}>
+            ← Álbuns
+          </button>
+          <div className="internal-gallery-title">
+            <span>
+              {selectedGallery.workId === undefined
+                ? "ÁLBUM INDEPENDENTE"
+                : "VINCULADO A UM TRABALHO"}
             </span>
-            <h1>{gallery.workTitle}</h1>
+            <h1>{selectedGallery.name}</h1>
             <p>
-              {gallery.clientName} · {work?.category || selectedDemo?.category || "Galeria"}
+              {selectedGallery.description || "Sem descrição"} ·{" "}
+              {displayDate(selectedGallery.albumDate)}
             </p>
           </div>
-          <div className="gallery-detail-actions">
-            {isDemo && (
-              <button type="button" onClick={() => setClientPreview(true)}>
-                Simular cliente
+          <div className="internal-gallery-actions">
+            <button type="button" onClick={() => openEditAlbum(selectedGallery)}>
+              Editar informações
+            </button>
+            {linkedWork && (
+              <button type="button" onClick={() => onOpenWork(linkedWork)}>
+                Abrir trabalho
               </button>
             )}
-            {work && (
-              <button className="primary" type="button" onClick={() => onOpenWork(work)}>
-                Gerenciar no trabalho
-              </button>
-            )}
+            <button
+              className="primary"
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              disabled={busy}
+            >
+              ＋ Adicionar fotos
+            </button>
+            <input
+              ref={fileInput}
+              hidden
+              multiple
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) => event.target.files && void uploadPhotos(event.target.files)}
+            />
           </div>
         </header>
-        <div className="gallery-metrics">
+
+        <div className="internal-gallery-stats">
           <div>
-            <span>Selecionadas</span>
-            <strong>
-              {selectionCount}/{gallery.selectionLimit}
-            </strong>
+            <strong>{activePhotos.length}</strong>
+            <span>fotos</span>
           </div>
           <div>
-            <span>Aprovadas</span>
-            <strong>{approvedCount}</strong>
+            <strong>{activePhotos.filter((photo) => photo.editingPhotoId).length}</strong>
+            <span>em edição</span>
           </div>
           <div>
-            <span>Etapa</span>
-            <strong>{phaseStatus(gallery.phase, locked)}</strong>
+            <strong>{activePhotos.filter((photo) => photo.rating >= 4).length}</strong>
+            <span>favoritas</span>
           </div>
           <div>
-            <span>Armazenamento</span>
-            <strong>{formatSize(totalBytes)}</strong>
+            <strong>{formatSize(selectedGallery.stats.totalBytes)}</strong>
+            <span>armazenamento</span>
           </div>
         </div>
-        <div className="gallery-folders">
-          {folderOrder.map((folder) => {
-            const item = selectedDemo?.folders.find((entry) => entry.id === folder);
-            const status = item?.status || (folderCount(folder) ? "ready" : "waiting");
-            return (
-              <button
-                key={folder}
-                className={activeFolder === folder ? "active" : ""}
-                type="button"
-                onClick={() => setActiveFolder(folder)}
-              >
-                <i>⌑</i>
-                <span>
-                  <strong>{galleryFolderLabels[folder]}</strong>
-                  <small>{folderCount(folder)} arquivos</small>
-                </span>
-                <b className={`state-${status}`}>{folderState(status)}</b>
-              </button>
-            );
-          })}
-        </div>
-        <div className="gallery-photo-title">
-          <div>
-            <span>{galleryFolderLabels[activeFolder]}</span>
-            <strong>{filteredPhotos.length} amostras visíveis</strong>
-          </div>
-          {isDemo && locked && gallery.phase !== "delivery" && (
-            <button type="button" onClick={() => setLocked(selectedDemo!, false)}>
-              Reabrir etapa
+        <nav className="internal-gallery-tabs" aria-label="Pastas do álbum">
+          {(
+            [
+              ["all", "Todas"],
+              ["originals", "Originais"],
+              ["edited", "Em edição"],
+              ["favorites", "Favoritas"],
+              ["trash", "Lixeira"],
+            ] as [PhotoFilter, string][]
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              className={photoFilter === value ? "active" : ""}
+              type="button"
+              onClick={() => {
+                setPhotoFilter(value);
+                setSelectedPhotos([]);
+              }}
+            >
+              {label}
             </button>
+          ))}
+        </nav>
+        <div className="internal-gallery-photo-tools">
+          <p>{visiblePhotos.length} foto(s) · selecione para ações em lote</p>
+          {selectedPhotos.length > 0 && (
+            <div>
+              <strong>{selectedPhotos.length} selecionada(s)</strong>
+              {photoFilter === "trash" ? (
+                <button type="button" onClick={() => void restoreSelected()}>
+                  Restaurar no álbum
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={() => void sendToEditor(selectedPhotos, "studio")}>
+                    Editar em lote
+                  </button>
+                  <button className="danger" type="button" onClick={() => void trashSelected()}>
+                    Mover para lixeira
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
-        {filteredPhotos.length ? (
-          <div className="gallery-admin-photos">
-            {filteredPhotos.map((photo, index) => (
-              <button
+
+        {visiblePhotos.length ? (
+          <div className="internal-photo-grid">
+            {visiblePhotos.map((photo) => (
+              <article
                 key={photo.id}
-                type="button"
-                className={photo.selected ? "selected" : ""}
-                onClick={() => setFocusPhotoId(photo.id)}
+                className={selectedPhotos.includes(photo.id) ? "selected" : ""}
               >
-                <span>
+                <button
+                  className="photo-open"
+                  type="button"
+                  onClick={() => openPhotoDetails(photo.id)}
+                >
                   <img
-                    src={photo.image}
-                    alt={photo.filename}
-                    style={{ objectPosition: `${30 + (index % 3) * 20}% center` }}
+                    src={imageUrl(selectedGallery.id, photo.id)}
+                    alt={photo.caption || photo.filename}
                   />
-                  {isDemo && activeFolder !== "delivered" && <i>REVELAR. · DEMONSTRAÇÃO</i>}
-                </span>
-                <small>
-                  {photo.filename}
-                  {photo.comment ? " · comentário" : ""}
-                </small>
-              </button>
+                  {photo.editingPhotoId && <span>EM EDIÇÃO</span>}
+                </button>
+                <button
+                  className="photo-select"
+                  type="button"
+                  aria-label={`Selecionar ${photo.filename}`}
+                  onClick={() =>
+                    setSelectedPhotos((current) =>
+                      current.includes(photo.id)
+                        ? current.filter((id) => id !== photo.id)
+                        : [...current, photo.id],
+                    )
+                  }
+                >
+                  {selectedPhotos.includes(photo.id) ? "✓" : ""}
+                </button>
+                <footer>
+                  <strong>{photo.caption || photo.filename}</strong>
+                  <span>
+                    {"★".repeat(photo.rating)}
+                    {"☆".repeat(5 - photo.rating)}
+                  </span>
+                </footer>
+              </article>
             ))}
           </div>
         ) : (
           <div className="gallery-library-empty">
-            <span>⌑</span>
-            <strong>Esta pasta ainda está vazia</strong>
+            <span>▧</span>
+            <strong>
+              {photoFilter === "trash"
+                ? "A lixeira está vazia"
+                : "Este álbum ainda não tem fotos aqui"}
+            </strong>
+            {photoFilter !== "trash" && (
+              <button type="button" onClick={() => fileInput.current?.click()}>
+                Adicionar as primeiras fotos
+              </button>
+            )}
           </div>
         )}
-        {focused && (
-          <div className="gallery-focus" role="dialog" aria-modal="true">
-            <button className="close" type="button" onClick={() => setFocusPhotoId(null)}>
+
+        {focused && !focused.deletedAt && (
+          <div
+            className="internal-photo-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Detalhes de ${focused.filename}`}
+          >
+            <button
+              className="modal-close"
+              type="button"
+              onClick={() => setFocusedId(null)}
+              aria-label="Fechar"
+            >
               ×
             </button>
-            <div>
-              <img src={focused.image} alt={focused.filename} />
-              {isDemo && gallery.phase !== "delivery" && <i>REVELAR. · {gallery.clientName}</i>}
+            <div className="internal-photo-stage">
+              <img
+                src={imageUrl(selectedGallery.id, focused.id, "original")}
+                alt={focused.caption || focused.filename}
+              />
             </div>
             <aside>
-              <span>{focused.filename}</span>
-              <h2>{phaseLabel(gallery.phase)}</h2>
-              {isDemo && gallery.phase === "selection" && !locked && (
-                <button
-                  className={focused.selected ? "active" : ""}
-                  type="button"
-                  onClick={() => setPhoto(focused.id, { selected: !focused.selected })}
-                >
-                  {focused.selected ? "♥ Foto escolhida" : "♡ Escolher foto"}
+              <div className="photo-modal-heading">
+                <span>FICHA INTERNA DA FOTO</span>
+                <h2>{focused.filename}</h2>
+                <p>Somente você vê estas informações.</p>
+              </div>
+              <div className="photo-rating" aria-label="Avaliação da foto">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRating(value === rating ? 0 : value)}
+                  >
+                    {value <= rating ? "★" : "☆"}
+                  </button>
+                ))}
+              </div>
+              <label>
+                <span>Legenda</span>
+                <input
+                  value={caption}
+                  onChange={(event) => setCaption(event.target.value)}
+                  placeholder="Uma legenda para encontrar esta foto"
+                />
+              </label>
+              <label>
+                <span>Etiquetas</span>
+                <input
+                  value={tags}
+                  onChange={(event) => setTags(event.target.value)}
+                  placeholder="cerimônia, luz natural, retrato"
+                />
+                <small>Separe por vírgulas</small>
+              </label>
+              <label className="note">
+                <span>Anotação da fotógrafa</span>
+                <textarea
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Ideias, ajustes e observações internas…"
+                />
+              </label>
+              <button
+                className="save-details"
+                type="button"
+                onClick={() => void savePhotoDetails()}
+                disabled={busy}
+              >
+                Salvar informações
+              </button>
+              <div className="photo-edit-actions">
+                <button type="button" onClick={() => void sendToEditor([focused.id], "quick")}>
+                  ⚡ Edição rápida
                 </button>
-              )}
-              {isDemo && gallery.phase === "approval" && !locked && (
                 <button
-                  className={focused.approved ? "active" : ""}
+                  className="primary"
                   type="button"
-                  onClick={() => setPhoto(focused.id, { approved: !focused.approved })}
+                  onClick={() => void sendToEditor([focused.id], "studio")}
                 >
-                  {focused.approved ? "✓ Foto aprovada" : "Aprovar foto"}
+                  Abrir no estúdio →
                 </button>
-              )}
-              {isDemo && gallery.phase !== "delivery" && (
-                <label>
-                  <span>Comentário do cliente</span>
-                  <textarea
-                    value={focused.comment}
-                    onChange={(event) => setPhoto(focused.id, { comment: event.target.value })}
-                    placeholder="Escreva um pedido de ajuste…"
-                  />
-                </label>
-              )}
-              {gallery.phase === "delivery" && (
-                <a href={focused.image} download={focused.filename}>
-                  Baixar amostra
-                </a>
-              )}
+              </div>
+              <p className="version-note">
+                O original fica preservado. A edição cria uma nova versão para você decidir se
+                deseja enviar ao trabalho.
+              </p>
             </aside>
           </div>
         )}
-        {clientPreview && selectedDemo && (
-          <div className="demo-client" role="dialog" aria-modal="true">
-            <header>
-              <img src="/brand/revelar-logo-horizontal.svg" alt="Revelar." />
-              <div>
-                <span>VISÃO DO CLIENTE · DEMONSTRAÇÃO</span>
-                <strong>{selectedDemo.workTitle}</strong>
-              </div>
-              <button type="button" onClick={() => setClientPreview(false)}>
-                ×
-              </button>
-            </header>
-            <div className="demo-progress">
-              <span>
-                {selectionCount} de {selectedDemo.selectionLimit} escolhidas
-              </span>
-              {selectedDemo.phase !== "delivery" && !locked && (
-                <button type="button" onClick={() => setLocked(selectedDemo, true)}>
-                  Confirmar {selectedDemo.phase === "approval" ? "aprovação" : "seleção"}
-                </button>
-              )}
-              {locked && <strong>✓ Confirmado</strong>}
-            </div>
-            <div className="demo-grid">
-              {photos.map((photo, index) => (
-                <article key={photo.id} className={photo.selected ? "selected" : ""}>
-                  <img
-                    src={photo.image}
-                    alt={photo.filename}
-                    style={{ objectPosition: `${30 + (index % 3) * 20}% center` }}
-                  />
-                  {selectedDemo.phase !== "delivery" && <i>REVELAR. · {selectedDemo.clientName}</i>}
-                  {selectedDemo.phase === "selection" && !locked && (
-                    <button
-                      type="button"
-                      onClick={() => setPhoto(photo.id, { selected: !photo.selected })}
-                    >
-                      {photo.selected ? "♥" : "♡"}
-                    </button>
-                  )}
-                  {selectedDemo.phase === "approval" && !locked && (
-                    <button
-                      type="button"
-                      onClick={() => setPhoto(photo.id, { approved: !photo.approved })}
-                    >
-                      {photo.approved ? "✓" : "○"}
-                    </button>
-                  )}
-                  {selectedDemo.phase === "delivery" && (
-                    <a href={photo.image} download={photo.filename}>
-                      ↓
-                    </a>
-                  )}
-                </article>
-              ))}
-            </div>
-          </div>
-        )}
+        {newAlbumOpen && renderAlbumDialog()}
       </section>
     );
   }
 
-  const categories = Array.from(new Set(initialDemoGalleries.map((gallery) => gallery.category)));
-  const items = mode === "demo" ? visibleDemo : visibleReal;
+  const totalPhotos = galleries.reduce(
+    (sum, gallery) => sum + gallery.photos.filter((photo) => !photo.deletedAt).length,
+    0,
+  );
+  const totalBytes = galleries.reduce((sum, gallery) => sum + gallery.stats.totalBytes, 0);
   return (
-    <section className="gallery-library">
-      <header className="gallery-library-header">
+    <section className="gallery-library internal-gallery">
+      <header className="internal-gallery-home-head">
         <div>
-          <span>ARQUIVOS E ENTREGAS</span>
+          <span>ACERVO FOTOGRÁFICO</span>
           <h1>Galeria</h1>
-          <p>{items.length} ensaios organizados</p>
+          <p>Organize ensaios, referências e fotos avulsas em álbuns internos.</p>
         </div>
-        <div className="gallery-mode">
-          <button
-            className={mode === "real" ? "active" : ""}
-            type="button"
-            onClick={() => setMode("real")}
-          >
-            Dados reais <small>{real.length}</small>
-          </button>
-          <button
-            className={mode === "demo" ? "active" : ""}
-            type="button"
-            onClick={() => setMode("demo")}
-          >
-            Demonstração <small>4</small>
-          </button>
-        </div>
+        <button
+          className="primary"
+          type="button"
+          onClick={() => {
+            resetAlbumForm();
+            setNewAlbumOpen(true);
+          }}
+        >
+          ＋ Novo álbum
+        </button>
       </header>
-      <div className="gallery-tools">
-        <label>
+      <div className="internal-gallery-overview">
+        <div>
+          <span>Álbuns</span>
+          <strong>{galleries.length}</strong>
+          <small>todos tratados da mesma forma</small>
+        </div>
+        <div>
+          <span>Fotos no acervo</span>
+          <strong>{totalPhotos}</strong>
+          <small>originais preservados</small>
+        </div>
+        <div>
+          <span>Em edição</span>
+          <strong>
+            {galleries.reduce(
+              (sum, gallery) =>
+                sum +
+                gallery.photos.filter((photo) => photo.editingPhotoId && !photo.deletedAt).length,
+              0,
+            )}
+          </strong>
+          <small>versões separadas</small>
+        </div>
+        <div>
+          <span>Armazenamento</span>
+          <strong>{formatSize(totalBytes)}</strong>
+          <small>uso total da galeria</small>
+        </div>
+      </div>
+      <div className="internal-gallery-toolbar">
+        <label className="gallery-search">
           <span>⌕</span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar cliente ou trabalho"
+            placeholder="Buscar álbum, cliente ou trabalho"
           />
         </label>
-        <select value={category} onChange={(event) => setCategory(event.target.value)}>
-          <option value="all">Todas as categorias</option>
-          {categories.map((item) => (
-            <option key={item}>{item}</option>
+        <div className="gallery-filter-pills">
+          {(
+            [
+              ["all", "Todos"],
+              ["linked", "Com trabalho"],
+              ["independent", "Independentes"],
+              ["recent", "Recentes"],
+            ] as [LibraryFilter, string][]
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              className={filter === value ? "active" : ""}
+              type="button"
+              onClick={() => setFilter(value)}
+            >
+              {label}
+            </button>
           ))}
-        </select>
-        <select
-          value={phase}
-          onChange={(event) => setPhase(event.target.value as "all" | GalleryPhase)}
-        >
-          <option value="all">Todas as etapas</option>
-          <option value="selection">Seleção</option>
-          <option value="approval">Aprovação</option>
-          <option value="delivery">Entrega</option>
-        </select>
-        <div>
-          <button
-            className={view === "cards" ? "active" : ""}
-            type="button"
-            onClick={() => setView("cards")}
-          >
-            ▦
-          </button>
-          <button
-            className={view === "list" ? "active" : ""}
-            type="button"
-            onClick={() => setView("list")}
-          >
-            ☷
-          </button>
         </div>
-        {mode === "demo" && (
-          <button type="button" onClick={resetDemo}>
-            ↻ Restaurar testes
-          </button>
-        )}
       </div>
-      {mode === "real" && loading ? (
+      {loading ? (
         <div className="gallery-library-empty">
           <span>◌</span>
-          <strong>Carregando galerias…</strong>
+          <strong>Carregando seu acervo…</strong>
         </div>
-      ) : mode === "real" && realError ? (
-        <div className="gallery-library-empty">
-          <span>!</span>
-          <strong>{realError}</strong>
-        </div>
-      ) : mode === "real" && !items.length ? (
-        <div className="gallery-library-empty">
-          <span>⌑</span>
-          <strong>Nenhuma galeria real criada ainda</strong>
-          <button type="button" onClick={() => setMode("demo")}>
-            Abrir demonstração
-          </button>
-        </div>
-      ) : (
-        <div className={`gallery-cards view-${view}`}>
-          {items.map((item) => {
-            const demoItem = mode === "demo" ? (item as DemoGallery) : null;
-            const realItem = mode === "real" ? (item as WorkGallery) : null;
-            const work = works.find((entry) => entry.id === item.workId);
-            const locked = demoItem ? demo.locks[demoItem.id] : realItem?.selectionLocked;
-            const bytes =
-              demoItem?.folders.reduce((sum, folder) => sum + folder.bytes, 0) ||
-              realItem?.stats.totalBytes ||
-              0;
-            const count = demoItem?.folders[0].count || realItem?.stats.captured || 0;
+      ) : visibleGalleries.length ? (
+        <div className="internal-album-grid">
+          {visibleGalleries.map((gallery) => {
+            const cover = gallery.photos.find((photo) => !photo.deletedAt && photo.hasPreview);
             return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setSelectedId(item.id);
-                  setActiveFolder("preview");
-                }}
-              >
-                <div className="cover">
-                  {demoItem ? <img src={demoItem.cover} alt="" /> : <span>⌑</span>}
-                  {demoItem && <small>DEMONSTRAÇÃO</small>}
-                  <b className={`phase-${item.phase}`}>{phaseLabel(item.phase)}</b>
-                </div>
-                <div className="body">
-                  <span>{item.clientName}</span>
-                  <h2>{item.workTitle}</h2>
-                  <p>{work?.category || demoItem?.category || "Galeria"}</p>
-                  <div className="progress">
-                    <i
-                      style={{
-                        width:
-                          item.phase === "delivery"
-                            ? "100%"
-                            : item.phase === "approval"
-                              ? "68%"
-                              : locked
-                                ? "42%"
-                                : "24%",
-                      }}
-                    />
+              <article key={gallery.id}>
+                <button
+                  className="album-cover"
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(gallery.id);
+                    setPhotoFilter("all");
+                  }}
+                >
+                  {cover ? (
+                    <img src={imageUrl(gallery.id, cover.id)} alt="" />
+                  ) : (
+                    <span>
+                      ＋<small>Adicionar fotos</small>
+                    </span>
+                  )}
+                  <b>{gallery.workId === undefined ? "INDEPENDENTE" : "TRABALHO"}</b>
+                </button>
+                <div className="album-body">
+                  <div>
+                    <span>{gallery.clientName || "Acervo pessoal"}</span>
+                    <h2>{gallery.name}</h2>
+                    <p>{gallery.description || displayDate(gallery.albumDate)}</p>
                   </div>
-                  <small>{phaseStatus(item.phase, Boolean(locked))}</small>
                   <footer>
-                    <span>{count} fotos</span>
-                    <span>{formatSize(bytes)}</span>
-                    <b>›</b>
+                    <span>{gallery.photos.filter((photo) => !photo.deletedAt).length} fotos</span>
+                    <span>{formatSize(gallery.stats.totalBytes)}</span>
+                    <button
+                      type="button"
+                      onClick={() => openEditAlbum(gallery)}
+                      aria-label={`Editar ${gallery.name}`}
+                    >
+                      •••
+                    </button>
                   </footer>
                 </div>
-              </button>
+              </article>
             );
           })}
         </div>
+      ) : (
+        <div className="gallery-library-empty">
+          <span>▧</span>
+          <strong>
+            {galleries.length ? "Nenhum álbum encontrado" : "Crie seu primeiro álbum interno"}
+          </strong>
+          <p>Ele pode existir sozinho ou apenas apontar para um trabalho.</p>
+          <button type="button" onClick={() => setNewAlbumOpen(true)}>
+            Criar álbum
+          </button>
+        </div>
       )}
+      {newAlbumOpen && renderAlbumDialog()}
     </section>
   );
 }

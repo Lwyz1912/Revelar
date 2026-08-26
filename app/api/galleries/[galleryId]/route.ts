@@ -43,6 +43,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     selectionLocked?: boolean;
     watermarkLabel?: string;
     storageMode?: GalleryStorageMode;
+    name?: string;
+    description?: string;
+    albumDate?: string | null;
   };
   if (input.phase && !["selection", "approval", "delivery"].includes(input.phase)) {
     return Response.json({ error: "Etapa de galeria inválida." }, { status: 400 });

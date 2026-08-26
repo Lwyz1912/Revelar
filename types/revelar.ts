@@ -432,6 +432,11 @@ export type GalleryPhoto = {
   selected: boolean;
   approved: boolean;
   comment: string;
+  internalNote: string;
+  caption: string;
+  tags: string[];
+  rating: number;
+  editingPhotoId?: string;
   comments: GalleryComment[];
   deletedAt?: string;
   hasPreview: boolean;
@@ -464,7 +469,10 @@ export type GalleryEvent = {
 
 export type WorkGallery = {
   id: string;
-  workId: number;
+  workId?: number;
+  name: string;
+  description: string;
+  albumDate?: string;
   workTitle: string;
   clientName: string;
   slug: string;

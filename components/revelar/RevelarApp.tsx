@@ -154,6 +154,13 @@ export function RevelarApp() {
     "Visão geral",
     availableSections,
   );
+  const [editorAlbumId, setEditorAlbumId] = useUrlStringState<string>("editorAlbum", "");
+  const [editorPhotoId, setEditorPhotoId] = useUrlStringState<string>("editorPhoto", "");
+  const [editorMode, setEditorMode] = useUrlStringState<"quick" | "studio">(
+    "editorMode",
+    "studio",
+    ["quick", "studio"] as const,
+  );
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -347,6 +354,13 @@ export function RevelarApp() {
   const openWork = (work: Work) => {
     clearUrlParams("workTab", "clientTab");
     setSelectedWorkId(work.id);
+  };
+  const openEditorFromGallery = (albumId: string, photoId: string, mode: "quick" | "studio") => {
+    setEditorAlbumId(albumId);
+    setEditorPhotoId(photoId);
+    setEditorMode(mode);
+    setActiveNav("Presets e edição");
+    setToast(mode === "quick" ? "Foto aberta na edição rápida" : "Fila aberta no estúdio");
   };
   const updateWork = (updated: Work) =>
     setWorks((current) => current.map((work) => (work.id === updated.id ? updated : work)));
@@ -652,9 +666,19 @@ export function RevelarApp() {
             toast={setToast}
           />
         ) : isGallery ? (
-          <GalleryLibraryView works={works} onOpenWork={openWork} toast={setToast} />
+          <GalleryLibraryView
+            works={works}
+            onOpenWork={openWork}
+            onOpenEditor={openEditorFromGallery}
+            toast={setToast}
+          />
         ) : isEditing ? (
-          <EditingStudioView toast={setToast} />
+          <EditingStudioView
+            toast={setToast}
+            initialAlbumId={editorAlbumId}
+            initialPhotoId={editorPhotoId}
+            initialMode={editorMode}
+          />
         ) : isProducts ? (
           <ProductsView
             products={products}
