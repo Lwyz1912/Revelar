@@ -5,6 +5,7 @@ import {
   galleryPhoto,
   recordGalleryEvent,
   serializeGallery,
+  updateGalleryPhotoMetadata,
 } from "@/lib/server/gallery-repository";
 import { privateObjectResponse } from "@/lib/server/gallery-storage";
 import { professionalDisplayName } from "@/lib/server/professional-settings-repository";
@@ -43,7 +44,28 @@ export async function PATCH(request: Request, context: RouteContext) {
   const photo = await galleryPhoto(photoId);
   if (!photo || photo.gallery_id !== gallery.id || photo.deleted_at)
     return Response.json({ error: "Foto indisponível" }, { status: 404 });
-  const input = (await request.json().catch(() => ({}))) as { message?: string };
+  const input = (await request.json().catch(() => ({}))) as {
+    message?: string;
+    internalNote?: string;
+    caption?: string;
+    tags?: string[];
+    rating?: number;
+  };
+  if (
+    input.internalNote !== undefined ||
+    input.caption !== undefined ||
+    input.tags !== undefined ||
+    input.rating !== undefined
+  ) {
+    await updateGalleryPhotoMetadata(galleryId, photoId, input);
+    await recordGalleryEvent(
+      galleryId,
+      "photo_metadata_updated",
+      "Ficha interna da foto atualizada",
+      photoId,
+    );
+    return Response.json({ gallery: await serializeGallery(gallery) });
+  }
   if (!input.message?.trim())
     return Response.json({ error: "Escreva uma resposta" }, { status: 400 });
   const responderName = await professionalDisplayName(user.email, user.displayName);

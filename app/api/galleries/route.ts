@@ -37,18 +37,24 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Entre para criar uma galeria." }, { status: 401 });
   const input = (await request.json()) as {
     workId?: number;
+    name?: string;
+    description?: string;
+    albumDate?: string;
     workTitle?: string;
     clientName?: string;
     currency?: Currency;
   };
-  if (!Number.isInteger(input.workId) || !input.workTitle?.trim() || !input.clientName?.trim()) {
-    return Response.json({ error: "Preencha trabalho e cliente." }, { status: 400 });
-  }
+  const workId = Number.isInteger(input.workId) ? input.workId : undefined;
+  const fallbackName = `Envio de fotos ${new Intl.DateTimeFormat("pt-BR").format(new Date())}`;
+  const name = input.name?.trim() || input.workTitle?.trim() || fallbackName;
   const gallery = await createGallery({
     ownerEmail: user.email,
-    workId: input.workId!,
-    workTitle: input.workTitle.trim(),
-    clientName: input.clientName.trim(),
+    workId,
+    name,
+    description: input.description || "",
+    albumDate: input.albumDate,
+    workTitle: input.workTitle?.trim() || name,
+    clientName: input.clientName?.trim() || "",
     currency: input.currency === "EUR" ? "EUR" : "BRL",
   });
   return Response.json(

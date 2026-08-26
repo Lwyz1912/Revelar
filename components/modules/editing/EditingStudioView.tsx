@@ -142,7 +142,17 @@ function FilmTextureDefinitions() {
   );
 }
 
-export function EditingStudioView({ toast }: { toast: (message: string) => void }) {
+export function EditingStudioView({
+  toast,
+  initialAlbumId,
+  initialPhotoId,
+  initialMode = "studio",
+}: {
+  toast: (message: string) => void;
+  initialAlbumId?: string;
+  initialPhotoId?: string;
+  initialMode?: "quick" | "studio";
+}) {
   const [albums, setAlbums] = useState<EditingAlbum[]>(demo.albums);
   const [photos, setPhotos] = useState<EditingPhoto[]>(demo.photos);
   const [privatePresets, setPrivatePresets] = useState<EditingPreset[]>([]);
@@ -180,12 +190,24 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
         setAlbums([...library.albums, ...demo.albums]);
         setPhotos([...library.photos, ...demo.photos]);
         setPrivatePresets(library.presets);
+        const requestedPhoto = library.photos.find((photo) => photo.id === initialPhotoId);
+        if (requestedPhoto) {
+          setActiveAlbumId(requestedPhoto.albumId);
+          setActivePhotoId(requestedPhoto.id);
+          setPresetId(requestedPhoto.presetId);
+          setAdjustments(normalizeAdjustments(requestedPhoto.adjustments));
+          setPresetIntensity(100);
+          setShowOriginal(false);
+          if (initialMode === "quick") setAdjustmentGroup("Luz e cor");
+        } else if (initialAlbumId) {
+          setActiveAlbumId(initialAlbumId);
+        }
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialAlbumId, initialMode, initialPhotoId]);
 
   const edited = useMemo(
     () => JSON.stringify(adjustments) !== JSON.stringify(neutralAdjustments),
@@ -238,7 +260,7 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
     setBusy(false);
   };
 
-  const exportPhoto = async (format: "jpeg" | "png", saveOnline = false) => {
+  const exportPhoto = async (format: "jpeg" | "png", saveOnline = false, publishToWork = false) => {
     if (!activePhoto) return;
     setBusy(true);
     try {
@@ -259,7 +281,17 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
         if (!response.ok) throw new Error("Não foi possível salvar a versão editada.");
         const library = (await response.json()) as LibraryResponse;
         setPhotos([...library.photos, ...demo.photos]);
-        toast("Versão editada salva no álbum");
+        if (publishToWork) {
+          const publishResponse = await fetch(`/api/editing/photos/${activePhoto.id}/publish`, {
+            method: "POST",
+          });
+          const publishBody = (await publishResponse.json()) as { error?: string };
+          if (!publishResponse.ok)
+            throw new Error(publishBody.error || "Não foi possível enviar ao trabalho.");
+          toast("Versão salva e adicionada a Fotos editadas do trabalho");
+        } else {
+          toast("Versão editada salva no álbum");
+        }
       } else {
         downloadBlob(blob, filename);
         toast(format === "png" ? "PNG sem perdas exportado" : "JPG em qualidade máxima exportado");
@@ -389,9 +421,14 @@ export function EditingStudioView({ toast }: { toast: (message: string) => void 
                   PNG · sem perdas
                 </button>
                 {!activePhoto.demo && (
-                  <button type="button" onClick={() => exportPhoto("jpeg", true)}>
-                    Salvar versão no álbum
-                  </button>
+                  <>
+                    <button type="button" onClick={() => exportPhoto("jpeg", true)}>
+                      Salvar versão no álbum
+                    </button>
+                    <button type="button" onClick={() => exportPhoto("jpeg", true, true)}>
+                      Salvar e enviar ao trabalho
+                    </button>
+                  </>
                 )}
               </div>
             </details>

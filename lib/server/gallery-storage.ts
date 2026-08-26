@@ -24,12 +24,13 @@ export function objectKey({
   filename,
 }: {
   ownerKey: string;
-  workId: number;
+  workId: number | null;
   galleryId: string;
   folder: string;
   filename: string;
 }) {
-  return `owners/${ownerKey}/works/${workId}-${galleryId}/${folder}/${crypto.randomUUID()}-${safeFilename(filename)}`;
+  const scope = workId === null ? `albums/${galleryId}` : `works/${workId}-${galleryId}`;
+  return `owners/${ownerKey}/${scope}/${folder}/${crypto.randomUUID()}-${safeFilename(filename)}`;
 }
 
 export async function storeObject(key: string, file: File, disposition = "inline") {
