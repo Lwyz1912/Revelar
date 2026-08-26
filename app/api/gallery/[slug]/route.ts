@@ -31,13 +31,6 @@ export async function GET(request: Request, context: RouteContext) {
       .bind(gallery.id)
       .all<Record<string, string | number | null>>()
   ).results;
-  const assets = (
-    await DB.prepare(
-      "SELECT id, kind, filename, size FROM gallery_assets WHERE gallery_id = ? AND kind IN ('high_zip', 'social_zip') ORDER BY created_at DESC",
-    )
-      .bind(gallery.id)
-      .all<Record<string, string | number | null>>()
-  ).results;
   const comments = (
     await DB.prepare(
       `SELECT id, photo_id, author_role, author_name, message, created_at
@@ -86,13 +79,10 @@ export async function GET(request: Request, context: RouteContext) {
           canDownloadHigh: gallery.phase === "delivery" && Boolean(photo.high_key),
           canDownloadSocial: gallery.phase === "delivery" && Boolean(photo.social_key),
         })),
-        assets: assets.map((asset) => ({
-          id: String(asset.id),
-          kind: String(asset.kind),
-          filename: String(asset.filename),
-          size: Number(asset.size || 0),
-          downloadUrl: `/api/gallery/${slug}/asset/${asset.id}`,
-        })),
+        downloadAllUrl:
+          gallery.phase === "delivery" && photos.length > 0
+            ? `/api/gallery/${slug}/download`
+            : undefined,
       },
     },
     {

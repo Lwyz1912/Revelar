@@ -2952,3 +2952,821 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Work overview · operational cockpit */
+.work-overview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.58fr);
+  gap: 16px;
+  margin-top: 18px;
+  align-items: start;
+}
+.work-overview-main {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.overview-status-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.overview-status-strip article {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--surface), var(--surface-2));
+  box-shadow: 0 7px 24px rgb(31 37 55 / 4%);
+}
+.overview-status-strip span,
+.overview-card-heading span,
+.overview-weather-card > span,
+.overview-history .overview-card-heading span {
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+}
+.overview-status-strip strong {
+  display: block;
+  margin-top: 8px;
+  overflow: hidden;
+  font: 500 16px/1.2 var(--font-display);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overview-status-strip small {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overview-location-weather {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(205px, 0.55fr);
+  gap: 14px;
+}
+.overview-location-card,
+.overview-weather-card,
+.overview-photo-pipeline,
+.overview-visual-summary,
+.overview-progress-card,
+.overview-history {
+  padding: 18px;
+  border-radius: 15px;
+}
+.overview-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.overview-card-heading > div:first-child {
+  min-width: 0;
+}
+.overview-card-heading h2 {
+  margin: 5px 0 0;
+  overflow: hidden;
+  font: 500 20px/1.2 var(--font-display);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overview-card-heading p {
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overview-card-heading button,
+.overview-location-actions button,
+.overview-location-actions a,
+.overview-history-toggle {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--primary);
+  background: var(--surface-2);
+  font-size: 9px;
+  font-weight: 750;
+  text-decoration: none;
+}
+.overview-location-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.overview-location-actions a {
+  display: inline-flex;
+  align-items: center;
+}
+.overview-mini-map {
+  height: 228px;
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.overview-mini-map .open-map {
+  height: 100%;
+  min-height: 228px;
+}
+.overview-map-placeholder {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  height: 100%;
+  color: var(--muted);
+  text-align: center;
+}
+.overview-map-placeholder span {
+  font-size: 27px;
+}
+.overview-map-placeholder strong {
+  color: var(--text);
+  font-size: 11px;
+}
+.overview-map-placeholder small {
+  max-width: 220px;
+  font-size: 9px;
+}
+.overview-weather-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 276px;
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+  color: var(--text);
+  background:
+    radial-gradient(
+      circle at 84% 12%,
+      color-mix(in srgb, var(--accent) 18%, transparent),
+      transparent 36%
+    ),
+    linear-gradient(155deg, var(--surface), var(--surface-2));
+}
+.overview-weather-card > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--accent);
+}
+.overview-weather-card > strong {
+  margin-top: 24px;
+  font: 500 25px/1.1 var(--font-display);
+}
+.overview-weather-card > div {
+  display: grid;
+  gap: 2px;
+  margin-top: auto;
+}
+.overview-weather-card b {
+  font: 500 48px/1 var(--font-display);
+}
+.overview-weather-card small,
+.overview-weather-card p {
+  color: var(--muted);
+  font-size: 10px;
+}
+.overview-weather-card p {
+  margin: 16px 0 0;
+  line-height: 1.5;
+}
+.overview-weather-card .weather-demo-badge {
+  padding: 4px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font: 800 7px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+}
+.overview-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.overview-photo-pipeline > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 18px;
+}
+.overview-photo-pipeline > div:last-child > span {
+  padding: 12px 8px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  text-align: center;
+}
+.overview-photo-pipeline > div:last-child strong,
+.overview-photo-pipeline > div:last-child small {
+  display: block;
+}
+.overview-photo-pipeline > div:last-child strong {
+  font: 500 24px var(--font-display);
+}
+.overview-photo-pipeline > div:last-child small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.overview-palette {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin-top: 18px;
+}
+.overview-palette i {
+  height: 35px;
+  border: 1px solid rgb(0 0 0 / 7%);
+  border-radius: 8px;
+}
+.overview-visual-summary > p {
+  margin: 12px 0 5px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.overview-visual-summary > small {
+  color: var(--muted);
+  font-size: 8px;
+}
+.overview-progress-card .progress {
+  margin-top: 17px;
+}
+.overview-history {
+  position: sticky;
+  top: 18px;
+}
+.overview-history .overview-card-heading small {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.overview-history .activity-list {
+  max-height: min(590px, calc(100vh - 320px));
+  overflow: auto;
+}
+.overview-history-toggle {
+  width: 100%;
+  margin-top: 13px;
+}
+
+/* Visual direction · equal rhythm and editable technical plan */
+.moodboard-notes-grid {
+  align-items: stretch;
+}
+.moodboard-notes-grid label {
+  grid-template-rows: auto 1fr;
+}
+.moodboard-notes-grid textarea {
+  width: 100%;
+  min-height: 96px;
+  height: 100%;
+  resize: vertical;
+  line-height: 1.5;
+}
+.moodboard-production-plan {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.moodboard-technical-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.moodboard-technical-group {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.moodboard-technical-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.moodboard-technical-group > header span,
+.moodboard-technical-group > header small {
+  display: block;
+}
+.moodboard-technical-group > header span {
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+}
+.moodboard-technical-group > header small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.moodboard-technical-group > header button,
+.moodboard-save-kit {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--primary);
+  background: var(--surface);
+  font-size: 8px;
+  font-weight: 750;
+}
+.moodboard-technical-group > header .moodboard-add-icon {
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  font-size: 15px;
+}
+.moodboard-technical-group > div {
+  display: grid;
+  gap: 8px;
+}
+.moodboard-technical-group article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.moodboard-technical-group article input,
+.moodboard-technical-group article textarea {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--surface-2);
+  font-size: 9px;
+}
+.moodboard-technical-group article input {
+  font-weight: 750;
+}
+.moodboard-technical-group article textarea {
+  grid-column: 1 / -1;
+  resize: vertical;
+  line-height: 1.45;
+}
+.moodboard-technical-group article button {
+  grid-row: 1;
+  grid-column: 2;
+  border: 0;
+  color: var(--danger);
+  background: transparent;
+  font-size: 8px;
+}
+.moodboard-technical-group article .danger-icon-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border));
+  border-radius: 8px;
+  color: #fff;
+  background: var(--danger);
+}
+.moodboard-technical-group > div > p {
+  margin: 13px 0;
+  color: var(--muted);
+  font-size: 9px;
+  text-align: center;
+}
+.moodboard-save-kit {
+  margin-top: 10px;
+}
+
+/* Work finance · progressive disclosure */
+.finance-tab {
+  padding: 22px;
+}
+.work-finance-nav {
+  display: inline-flex;
+  gap: 4px;
+  margin: 6px 0 16px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-2);
+}
+.work-finance-nav button {
+  min-height: 35px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 800;
+}
+.work-finance-nav button.active {
+  color: #fff;
+  background: var(--primary);
+  box-shadow: 0 6px 16px rgb(28 54 121 / 18%);
+}
+.work-finance-summary article {
+  background: var(--surface);
+}
+.work-finance-summary article.result {
+  color: #fff;
+  border-color: #213e2b;
+  background: linear-gradient(145deg, #294634, #17291e);
+}
+.work-finance-summary article.result span,
+.work-finance-summary article.result small {
+  color: rgb(255 255 255 / 67%);
+}
+.finance-entry-focus {
+  margin-top: 0;
+  box-shadow: 0 12px 40px rgb(31 37 55 / 6%);
+}
+.finance-summary-ledgers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.finance-summary-ledgers > section {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.finance-summary-ledgers header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.finance-summary-ledgers header span {
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+.finance-summary-ledgers header button {
+  border: 0;
+  color: var(--primary);
+  background: transparent;
+  font-size: 8px;
+  font-weight: 750;
+}
+.finance-summary-ledgers section > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.finance-summary-ledgers section > div span,
+.finance-summary-ledgers section > div strong,
+.finance-summary-ledgers section > div small {
+  display: block;
+}
+.finance-summary-ledgers section > div strong {
+  font-size: 9px;
+}
+.finance-summary-ledgers section > div small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.finance-summary-ledgers section > div b {
+  flex: 0 0 auto;
+  font-size: 9px;
+}
+.finance-summary-ledgers section > p {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+/* Documents hub */
+.work-documents-hub {
+  padding: 22px;
+}
+.work-document-contract-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  margin: 16px 0 20px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 13px;
+  background: linear-gradient(145deg, var(--surface-2), var(--surface));
+}
+.work-document-type {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  font-size: 20px;
+}
+.work-document-contract-copy {
+  min-width: 0;
+}
+.work-document-contract-copy > span {
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+}
+.work-document-contract-copy input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  font: 500 18px var(--font-display);
+}
+.work-document-contract-copy small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.work-document-contract-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.work-document-contract-actions button,
+.work-document-contract-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--primary);
+  background: var(--surface);
+  font-size: 8px;
+  font-weight: 750;
+  text-decoration: none;
+}
+.work-document-contract-actions .primary-button {
+  color: #fff;
+  border-color: var(--primary);
+  background: var(--primary);
+}
+.work-document-contract-actions .danger-action {
+  color: var(--danger);
+}
+.work-document-contract-files {
+  display: grid;
+  grid-column: 2 / -1;
+  gap: 7px;
+}
+.work-contract-files {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.work-contract-files-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.work-contract-files-heading strong,
+.work-contract-files-heading small {
+  display: block;
+}
+.work-contract-files-heading strong {
+  font-size: 11px;
+}
+.work-contract-files-heading small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.work-contract-file-list {
+  display: grid;
+  gap: 7px;
+}
+.work-contract-file-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.work-contract-file-icon {
+  display: grid;
+  width: 42px;
+  height: 34px;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--primary);
+  background: var(--surface-2);
+  font-size: 7px;
+  font-weight: 850;
+}
+.work-contract-file-item > div {
+  min-width: 0;
+}
+.work-contract-file-item strong,
+.work-contract-file-item small {
+  display: block;
+}
+.work-contract-file-item strong {
+  font-size: 9px;
+}
+.work-contract-file-item small {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.work-contract-file-item > button:not(.icon-button),
+.work-contract-file-item > a,
+.work-contract-upload-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--primary);
+  background: var(--surface);
+  font-size: 8px;
+  font-weight: 750;
+  text-decoration: none;
+}
+.work-contract-file-item .danger-icon-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+}
+.work-contract-file-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px;
+  border: 1px dashed var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+}
+.work-contract-file-empty > span {
+  font-size: 22px;
+}
+.work-contract-file-empty strong,
+.work-contract-file-empty small {
+  display: block;
+}
+.work-contract-file-empty strong {
+  color: var(--text);
+  font-size: 9px;
+}
+.work-contract-file-empty small {
+  margin-top: 3px;
+  font-size: 8px;
+}
+.work-contract-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.work-document-list-heading {
+  margin-bottom: 9px;
+}
+.work-document-list-heading > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.work-document-list-heading span {
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+.work-document-list-heading small {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+@media (max-width: 1120px) {
+  .work-overview-layout {
+    grid-template-columns: 1fr;
+  }
+  .overview-history {
+    position: static;
+  }
+  .overview-history .activity-list {
+    max-height: none;
+  }
+  .overview-status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .work-document-contract-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .work-document-contract-card .work-contract-status,
+  .work-document-contract-actions {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 720px) {
+  .overview-location-weather,
+  .overview-insight-grid,
+  .moodboard-technical-columns,
+  .finance-summary-ledgers {
+    grid-template-columns: 1fr;
+  }
+  .overview-status-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+  .overview-photo-pipeline > div:last-child {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .overview-card-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .overview-location-actions {
+    justify-content: flex-start;
+  }
+  .overview-weather-card {
+    min-height: 220px;
+  }
+  .work-finance-nav {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    width: 100%;
+  }
+  .work-finance-nav button {
+    padding: 0 8px;
+  }
+  .work-document-contract-card {
+    grid-template-columns: 1fr;
+  }
+  .work-document-type {
+    display: none;
+  }
+  .work-document-contract-card .work-contract-status,
+  .work-document-contract-actions {
+    grid-column: auto;
+    justify-content: flex-start;
+  }
+  .work-document-contract-files {
+    grid-column: auto;
+  }
+  .work-contract-files-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .work-contract-file-item {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .work-contract-file-item > button:not(.icon-button),
+  .work-contract-file-item > a {
+    grid-row: 2;
+  }
+  .work-contract-file-item > button:not(.icon-button) {
+    grid-column: 1 / 2;
+  }
+  .work-contract-file-item > a {
+    grid-column: 2 / 3;
+    justify-self: start;
+  }
+  .work-contract-file-item .danger-icon-button {
+    grid-row: 2;
+    grid-column: 3;
+  }
+}

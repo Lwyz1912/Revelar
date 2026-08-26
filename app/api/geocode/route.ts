@@ -23,6 +23,25 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Entre para pesquisar locais." }, { status: 401 });
   const query = new URL(request.url).searchParams.get("q")?.trim() || "";
   if (query.length < 3) return Response.json({ results: [] });
+  const normalized = query
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR");
+  if (normalized.includes("villa jardim") && normalized.includes("caruaru")) {
+    return Response.json({
+      results: [
+        {
+          id: "demo-villa-jardim-caruaru",
+          label: "Villa Jardim, Caruaru, Pernambuco · localização demonstrativa",
+          latitude: -8.2841,
+          longitude: -35.9695,
+          city: "Caruaru",
+          country: "Brasil",
+          demo: true,
+        },
+      ],
+    });
+  }
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("q", query.slice(0, 180));
   url.searchParams.set("format", "jsonv2");
@@ -34,8 +53,8 @@ export async function GET(request: Request) {
       accept: "application/json",
       "user-agent": "Revelar-app/1.0 (location picker)",
     },
-  });
-  if (!response.ok)
+  }).catch(() => null);
+  if (!response?.ok)
     return Response.json({ error: "Busca de locais indisponível." }, { status: 502 });
   const data = (await response.json()) as NominatimResult[];
   const results = data.map((item) => {

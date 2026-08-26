@@ -3,6 +3,7 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -28,14 +29,17 @@ import type {
   ChecklistTemplate,
   MoodboardReference,
   Work,
+  WorkContract,
   WorkContractStatus,
   WorkCost,
   WorkIncome,
   WorkGallery,
+  WorkMoodboard,
   WorkStage,
   WorkStatus,
 } from "@/types/revelar";
 import { WorkFilesHub } from "@/components/modules/works/WorkFilesHub";
+import { OpenMap } from "@/components/modules/locations/OpenMap";
 import { useUrlStringState } from "@/hooks/use-url-state";
 
 type WorkDetailTab =
@@ -46,6 +50,18 @@ type WorkDetailTab =
   | "contract"
   | "gallery"
   | "files";
+
+type WorkFinanceView = "summary" | "income" | "costs";
+type WorkCoordinates = { latitude: number; longitude: number };
+type WorkWeather = {
+  available: boolean;
+  demo?: boolean;
+  reason?: string;
+  label?: string;
+  max?: number;
+  min?: number;
+  rain?: number;
+};
 
 type LocalAttachment = { url: string; type: string; size: number };
 
@@ -63,6 +79,53 @@ function attachmentKind(name: string, type = "") {
     return "image";
   if (type === "application/pdf" || extension === "pdf") return "pdf";
   return "other";
+}
+
+function moodboardForWork(work: Work): WorkMoodboard {
+  if (work.moodboard) {
+    return {
+      ...work.moodboard,
+      palette: [...work.moodboard.palette],
+      shotList: work.moodboard.shotList.map((item) => ({ ...item })),
+      references: work.moodboard.references.map((item) => ({ ...item })),
+    };
+  }
+  return {
+    style: work.category === "Casamento" ? "Romântico documental" : "Natural e espontâneo",
+    palette: ["#EEE4D4", "#B8906D", "#6F7860", "#302D29"],
+    notes: "Priorizar movimento, luz natural e momentos espontâneos.",
+    shotList: [
+      { id: "shot-1", label: "Retratos principais", done: false },
+      { id: "shot-2", label: "Detalhes do ambiente", done: false },
+      { id: "shot-3", label: "Momentos espontâneos", done: false },
+    ],
+    references: [
+      {
+        id: "ref-1",
+        kind: "image",
+        title: "Luz e movimento",
+        value: "/demo/gallery/casamento.webp",
+      },
+      {
+        id: "ref-2",
+        kind: "image",
+        title: "Composição",
+        value: "/demo/gallery/ensaio-pessoal.webp",
+      },
+      {
+        id: "ref-3",
+        kind: "lighting",
+        title: "Iluminação",
+        value: "Luz lateral suave na hora dourada",
+      },
+      {
+        id: "ref-4",
+        kind: "equipment",
+        title: "Equipamento",
+        value: "35 mm + 85 mm · flash de apoio",
+      },
+    ],
+  };
 }
 
 const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> = [
@@ -142,6 +205,13 @@ export function WorkDetails({
   const [savePoseToLibrary, setSavePoseToLibrary] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [newChecklistItem, setNewChecklistItem] = useState("");
+  const [financeView, setFinanceView] = useState<WorkFinanceView>("summary");
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [overviewCoordinates, setOverviewCoordinates] = useState<WorkCoordinates | null>(null);
+  const [overviewPlaceLabel, setOverviewPlaceLabel] = useState(work.location);
+  const [overviewWeather, setOverviewWeather] = useState<WorkWeather | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [moodboardDraft, setMoodboardDraft] = useState<WorkMoodboard>(() => moodboardForWork(work));
   const localFiles: Record<string, LocalAttachment> = {};
   const [activities, setActivities] = useState<
     Array<{ id: string | number; icon: string; title: string; meta: string }>
@@ -163,7 +233,8 @@ export function WorkDetails({
   ]);
   const stageFileRef = useRef<HTMLInputElement>(null);
   const workFileRef = useRef<HTMLInputElement>(null);
-  const contractFileRef = useRef<HTMLInputElement>(null);
+  const contractSourceFileRef = useRef<HTMLInputElement>(null);
+  const contractSignedFileRef = useRef<HTMLInputElement>(null);
   const linkedClients = clients.filter((client) => work.clientIds.includes(client.id));
   const costItems: WorkCost[] = work.costItems?.length
     ? work.costItems
@@ -212,43 +283,8 @@ export function WorkDetails({
   const currentPreviewKind = previewFile
     ? attachmentKind(previewFile, currentPreview?.type)
     : "other";
-  const moodboard = work.moodboard ?? {
-    style: work.category === "Casamento" ? "Romântico documental" : "Natural e espontâneo",
-    palette: ["#EEE4D4", "#B8906D", "#6F7860", "#302D29"],
-    notes: "Priorizar movimento, luz natural e momentos espontâneos.",
-    shotList: [
-      { id: "shot-1", label: "Retratos principais", done: false },
-      { id: "shot-2", label: "Detalhes do ambiente", done: false },
-      { id: "shot-3", label: "Momentos espontâneos", done: false },
-    ],
-    references: [
-      {
-        id: "ref-1",
-        kind: "image" as const,
-        title: "Luz e movimento",
-        value: "/demo/gallery/casamento.webp",
-      },
-      {
-        id: "ref-2",
-        kind: "image" as const,
-        title: "Composição",
-        value: "/demo/gallery/ensaio-pessoal.webp",
-      },
-      {
-        id: "ref-3",
-        kind: "lighting" as const,
-        title: "Iluminação",
-        value: "Luz lateral suave na hora dourada",
-      },
-      {
-        id: "ref-4",
-        kind: "equipment" as const,
-        title: "Equipamento",
-        value: "35 mm + 85 mm · flash de apoio",
-      },
-    ],
-  };
-  const contract = work.contract ?? {
+  const moodboard = moodboardDraft;
+  const contract: WorkContract = work.contract ?? {
     status: (work.stages.find((stage) => stage.label === "Contrato")?.done
       ? "signed"
       : "pending") as WorkContractStatus,
@@ -256,7 +292,91 @@ export function WorkDetails({
     content: "",
     updatedAt: new Date().toISOString(),
   };
-  const updateMoodboard = (next: typeof moodboard) => onUpdate({ ...work, moodboard: next });
+  const legacyContractFile = contract.file;
+  const legacyIsSource = Boolean(legacyContractFile && /\.docx?$/i.test(legacyContractFile.name));
+  const sourceContractFile =
+    contract.sourceFile ?? (legacyIsSource ? legacyContractFile : undefined);
+  const signedContractFile =
+    contract.signedFile ?? (!legacyIsSource ? legacyContractFile : undefined);
+  const preferredContractFile = signedContractFile ?? sourceContractFile;
+  const updateMoodboard = (next: WorkMoodboard) => {
+    setMoodboardDraft(next);
+    onUpdate({ ...work, moodboard: next });
+  };
+
+  useEffect(() => {
+    if (tab !== "overview" || !work.location || work.location === "A definir") return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setOverviewLoading(true);
+      void fetch(`/api/geocode?q=${encodeURIComponent(work.location)}`, { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("Local indisponível");
+          return (await response.json()) as {
+            results?: Array<WorkCoordinates & { label: string }>;
+          };
+        })
+        .then(async (data) => {
+          const location = data.results?.[0];
+          if (!location || cancelled) return;
+          setOverviewCoordinates({
+            latitude: location.latitude,
+            longitude: location.longitude,
+          });
+          setOverviewPlaceLabel(location.label);
+          try {
+            const weatherResponse = await fetch(
+              `/api/weather?latitude=${location.latitude}&longitude=${location.longitude}&date=${encodeURIComponent(work.date)}`,
+              { cache: "no-store" },
+            );
+            if (weatherResponse.ok && !cancelled) {
+              const weather = (await weatherResponse.json()) as WorkWeather;
+              const demoLocation = work.location
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLocaleLowerCase("pt-BR")
+                .includes("villa jardim, caruaru");
+              setOverviewWeather(
+                !weather.available && demoLocation
+                  ? {
+                      available: true,
+                      demo: true,
+                      label: "Ensolarado",
+                      max: 29,
+                      min: 21,
+                      rain: 20,
+                      reason: "Exemplo visual; a previsão real aparece perto da data.",
+                    }
+                  : weather,
+              );
+            }
+          } catch {
+            if (!cancelled) {
+              setOverviewWeather({
+                available: false,
+                reason: "A previsão está temporariamente indisponível; o mapa continua ativo.",
+              });
+            }
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setOverviewCoordinates(null);
+            setOverviewWeather({
+              available: false,
+              reason: "Não foi possível localizar o endereço.",
+            });
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setOverviewLoading(false);
+        });
+    }, 260);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [tab, work.date, work.location]);
 
   const openPoseEditor = (reference?: (typeof moodboard.references)[number]) => {
     setEditingPoseId(reference?.id || null);
@@ -314,26 +434,47 @@ export function WorkDetails({
     }
   };
 
-  const updateContract = (changes: Partial<typeof contract>) => {
+  const updateContract = (changes: Partial<WorkContract>) => {
     onUpdate({
       ...work,
       contract: { ...contract, ...changes, updatedAt: new Date().toISOString() },
     });
   };
 
-  const uploadContractFile = async (file?: File) => {
+  const uploadContractFile = async (file: File | undefined, role: "sourceFile" | "signedFile") => {
     if (!file) return;
     try {
       const uploaded = await uploadAppFile(file, "contract", String(work.id));
-      if (contract.file) await deleteAppFile(contract.file).catch(() => undefined);
+      const previous = role === "sourceFile" ? sourceContractFile : signedContractFile;
+      if (previous) await deleteAppFile(previous).catch(() => undefined);
       updateContract({
-        file: uploaded,
+        sourceFile: sourceContractFile,
+        signedFile: signedContractFile,
+        [role]: uploaded,
+        file: undefined,
         status: contract.status === "not_required" ? "pending" : contract.status,
       });
-      toast("Contrato enviado e vinculado ao trabalho");
+      toast(
+        role === "sourceFile"
+          ? "Arquivo de trabalho vinculado ao contrato"
+          : "Contrato assinado vinculado ao trabalho",
+      );
     } catch (error) {
       toast(error instanceof Error ? error.message : "Não foi possível enviar o contrato");
     }
+  };
+
+  const removeContractFile = async (role: "sourceFile" | "signedFile") => {
+    const file = role === "sourceFile" ? sourceContractFile : signedContractFile;
+    if (!file) return;
+    await deleteAppFile(file).catch(() => undefined);
+    updateContract({
+      sourceFile: sourceContractFile,
+      signedFile: signedContractFile,
+      [role]: undefined,
+      file: undefined,
+    });
+    toast("Arquivo do contrato removido");
   };
 
   const removePose = async (id: string) => {
@@ -657,12 +798,63 @@ export function WorkDetails({
     if (isAppFileRef(file)) setPreviewStoredFile(file);
     else setPreviewFile(file);
   };
+  const contractFileItem = (role: "sourceFile" | "signedFile", label: string, file?: AppFileRef) =>
+    file ? (
+      <article className="work-contract-file-item" key={role}>
+        <span className="work-contract-file-icon" aria-hidden="true">
+          {role === "sourceFile" ? "DOCX" : "PDF"}
+        </span>
+        <div>
+          <strong>{label}</strong>
+          <small>
+            {file.name} · {formatFileSize(file.size)}
+          </small>
+        </div>
+        <button type="button" onClick={() => setPreviewStoredFile(file)}>
+          Visualizar
+        </button>
+        <a href={fileDownloadUrl(file)} download={file.name}>
+          Baixar
+        </a>
+        <button
+          className="icon-button danger-icon-button"
+          type="button"
+          title={`Remover ${label.toLowerCase()}`}
+          aria-label={`Remover ${label.toLowerCase()}`}
+          onClick={() => void removeContractFile(role)}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+          </svg>
+        </button>
+      </article>
+    ) : null;
   const whatsapp = linkedClients[0]?.whatsapp
     ? `https://wa.me/${normalizePhone(linkedClients[0].whatsapp)}`
     : "#";
 
   return (
     <div className="work-details-page">
+      <input
+        ref={contractSourceFileRef}
+        hidden
+        type="file"
+        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        onChange={(event) => {
+          void uploadContractFile(event.target.files?.[0], "sourceFile");
+          event.target.value = "";
+        }}
+      />
+      <input
+        ref={contractSignedFileRef}
+        hidden
+        type="file"
+        accept="application/pdf,.pdf"
+        onChange={(event) => {
+          void uploadContractFile(event.target.files?.[0], "signedFile");
+          event.target.value = "";
+        }}
+      />
       <button className="detail-back" type="button" onClick={onBack}>
         ← Voltar para trabalhos
       </button>
@@ -783,17 +975,15 @@ export function WorkDetails({
       </nav>
 
       {tab === "overview" && (
-        <div className="detail-content-grid">
-          <section className="detail-main-column">
-            <div className="detail-summary-grid">
+        <div className="work-overview-layout">
+          <section className="work-overview-main">
+            <div className="overview-status-strip">
               <article>
                 <span>SESSÃO</span>
                 <strong>
                   {formatDate(work.date)} · {work.time}
                 </strong>
-                <small>
-                  {work.duration} · {work.location}
-                </small>
+                <small>{work.duration}</small>
               </article>
               <article>
                 <span>ENTREGA</span>
@@ -805,43 +995,152 @@ export function WorkDetails({
                 <small>
                   {work.deliveryDate && work.deliveryDate < today
                     ? "Prazo atrasado"
-                    : work.deliveryDate === today
-                      ? "Entrega hoje"
-                      : "Prazo confirmado"}
+                    : "Prazo confirmado"}
                 </small>
               </article>
               <article>
-                <span>FINANCEIRO</span>
+                <span>SALDO A RECEBER</span>
                 <strong>
-                  {formatMoney(work.entryValue, work.currency)} de{" "}
-                  {formatMoney(work.totalValue, work.currency)}
+                  {formatMoney(Math.max(0, work.totalValue - work.entryValue), work.currency)}
                 </strong>
-                <small>{receivedPercent}% recebido</small>
+                <small>{receivedPercent}% do contrato recebido</small>
               </article>
               <article>
-                <span>FOTOS</span>
-                <strong>
-                  {work.photos.edited} de {work.photos.selected} editadas
-                </strong>
-                <small>{work.photos.captured} capturadas</small>
+                <span>ANDAMENTO</span>
+                <strong>{progress}%</strong>
+                <small>{nextStage?.label || "Trabalho concluído"}</small>
               </article>
             </div>
-            <article className="card detail-progress-card">
-              <div className="detail-section-heading">
-                <div>
-                  <p>ANDAMENTO</p>
-                  <h2>Fluxo do trabalho</h2>
+
+            <section className="overview-location-weather">
+              <article className="card overview-location-card">
+                <div className="overview-card-heading">
+                  <div>
+                    <span>LOCAL DO ENSAIO</span>
+                    <h2>{work.location || "A definir"}</h2>
+                    <p title={overviewPlaceLabel}>{overviewPlaceLabel}</p>
+                  </div>
+                  <div className="overview-location-actions">
+                    <button
+                      type="button"
+                      disabled={!work.location || work.location === "A definir"}
+                      onClick={async () => {
+                        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(work.location)}`;
+                        if (navigator.share) {
+                          await navigator
+                            .share({ title: work.title, text: work.location, url: mapsUrl })
+                            .catch(() => undefined);
+                        } else {
+                          await navigator.clipboard.writeText(mapsUrl);
+                          toast("Localização copiada");
+                        }
+                      }}
+                    >
+                      ⧉ Compartilhar
+                    </button>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(work.location)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      ↗ Abrir no GPS
+                    </a>
+                  </div>
                 </div>
-                <strong>{progress}%</strong>
-              </div>
-              <div className="progress large">
-                <i style={{ width: `${progress}%` }} />
-              </div>
-              <div className="next-stage-callout">
-                <span>→</span>
+                <div className="overview-mini-map">
+                  {overviewCoordinates ? (
+                    <OpenMap locations={[]} editablePosition={overviewCoordinates} compact />
+                  ) : (
+                    <div className="overview-map-placeholder">
+                      <span>⌖</span>
+                      <strong>{overviewLoading ? "Localizando…" : "Mapa indisponível"}</strong>
+                      <small>Defina um endereço completo para visualizar o mapa.</small>
+                    </div>
+                  )}
+                </div>
+              </article>
+              <article className="card overview-weather-card">
+                <span>
+                  CONDIÇÕES NO DIA
+                  {overviewWeather?.demo && <b className="weather-demo-badge">DEMONSTRAÇÃO</b>}
+                </span>
+                {overviewWeather?.available ? (
+                  <>
+                    <strong>{overviewWeather.label}</strong>
+                    <div>
+                      <b>{Math.round(overviewWeather.max || 0)}°</b>
+                      <small>Mín. {Math.round(overviewWeather.min || 0)}°</small>
+                    </div>
+                    <p>{Math.round(overviewWeather.rain || 0)}% de chance de chuva</p>
+                    {overviewWeather.demo && <small>{overviewWeather.reason}</small>}
+                  </>
+                ) : (
+                  <>
+                    <strong>
+                      {overviewLoading ? "Consultando previsão…" : "Previsão ainda indisponível"}
+                    </strong>
+                    <p>
+                      {overviewWeather?.reason ||
+                        "Ela aparecerá automaticamente quando a data estiver próxima."}
+                    </p>
+                  </>
+                )}
+              </article>
+            </section>
+
+            <section className="overview-insight-grid">
+              <article className="card overview-photo-pipeline">
+                <div className="overview-card-heading">
+                  <div>
+                    <span>GALERIA</span>
+                    <h2>Fluxo das fotos</h2>
+                  </div>
+                  <button type="button" onClick={() => setTab("gallery")}>
+                    Abrir galeria
+                  </button>
+                </div>
                 <div>
-                  <small>PRÓXIMA ETAPA</small>
-                  <strong>{nextStage?.label || "Trabalho concluído"}</strong>
+                  {[
+                    ["Enviadas", work.photos.captured],
+                    ["Escolhidas", work.photos.selected],
+                    ["Editadas", work.photos.edited],
+                    ["Entregues", work.photos.delivered],
+                  ].map(([label, value]) => (
+                    <span key={label}>
+                      <strong>{value}</strong>
+                      <small>{label}</small>
+                    </span>
+                  ))}
+                </div>
+              </article>
+              <article className="card overview-visual-summary">
+                <div className="overview-card-heading">
+                  <div>
+                    <span>DIREÇÃO VISUAL</span>
+                    <h2>{moodboard.style}</h2>
+                  </div>
+                  <button type="button" onClick={() => setTab("moodboard")}>
+                    Editar direção
+                  </button>
+                </div>
+                <div className="overview-palette">
+                  {moodboard.palette.map((color, index) => (
+                    <i key={`${color}-${index}`} style={{ background: color }} />
+                  ))}
+                </div>
+                <p>{moodboard.notes}</p>
+                <small>
+                  {moodboard.references.length} referências · {moodboard.shotList.length} fotos
+                  obrigatórias
+                </small>
+              </article>
+            </section>
+
+            <article className="card overview-progress-card">
+              <div className="overview-card-heading">
+                <div>
+                  <span>PRÓXIMA AÇÃO</span>
+                  <h2>{nextStage?.label || "Tudo concluído"}</h2>
                   <p>
                     {nextStage
                       ? `Responsável: ${nextStage.responsible || "A definir"}`
@@ -858,43 +1157,22 @@ export function WorkDetails({
                   Abrir timeline
                 </button>
               </div>
-            </article>
-            <article className="card">
-              <div className="detail-section-heading">
-                <div>
-                  <p>PRODUÇÃO</p>
-                  <h2>Informações do trabalho</h2>
-                </div>
-              </div>
-              <div className="info-list">
-                <div>
-                  <span>Pacote contratado</span>
-                  <strong>{work.packageName}</strong>
-                </div>
-                <div>
-                  <span>Equipe</span>
-                  <strong>{work.team.join(" · ")}</strong>
-                </div>
-                <div>
-                  <span>Clientes</span>
-                  <strong>{namesForClients(work.clientIds, clients)}</strong>
-                </div>
-                <div>
-                  <span>Arquivos anexados</span>
-                  <strong>{work.attachments.length}</strong>
-                </div>
+              <div className="progress large">
+                <i style={{ width: `${progress}%` }} />
               </div>
             </article>
           </section>
-          <aside className="detail-activity card">
-            <div className="detail-section-heading">
+
+          <aside className="overview-history card">
+            <div className="overview-card-heading">
               <div>
-                <p>HISTÓRICO</p>
+                <span>HISTÓRICO</span>
                 <h2>Atividades recentes</h2>
               </div>
+              <small>{activities.length}</small>
             </div>
             <div className="activity-list">
-              {activities.map((item) => (
+              {activities.slice(0, historyExpanded ? activities.length : 5).map((item) => (
                 <div key={item.id}>
                   <span>{item.icon}</span>
                   <div>
@@ -904,6 +1182,15 @@ export function WorkDetails({
                 </div>
               ))}
             </div>
+            {activities.length > 5 && (
+              <button
+                className="overview-history-toggle"
+                type="button"
+                onClick={() => setHistoryExpanded((current) => !current)}
+              >
+                {historyExpanded ? "Mostrar menos" : "Ver histórico completo"}
+              </button>
+            )}
           </aside>
         </div>
       )}
@@ -923,13 +1210,13 @@ export function WorkDetails({
                 type="button"
                 onClick={() =>
                   window.open(
-                    `https://unsplash.com/s/photos/${encodeURIComponent(`${work.category} photography inspiration poses`)}`,
+                    `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(`${work.category} fotografia inspiração poses iluminação`)}`,
                     "_blank",
                     "noopener,noreferrer",
                   )
                 }
               >
-                ⌕ Pesquisar
+                ⌕ Pesquisar no Pinterest
               </button>
               <button type="button" onClick={() => setLibraryOpen((current) => !current)}>
                 ▦ Biblioteca ({referenceLibrary.length})
@@ -1000,7 +1287,8 @@ export function WorkDetails({
             <div className="moodboard-notes-grid">
               <label>
                 <span>ESTILO DESEJADO</span>
-                <input
+                <textarea
+                  rows={4}
                   value={moodboard.style}
                   onChange={(event) => updateMoodboard({ ...moodboard, style: event.target.value })}
                 />
@@ -1014,17 +1302,118 @@ export function WorkDetails({
                 />
               </label>
             </div>
-            <div className="moodboard-reference-notes">
-              {moodboard.references
-                .filter((reference) => reference.kind !== "image" && reference.kind !== "pose")
-                .map((reference) => (
-                  <article key={reference.id}>
-                    <span>{reference.kind.toUpperCase()}</span>
-                    <strong>{reference.title}</strong>
-                    <p>{reference.value}</p>
-                  </article>
+            <section className="moodboard-production-plan">
+              <div className="moodboard-section-title">
+                <div>
+                  <span>PLANO TÉCNICO</span>
+                  <p>Equipamentos e luzes são internos e podem ser ajustados a qualquer momento.</p>
+                </div>
+              </div>
+              <div className="moodboard-technical-columns">
+                {(["lighting", "equipment"] as const).map((kind) => (
+                  <div key={kind} className="moodboard-technical-group">
+                    <header>
+                      <div>
+                        <span>{kind === "lighting" ? "ILUMINAÇÃO" : "EQUIPAMENTOS"}</span>
+                        <small>
+                          {moodboard.references.filter((item) => item.kind === kind).length}{" "}
+                          item(ns)
+                        </small>
+                      </div>
+                      <button
+                        className="icon-button moodboard-add-icon"
+                        type="button"
+                        title={
+                          kind === "lighting" ? "Adicionar iluminação" : "Adicionar equipamento"
+                        }
+                        aria-label={
+                          kind === "lighting" ? "Adicionar iluminação" : "Adicionar equipamento"
+                        }
+                        onClick={() =>
+                          updateMoodboard({
+                            ...moodboard,
+                            references: [
+                              ...moodboard.references,
+                              {
+                                id: crypto.randomUUID(),
+                                kind,
+                                title: kind === "lighting" ? "Nova luz" : "Novo equipamento",
+                                value: "",
+                              },
+                            ],
+                          })
+                        }
+                      >
+                        ＋
+                      </button>
+                    </header>
+                    <div>
+                      {moodboard.references
+                        .filter((item) => item.kind === kind)
+                        .map((reference) => (
+                          <article key={reference.id}>
+                            <input
+                              aria-label="Nome do item"
+                              value={reference.title}
+                              onChange={(event) =>
+                                updateMoodboard({
+                                  ...moodboard,
+                                  references: moodboard.references.map((item) =>
+                                    item.id === reference.id
+                                      ? { ...item, title: event.target.value }
+                                      : item,
+                                  ),
+                                })
+                              }
+                            />
+                            <textarea
+                              aria-label="Detalhes do item"
+                              rows={2}
+                              value={reference.value}
+                              placeholder={
+                                kind === "lighting"
+                                  ? "Direção, potência, horário…"
+                                  : "Câmera, lente, acessórios…"
+                              }
+                              onChange={(event) =>
+                                updateMoodboard({
+                                  ...moodboard,
+                                  references: moodboard.references.map((item) =>
+                                    item.id === reference.id
+                                      ? { ...item, value: event.target.value }
+                                      : item,
+                                  ),
+                                })
+                              }
+                            />
+                            <button
+                              className="icon-button danger-icon-button"
+                              type="button"
+                              title={`Remover ${reference.title}`}
+                              aria-label={`Remover ${reference.title}`}
+                              onClick={() =>
+                                updateMoodboard({
+                                  ...moodboard,
+                                  references: moodboard.references.filter(
+                                    (item) => item.id !== reference.id,
+                                  ),
+                                })
+                              }
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+                              </svg>
+                            </button>
+                          </article>
+                        ))}
+                      {!moodboard.references.some((item) => item.kind === kind) && (
+                        <p>Nenhum item definido.</p>
+                      )}
+                    </div>
+                  </div>
                 ))}
-            </div>
+              </div>
+            </section>
             <section className="pose-ideas-section">
               <div className="pose-ideas-heading">
                 <div>
@@ -1507,6 +1896,24 @@ export function WorkDetails({
             </div>
             <span>Sincronizado com o Financeiro geral</span>
           </div>
+          <nav className="work-finance-nav" aria-label="Seções do financeiro">
+            {(
+              [
+                ["summary", "Resumo"],
+                ["income", "Recebimentos"],
+                ["costs", "Custos"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={financeView === id ? "active" : ""}
+                onClick={() => setFinanceView(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
           <div className="work-finance-summary">
             <article>
               <span>CONTRATADO</span>
@@ -1532,291 +1939,358 @@ export function WorkDetails({
             </article>
           </div>
 
-          <div className="work-finance-section">
-            <div className="work-finance-section-heading">
-              <div>
-                <span>RECEBIMENTOS E GANHOS</span>
-                <h3>Entradas deste trabalho</h3>
+          {financeView === "income" && (
+            <div className="work-finance-section finance-entry-focus">
+              <div className="work-finance-section-heading">
+                <div>
+                  <span>RECEBIMENTOS E GANHOS</span>
+                  <h3>Entradas deste trabalho</h3>
+                </div>
+                <small>{incomeItems.length} lançamento(s)</small>
               </div>
-              <small>{incomeItems.length} lançamento(s)</small>
+              <div className="income-entry-grid">
+                <label className="field">
+                  <span>Descrição</span>
+                  <input
+                    value={incomeDraft.name}
+                    onChange={(event) =>
+                      setIncomeDraft({ ...incomeDraft, name: event.target.value })
+                    }
+                    placeholder="Ex.: gorjeta da cliente"
+                  />
+                </label>
+                <label className="field">
+                  <span>Tipo</span>
+                  <select
+                    value={incomeDraft.category}
+                    onChange={(event) =>
+                      setIncomeDraft({
+                        ...incomeDraft,
+                        category: event.target.value as WorkIncome["category"],
+                        name:
+                          event.target.value === "Gorjeta" &&
+                          incomeDraft.name === "Pagamento do cliente"
+                            ? "Gorjeta da cliente"
+                            : incomeDraft.name,
+                      })
+                    }
+                  >
+                    {(["Pagamento", "Gorjeta", "Adicional", "Reembolso", "Outro"] as const).map(
+                      (category) => (
+                        <option key={category}>{category}</option>
+                      ),
+                    )}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Tags</span>
+                  <input
+                    value={incomeDraft.tags}
+                    onChange={(event) =>
+                      setIncomeDraft({ ...incomeDraft, tags: event.target.value })
+                    }
+                    placeholder="cliente, casamento"
+                  />
+                </label>
+                <label className="field">
+                  <span>Valor ({work.currency})</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={incomeDraft.amount || ""}
+                    onChange={(event) =>
+                      setIncomeDraft({ ...incomeDraft, amount: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Data</span>
+                  <input
+                    type="date"
+                    value={incomeDraft.date}
+                    onChange={(event) =>
+                      setIncomeDraft({ ...incomeDraft, date: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Situação</span>
+                  <select
+                    value={incomeDraft.status}
+                    onChange={(event) =>
+                      setIncomeDraft({
+                        ...incomeDraft,
+                        status: event.target.value as WorkIncome["status"],
+                      })
+                    }
+                  >
+                    <option value="received">Recebido</option>
+                    <option value="pending">Pendente</option>
+                  </select>
+                </label>
+                <button className="primary-button" type="button" onClick={addIncome}>
+                  {editingIncomeId ? "✓ Salvar ganho" : "＋ Adicionar ganho"}
+                </button>
+              </div>
+              <div className="work-money-list">
+                {incomeItems.map((item) => (
+                  <article key={item.id}>
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>
+                        {formatDate(item.date)} · {item.category}
+                        {item.tags.length ? ` · #${item.tags.join(" #")}` : ""}
+                      </small>
+                    </span>
+                    <span className={`income-state ${item.status}`}>
+                      {item.status === "received" ? "Recebido" : "Pendente"}
+                    </span>
+                    <strong>＋ {formatMoney(item.amount, work.currency)}</strong>
+                    <span className="money-row-actions">
+                      <button
+                        type="button"
+                        onClick={() => editIncome(item)}
+                        aria-label={`Editar ${item.name}`}
+                      >
+                        ✎
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeIncome(item.id)}
+                        aria-label={`Remover ${item.name}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  </article>
+                ))}
+                {incomeItems.length === 0 && <p>Nenhuma entrada registrada.</p>}
+              </div>
             </div>
-            <div className="income-entry-grid">
-              <label className="field">
-                <span>Descrição</span>
-                <input
-                  value={incomeDraft.name}
-                  onChange={(event) => setIncomeDraft({ ...incomeDraft, name: event.target.value })}
-                  placeholder="Ex.: gorjeta da cliente"
-                />
-              </label>
-              <label className="field">
-                <span>Tipo</span>
-                <select
-                  value={incomeDraft.category}
-                  onChange={(event) =>
-                    setIncomeDraft({
-                      ...incomeDraft,
-                      category: event.target.value as WorkIncome["category"],
-                      name:
-                        event.target.value === "Gorjeta" &&
-                        incomeDraft.name === "Pagamento do cliente"
-                          ? "Gorjeta da cliente"
-                          : incomeDraft.name,
-                    })
-                  }
-                >
-                  {(["Pagamento", "Gorjeta", "Adicional", "Reembolso", "Outro"] as const).map(
-                    (category) => (
-                      <option key={category}>{category}</option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <label className="field">
-                <span>Tags</span>
-                <input
-                  value={incomeDraft.tags}
-                  onChange={(event) => setIncomeDraft({ ...incomeDraft, tags: event.target.value })}
-                  placeholder="cliente, casamento"
-                />
-              </label>
-              <label className="field">
-                <span>Valor ({work.currency})</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={incomeDraft.amount || ""}
-                  onChange={(event) =>
-                    setIncomeDraft({ ...incomeDraft, amount: Number(event.target.value) })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Data</span>
-                <input
-                  type="date"
-                  value={incomeDraft.date}
-                  onChange={(event) => setIncomeDraft({ ...incomeDraft, date: event.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>Situação</span>
-                <select
-                  value={incomeDraft.status}
-                  onChange={(event) =>
-                    setIncomeDraft({
-                      ...incomeDraft,
-                      status: event.target.value as WorkIncome["status"],
-                    })
-                  }
-                >
-                  <option value="received">Recebido</option>
-                  <option value="pending">Pendente</option>
-                </select>
-              </label>
-              <button className="primary-button" type="button" onClick={addIncome}>
-                {editingIncomeId ? "✓ Salvar ganho" : "＋ Adicionar ganho"}
-              </button>
-            </div>
-            <div className="work-money-list">
-              {incomeItems.map((item) => (
-                <article key={item.id}>
-                  <span>
-                    <strong>{item.name}</strong>
-                    <small>
-                      {formatDate(item.date)} · {item.category}
-                      {item.tags.length ? ` · #${item.tags.join(" #")}` : ""}
-                    </small>
-                  </span>
-                  <span className={`income-state ${item.status}`}>
-                    {item.status === "received" ? "Recebido" : "Pendente"}
-                  </span>
-                  <strong>＋ {formatMoney(item.amount, work.currency)}</strong>
-                  <span className="money-row-actions">
-                    <button
-                      type="button"
-                      onClick={() => editIncome(item)}
-                      aria-label={`Editar ${item.name}`}
-                    >
-                      ✎
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeIncome(item.id)}
-                      aria-label={`Remover ${item.name}`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                </article>
-              ))}
-              {incomeItems.length === 0 && <p>Nenhuma entrada registrada.</p>}
-            </div>
-          </div>
+          )}
 
-          <div className="work-finance-section">
-            <div className="work-finance-section-heading">
-              <div>
-                <span>CUSTOS</span>
-                <h3>Gastos deste trabalho</h3>
+          {financeView === "costs" && (
+            <div className="work-finance-section finance-entry-focus">
+              <div className="work-finance-section-heading">
+                <div>
+                  <span>CUSTOS</span>
+                  <h3>Gastos deste trabalho</h3>
+                </div>
+                <small>{formatMoney(work.costs, work.currency)} cadastrados</small>
               </div>
-              <small>{formatMoney(work.costs, work.currency)} cadastrados</small>
+              <div className="cost-entry-grid compact-finance-entry">
+                <label className="field">
+                  <span>Nome do custo</span>
+                  <input
+                    value={costDraft.name}
+                    onChange={(event) => setCostDraft({ ...costDraft, name: event.target.value })}
+                    placeholder="Ex.: combustível para o casamento"
+                  />
+                </label>
+                <label className="field">
+                  <span>Categoria</span>
+                  <input
+                    list="work-cost-categories"
+                    value={costDraft.category}
+                    onChange={(event) =>
+                      setCostDraft({ ...costDraft, category: event.target.value })
+                    }
+                  />
+                  <datalist id="work-cost-categories">
+                    <option value="Transporte" />
+                    <option value="Equipamento" />
+                    <option value="Alimentação" />
+                    <option value="Aluguel" />
+                    <option value="Equipe" />
+                    <option value="Impressão" />
+                    <option value="Cliente" />
+                  </datalist>
+                </label>
+                <label className="field">
+                  <span>Tags</span>
+                  <input
+                    value={costDraft.tags}
+                    onChange={(event) => setCostDraft({ ...costDraft, tags: event.target.value })}
+                    placeholder="viagem, casamento"
+                  />
+                </label>
+                <label className="field">
+                  <span>Valor ({work.currency})</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={costDraft.amount || ""}
+                    onChange={(event) =>
+                      setCostDraft({ ...costDraft, amount: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Data</span>
+                  <input
+                    type="date"
+                    value={costDraft.date}
+                    onChange={(event) => setCostDraft({ ...costDraft, date: event.target.value })}
+                  />
+                </label>
+                <label className="field">
+                  <span>Situação</span>
+                  <select
+                    value={costDraft.status}
+                    onChange={(event) =>
+                      setCostDraft({
+                        ...costDraft,
+                        status: event.target.value as WorkCost["status"],
+                      })
+                    }
+                  >
+                    <option value="planned">Previsto</option>
+                    <option value="paid">Pago</option>
+                  </select>
+                </label>
+                <button className="primary-button" type="button" onClick={addCost}>
+                  {editingCostId ? "✓ Salvar custo" : "＋ Adicionar custo"}
+                </button>
+              </div>
+              <div className="work-money-list costs-list">
+                {costItems.map((item) => (
+                  <article key={item.id}>
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>
+                        {formatDate(item.date)} · {item.category}
+                        {item.tags.length ? ` · #${item.tags.join(" #")}` : ""}
+                      </small>
+                    </span>
+                    <span className={`cost-state ${item.status}`}>
+                      {item.status === "paid" ? "Pago" : "Previsto"}
+                    </span>
+                    <strong>− {formatMoney(item.amount, work.currency)}</strong>
+                    <span className="money-row-actions">
+                      <button
+                        type="button"
+                        onClick={() => editCost(item)}
+                        aria-label={`Editar ${item.name}`}
+                      >
+                        ✎
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeCost(item.id)}
+                        aria-label={`Remover ${item.name}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  </article>
+                ))}
+                {costItems.length === 0 && <p>Nenhum custo cadastrado.</p>}
+              </div>
             </div>
-            <div className="cost-entry-grid compact-finance-entry">
-              <label className="field">
-                <span>Nome do custo</span>
-                <input
-                  value={costDraft.name}
-                  onChange={(event) => setCostDraft({ ...costDraft, name: event.target.value })}
-                  placeholder="Ex.: combustível para o casamento"
-                />
-              </label>
-              <label className="field">
-                <span>Categoria</span>
-                <input
-                  list="work-cost-categories"
-                  value={costDraft.category}
-                  onChange={(event) => setCostDraft({ ...costDraft, category: event.target.value })}
-                />
-                <datalist id="work-cost-categories">
-                  <option value="Transporte" />
-                  <option value="Equipamento" />
-                  <option value="Alimentação" />
-                  <option value="Aluguel" />
-                  <option value="Equipe" />
-                  <option value="Impressão" />
-                  <option value="Cliente" />
-                </datalist>
-              </label>
-              <label className="field">
-                <span>Tags</span>
-                <input
-                  value={costDraft.tags}
-                  onChange={(event) => setCostDraft({ ...costDraft, tags: event.target.value })}
-                  placeholder="viagem, casamento"
-                />
-              </label>
-              <label className="field">
-                <span>Valor ({work.currency})</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={costDraft.amount || ""}
-                  onChange={(event) =>
-                    setCostDraft({ ...costDraft, amount: Number(event.target.value) })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Data</span>
-                <input
-                  type="date"
-                  value={costDraft.date}
-                  onChange={(event) => setCostDraft({ ...costDraft, date: event.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>Situação</span>
-                <select
-                  value={costDraft.status}
-                  onChange={(event) =>
-                    setCostDraft({ ...costDraft, status: event.target.value as WorkCost["status"] })
-                  }
-                >
-                  <option value="planned">Previsto</option>
-                  <option value="paid">Pago</option>
-                </select>
-              </label>
-              <button className="primary-button" type="button" onClick={addCost}>
-                {editingCostId ? "✓ Salvar custo" : "＋ Adicionar custo"}
-              </button>
-            </div>
-            <div className="work-money-list costs-list">
-              {costItems.map((item) => (
-                <article key={item.id}>
-                  <span>
-                    <strong>{item.name}</strong>
-                    <small>
-                      {formatDate(item.date)} · {item.category}
-                      {item.tags.length ? ` · #${item.tags.join(" #")}` : ""}
-                    </small>
-                  </span>
-                  <span className={`cost-state ${item.status}`}>
-                    {item.status === "paid" ? "Pago" : "Previsto"}
-                  </span>
-                  <strong>− {formatMoney(item.amount, work.currency)}</strong>
-                  <span className="money-row-actions">
-                    <button
-                      type="button"
-                      onClick={() => editCost(item)}
-                      aria-label={`Editar ${item.name}`}
-                    >
-                      ✎
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeCost(item.id)}
-                      aria-label={`Remover ${item.name}`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                </article>
-              ))}
-              {costItems.length === 0 && <p>Nenhum custo cadastrado.</p>}
-            </div>
-          </div>
+          )}
 
-          <div className="payment-milestones">
-            <div className={receivedPercent >= 50 ? "ready" : "blocked"}>
-              <span>{receivedPercent >= 50 ? "✓" : "⌛"}</span>
-              <div>
-                <strong>Pagamento dos 50%</strong>
-                <small>
-                  {receivedPercent >= 50
-                    ? "Valor alcançado · aguardando confirmação manual"
-                    : "Será liberado ao atingir metade do total"}
-                </small>
+          {financeView === "summary" && (
+            <>
+              <div className="finance-summary-ledgers">
+                <section>
+                  <header>
+                    <span>ÚLTIMAS ENTRADAS</span>
+                    <button type="button" onClick={() => setFinanceView("income")}>
+                      Ver todas
+                    </button>
+                  </header>
+                  {incomeItems
+                    .slice(-3)
+                    .reverse()
+                    .map((item) => (
+                      <div key={item.id}>
+                        <span>
+                          <strong>{item.name}</strong>
+                          <small>
+                            {formatDate(item.date)} · {item.category}
+                          </small>
+                        </span>
+                        <b>＋ {formatMoney(item.amount, work.currency)}</b>
+                      </div>
+                    ))}
+                  {incomeItems.length === 0 && <p>Nenhuma entrada registrada.</p>}
+                </section>
+                <section>
+                  <header>
+                    <span>ÚLTIMOS CUSTOS</span>
+                    <button type="button" onClick={() => setFinanceView("costs")}>
+                      Ver todos
+                    </button>
+                  </header>
+                  {costItems
+                    .slice(-3)
+                    .reverse()
+                    .map((item) => (
+                      <div key={item.id}>
+                        <span>
+                          <strong>{item.name}</strong>
+                          <small>
+                            {formatDate(item.date)} · {item.category}
+                          </small>
+                        </span>
+                        <b>− {formatMoney(item.amount, work.currency)}</b>
+                      </div>
+                    ))}
+                  {costItems.length === 0 && <p>Nenhum custo cadastrado.</p>}
+                </section>
               </div>
-              <button
-                type="button"
-                disabled={receivedPercent < 50}
-                onClick={() => {
-                  const stage = work.stages.find((item) => item.label === "Pagamento dos 50%");
-                  if (stage) toggleStage(stage);
-                }}
-              >
-                Confirmar
-              </button>
-            </div>
-            <div className={receivedPercent >= 100 ? "ready" : "blocked"}>
-              <span>{receivedPercent >= 100 ? "✓" : "⌛"}</span>
-              <div>
-                <strong>Pagamento completo</strong>
-                <small>
-                  {receivedPercent >= 100
-                    ? "Valor quitado · aguardando confirmação manual"
-                    : "Será liberado quando o saldo chegar a zero"}
-                </small>
+              <div className="payment-milestones">
+                <div className={receivedPercent >= 50 ? "ready" : "blocked"}>
+                  <span>{receivedPercent >= 50 ? "✓" : "⌛"}</span>
+                  <div>
+                    <strong>Pagamento dos 50%</strong>
+                    <small>
+                      {receivedPercent >= 50
+                        ? "Valor alcançado · aguardando confirmação manual"
+                        : "Será liberado ao atingir metade do total"}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={receivedPercent < 50}
+                    onClick={() => {
+                      const stage = work.stages.find((item) => item.label === "Pagamento dos 50%");
+                      if (stage) toggleStage(stage);
+                    }}
+                  >
+                    Confirmar
+                  </button>
+                </div>
+                <div className={receivedPercent >= 100 ? "ready" : "blocked"}>
+                  <span>{receivedPercent >= 100 ? "✓" : "⌛"}</span>
+                  <div>
+                    <strong>Pagamento completo</strong>
+                    <small>
+                      {receivedPercent >= 100
+                        ? "Valor quitado · aguardando confirmação manual"
+                        : "Será liberado quando o saldo chegar a zero"}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={receivedPercent < 100}
+                    onClick={() => {
+                      const stage = work.stages.find((item) => item.label === "Pagamento completo");
+                      if (stage) toggleStage(stage);
+                    }}
+                  >
+                    Confirmar
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                disabled={receivedPercent < 100}
-                onClick={() => {
-                  const stage = work.stages.find((item) => item.label === "Pagamento completo");
-                  if (stage) toggleStage(stage);
-                }}
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-          <p className="automation-note">
-            ◇ Pagamentos contam para o contrato; gorjetas e ganhos adicionais aumentam o resultado
-            sem alterar o saldo que a cliente ainda deve.
-          </p>
+              <p className="automation-note">
+                ◇ Pagamentos contam para o contrato; gorjetas e ganhos adicionais aumentam o
+                resultado sem alterar o saldo que a cliente ainda deve.
+              </p>
+            </>
+          )}
         </section>
       )}
 
@@ -1886,51 +2360,46 @@ export function WorkDetails({
                   />
                 </label>
               </div>
-              <div className="work-contract-file">
-                <div>
-                  <strong>{contract.file?.name || "Nenhum arquivo anexado"}</strong>
-                  <small>
-                    {contract.file
-                      ? `${formatFileSize(contract.file.size)} · sincronizado`
-                      : "PDF ou DOCX pode ser visualizado dentro do Revelar."}
-                  </small>
-                </div>
-                {contract.file && (
-                  <>
-                    <button type="button" onClick={() => setPreviewStoredFile(contract.file!)}>
-                      Visualizar
-                    </button>
-                    <a href={fileDownloadUrl(contract.file)} download={contract.file.name}>
-                      Baixar
-                    </a>
+              <div className="work-contract-files">
+                <div className="work-contract-files-heading">
+                  <div>
+                    <strong>Arquivos do contrato</strong>
+                    <small>
+                      Mantenha o documento de trabalho e a versão assinada sem substituir um pelo
+                      outro.
+                    </small>
+                  </div>
+                  {preferredContractFile && (
                     <button
+                      className="primary-button"
                       type="button"
-                      onClick={() => {
-                        void deleteAppFile(contract.file!).catch(() => undefined);
-                        updateContract({ file: undefined });
-                      }}
+                      onClick={() => setPreviewStoredFile(preferredContractFile)}
                     >
-                      Excluir
+                      Visualizar contrato
                     </button>
-                  </>
-                )}
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => contractFileRef.current?.click()}
-                >
-                  {contract.file ? "Substituir" : "Enviar contrato"}
-                </button>
-                <input
-                  ref={contractFileRef}
-                  hidden
-                  type="file"
-                  accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  onChange={(event) => {
-                    void uploadContractFile(event.target.files?.[0]);
-                    event.target.value = "";
-                  }}
-                />
+                  )}
+                </div>
+                <div className="work-contract-file-list">
+                  {contractFileItem("sourceFile", "Documento de trabalho", sourceContractFile)}
+                  {contractFileItem("signedFile", "PDF assinado", signedContractFile)}
+                  {!preferredContractFile && (
+                    <div className="work-contract-file-empty">
+                      <span>▱</span>
+                      <div>
+                        <strong>Nenhum arquivo anexado</strong>
+                        <small>Adicione um DOCX editável, um PDF assinado ou os dois.</small>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="work-contract-upload-actions">
+                  <button type="button" onClick={() => contractSourceFileRef.current?.click()}>
+                    ＋ {sourceContractFile ? "Substituir DOCX" : "Adicionar DOCX"}
+                  </button>
+                  <button type="button" onClick={() => contractSignedFileRef.current?.click()}>
+                    ＋ {signedContractFile ? "Substituir PDF" : "Adicionar PDF assinado"}
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -1938,11 +2407,11 @@ export function WorkDetails({
       )}
 
       {tab === "files" && (
-        <section className="tab-single card">
+        <section className="tab-single card work-documents-hub">
           <div className="detail-section-heading">
             <div>
-              <p>ARQUIVOS</p>
-              <h2>Materiais do trabalho</h2>
+              <p>DOCUMENTOS DO TRABALHO</p>
+              <h2>Contratos, comprovantes e materiais</h2>
             </div>
             <button
               className="outline-button"
@@ -1953,6 +2422,65 @@ export function WorkDetails({
             </button>
           </div>
           <input ref={workFileRef} type="file" multiple hidden onChange={addWorkFiles} />
+          <article className="work-document-contract-card">
+            <div className="work-document-type">▱</div>
+            <div className="work-document-contract-copy">
+              <span>CONTRATO</span>
+              <input
+                aria-label="Nome do contrato"
+                value={contract.title}
+                onChange={(event) => updateContract({ title: event.target.value })}
+              />
+              <small>
+                {preferredContractFile
+                  ? `${[sourceContractFile, signedContractFile].filter(Boolean).length} arquivo(s) vinculado(s)`
+                  : "Adicione o DOCX de trabalho, o PDF assinado ou ambos."}
+              </small>
+            </div>
+            <label className={`work-contract-status status-${contract.status}`}>
+              <span>Situação</span>
+              <select
+                value={contract.status}
+                onChange={(event) =>
+                  updateContract({ status: event.target.value as WorkContractStatus })
+                }
+              >
+                <option value="not_required">Não necessário</option>
+                <option value="pending">Pendente</option>
+                <option value="sent">Enviado</option>
+                <option value="signed">Assinado</option>
+              </select>
+            </label>
+            <div className="work-document-contract-actions">
+              {preferredContractFile && (
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => setPreviewStoredFile(preferredContractFile)}
+                >
+                  Visualizar contrato
+                </button>
+              )}
+              <button type="button" onClick={() => contractSourceFileRef.current?.click()}>
+                ＋ DOCX
+              </button>
+              <button type="button" onClick={() => contractSignedFileRef.current?.click()}>
+                ＋ PDF assinado
+              </button>
+            </div>
+            {(sourceContractFile || signedContractFile) && (
+              <div className="work-document-contract-files">
+                {contractFileItem("sourceFile", "Documento de trabalho", sourceContractFile)}
+                {contractFileItem("signedFile", "PDF assinado", signedContractFile)}
+              </div>
+            )}
+          </article>
+          <div className="work-document-list-heading">
+            <div>
+              <span>OUTROS DOCUMENTOS</span>
+              <small>{work.attachments.length} arquivo(s)</small>
+            </div>
+          </div>
           <div className="work-file-grid">
             {work.attachments.map((file, index) => (
               <article key={`${isAppFileRef(file) ? file.id : file}-${index}`}>

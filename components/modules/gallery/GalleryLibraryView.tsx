@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatSize } from "@/lib/format";
+import { readApiJson } from "@/lib/api-response.client";
 import type { Work, WorkGallery } from "@/types/revelar";
 import { useUrlStringState } from "@/hooks/use-url-state";
 
@@ -67,7 +68,10 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
   const load = async () => {
     try {
       const response = await fetch("/api/galleries", { cache: "no-store" });
-      const data = (await response.json()) as { galleries?: WorkGallery[]; error?: string };
+      const data = await readApiJson<{ galleries?: WorkGallery[]; error?: string }>(
+        response,
+        "Não foi possível carregar os álbuns.",
+      );
       if (!response.ok) throw new Error(data.error || "Não foi possível carregar os álbuns.");
       setGalleries(data.galleries || []);
     } catch (error) {
@@ -81,7 +85,10 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
     let mounted = true;
     void fetch("/api/galleries", { cache: "no-store" })
       .then(async (response) => {
-        const data = (await response.json()) as { galleries?: WorkGallery[]; error?: string };
+        const data = await readApiJson<{ galleries?: WorkGallery[]; error?: string }>(
+          response,
+          "Não foi possível carregar os álbuns.",
+        );
         if (!response.ok) throw new Error(data.error || "Não foi possível carregar os álbuns.");
         if (mounted) setGalleries(data.galleries || []);
       })
@@ -202,15 +209,26 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
     let sent = 0;
     for (const file of Array.from(files)) {
       if (!file.type.startsWith("image/")) continue;
-      const form = new FormData();
-      form.append("file", file);
-      form.append("preview", file);
-      form.append("folder", "originals");
-      const response = await fetch(`/api/galleries/${selectedGallery.id}/upload`, {
-        method: "POST",
-        body: form,
-      });
-      if (response.ok) sent += 1;
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("preview", file);
+        form.append("folder", "originals");
+        const response = await fetch(`/api/galleries/${selectedGallery.id}/upload`, {
+          method: "POST",
+          body: form,
+        });
+        const data = await readApiJson<{ gallery?: WorkGallery; error?: string }>(
+          response,
+          `Não foi possível enviar ${file.name}.`,
+        );
+        if (!response.ok || !data.gallery) {
+          throw new Error(data.error || `Não foi possível enviar ${file.name}.`);
+        }
+        sent += 1;
+      } catch (error) {
+        toast(error instanceof Error ? error.message : `Não foi possível enviar ${file.name}.`);
+      }
     }
     await load();
     setBusy(false);

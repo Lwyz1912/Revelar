@@ -18,8 +18,21 @@ export async function publicGalleryAccess(request: Request, slug: string) {
 
 export function publicPhotoWhere(gallery: GalleryRow) {
   if (gallery.phase === "delivery")
-    return "deleted_at IS NULL AND (preview_key IS NOT NULL OR high_key IS NOT NULL OR social_key IS NOT NULL)";
+    return "deleted_at IS NULL AND folder = 'delivered' AND (high_key IS NOT NULL OR social_key IS NOT NULL)";
   if (gallery.phase === "approval")
     return "deleted_at IS NULL AND (folder = 'edited' AND preview_key IS NOT NULL)";
   return "deleted_at IS NULL AND (folder IN ('preview', 'originals') AND preview_key IS NOT NULL)";
+}
+
+export function publicPhotoMatchesPhase(
+  gallery: GalleryRow,
+  photo: Record<string, string | number | null>,
+) {
+  if (photo.deleted_at) return false;
+  const folder = String(photo.folder || "");
+  if (gallery.phase === "delivery") {
+    return folder === "delivered" && Boolean(photo.high_key || photo.social_key);
+  }
+  if (gallery.phase === "approval") return folder === "edited" && Boolean(photo.preview_key);
+  return ["preview", "originals"].includes(folder) && Boolean(photo.preview_key);
 }
