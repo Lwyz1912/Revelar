@@ -415,7 +415,10 @@ export type WorkContract = {
   title: string;
   content: string;
   updatedAt: string;
+  /** @deprecated Mantido para contratos enviados antes da separação por versão. */
   file?: AppFileRef;
+  sourceFile?: AppFileRef;
+  signedFile?: AppFileRef;
 };
 
 export type MoodboardReference = {

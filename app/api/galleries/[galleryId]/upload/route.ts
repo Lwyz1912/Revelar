@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 type RouteContext = { params: Promise<{ galleryId: string }> };
 const photoFolders = new Set<GalleryFolder>(["originals", "preview", "edited", "delivered"]);
 
-export async function POST(request: Request, context: RouteContext) {
+async function handleUpload(request: Request, context: RouteContext) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Entre para enviar arquivos." }, { status: 401 });
   const { galleryId } = await context.params;
@@ -34,8 +34,11 @@ export async function POST(request: Request, context: RouteContext) {
   if (!(file instanceof File) && !(preview instanceof File)) {
     return Response.json({ error: "Selecione um arquivo." }, { status: 400 });
   }
-  if (file instanceof File && file.size > 250 * 1024 * 1024) {
-    return Response.json({ error: "O arquivo individual excede 250 MB." }, { status: 413 });
+  if (file instanceof File && file.size > 90 * 1024 * 1024) {
+    return Response.json(
+      { error: "O arquivo individual excede o limite de 90 MB." },
+      { status: 413 },
+    );
   }
   const keyOwner = await ownerKey(user.email);
   if (["high_zip", "social_zip", "watermark"].includes(assetKind) && file instanceof File) {
@@ -93,7 +96,10 @@ export async function POST(request: Request, context: RouteContext) {
     await storeObject(fileKey, file, folder === "delivered" ? "attachment" : "inline");
     if (folder === "edited" || folder === "delivered") {
       if (variant === "social") socialKey = fileKey;
-      else highKey = fileKey;
+      else {
+        highKey = fileKey;
+        if (folder === "delivered" && !previewKey) previewKey = fileKey;
+      }
     } else {
       originalKey = fileKey;
     }
@@ -135,4 +141,19 @@ export async function POST(request: Request, context: RouteContext) {
   });
   await recordGalleryEvent(galleryId, "files_uploaded", `${source.name} enviado para ${folder}`);
   return Response.json({ gallery: await serializeGallery(gallery) });
+}
+
+export async function POST(request: Request, context: RouteContext) {
+  try {
+    return await handleUpload(request, context);
+  } catch (error) {
+    console.error("gallery upload failed", error);
+    return Response.json(
+      {
+        error:
+          "Não foi possível processar este arquivo. Confirme que ele é um JPG, PNG ou WebP válido e tente novamente.",
+      },
+      { status: 500 },
+    );
+  }
 }

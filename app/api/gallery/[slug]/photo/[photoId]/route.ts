@@ -1,4 +1,4 @@
-import { publicGalleryAccess } from "@/lib/server/gallery-public";
+import { publicGalleryAccess, publicPhotoMatchesPhase } from "@/lib/server/gallery-public";
 import { galleryPhoto, recordGalleryEvent } from "@/lib/server/gallery-repository";
 import { privateObjectResponse } from "@/lib/server/gallery-storage";
 
@@ -13,7 +13,7 @@ export async function GET(request: Request, context: RouteContext) {
   if (!access.authorized) return new Response("PIN necessário", { status: 401 });
   const gallery = access.gallery!;
   const photo = await galleryPhoto(photoId);
-  if (!photo || photo.gallery_id !== gallery.id || photo.deleted_at)
+  if (!photo || photo.gallery_id !== gallery.id || !publicPhotoMatchesPhase(gallery, photo))
     return new Response("Foto não encontrada", { status: 404 });
   const variant = new URL(request.url).searchParams.get("variant");
   if (variant && gallery.phase !== "delivery") {
@@ -24,7 +24,9 @@ export async function GET(request: Request, context: RouteContext) {
       ? String(photo.high_key || "")
       : variant === "social"
         ? String(photo.social_key || "")
-        : String(photo.preview_key || "");
+        : gallery.phase === "delivery"
+          ? String(photo.high_key || photo.social_key || "")
+          : String(photo.preview_key || "");
   if (!key) return new Response("Versão indisponível", { status: 404 });
   if (variant)
     await recordGalleryEvent(gallery.id, "photo_downloaded", `${photo.filename} baixada`, photoId);

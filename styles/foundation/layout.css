@@ -224,6 +224,25 @@
   height: 17px;
   opacity: 0.72;
 }
+.icon-button > svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.danger-icon-button {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--border));
+  color: #fff;
+  background: var(--danger);
+}
+.danger-icon-button:hover {
+  border-color: var(--danger);
+  color: #fff;
+  background: color-mix(in srgb, var(--danger) 86%, #000);
+}
 .mobile-logo,
 .mobile-search {
   display: none;

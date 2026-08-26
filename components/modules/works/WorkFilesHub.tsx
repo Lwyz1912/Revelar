@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createProtectedPreview } from "@/lib/gallery-preview";
 import { formatMoney } from "@/lib/format";
+import { readApiJson } from "@/lib/api-response.client";
 import type {
   Client,
   GalleryEvent,
@@ -25,7 +26,6 @@ const folders: Array<{
   { id: "selection", label: "Escolhidas", icon: "♡", accent: "Seleção feita pelo cliente" },
   { id: "edited", label: "Para aprovação", icon: "✦", accent: "Fotos editadas em revisão" },
   { id: "delivered", label: "Entrega final", icon: "⇩", accent: "Alta e redes sociais" },
-  { id: "originals", label: "Originais", icon: "▣", accent: "Backup opcional" },
   { id: "trash", label: "Lixeira", icon: "⌫", accent: "Recuperável por 30 dias" },
 ];
 
@@ -81,6 +81,7 @@ export function WorkFilesHub({
   const [authRequired, setAuthRequired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -99,8 +100,6 @@ export function WorkFilesHub({
     storageMode: "smart" as "smart" | "backup",
   });
   const photoInput = useRef<HTMLInputElement>(null);
-  const socialPhotoInput = useRef<HTMLInputElement>(null);
-  const deliveryInput = useRef<HTMLInputElement>(null);
   const watermarkInput = useRef<HTMLInputElement>(null);
   const conversationThread = useRef<HTMLDivElement>(null);
   const replyInput = useRef<HTMLTextAreaElement>(null);
@@ -264,20 +263,27 @@ export function WorkFilesHub({
     }
   };
 
-  const uploadPhotos = async (files: File[], deliveryVariant: "high" | "social" = "high") => {
+  const uploadPhotos = async (files: File[]) => {
     if (!gallery || files.length === 0 || folder === "trash" || folder === "selection") return;
     setBusy(true);
     setUploadProgress(0);
+    setUploadStatus("");
     let latest = gallery;
+    let uploaded = 0;
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
       const form = new FormData();
       form.set("folder", folder);
       try {
-        const canPreview = /^image\/(jpeg|png|webp)$/i.test(file.type);
-        if (folder === "originals" || !canPreview) {
-          form.set("file", file);
-        } else {
+        setUploadStatus(`Preparando ${file.name}`);
+        if (file.size > 90 * 1024 * 1024) {
+          throw new Error(`${file.name} excede o limite seguro de 90 MB.`);
+        }
+        const canPreview =
+          /^image\/(jpeg|png|webp)$/i.test(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
+        if (!canPreview) {
+          throw new Error(`${file.name}: use JPG, PNG ou WebP nesta etapa.`);
+        } else if (folder !== "delivered") {
           const preview = await createProtectedPreview({
             file,
             label: settings.watermarkLabel,
@@ -285,21 +291,25 @@ export function WorkFilesHub({
             watermarkFile,
           });
           form.set("preview", preview);
-          if (folder === "edited" || folder === "delivered" || settings.storageMode === "backup") {
-            form.set("file", file);
-          }
-          if (folder === "delivered") form.set("variant", deliveryVariant);
+          form.set("file", file);
+        } else {
+          form.set("file", file);
+          form.set("variant", "high");
         }
+        setUploadStatus(`Enviando ${file.name}`);
         const response = await fetch(`/api/galleries/${gallery.id}/upload`, {
           method: "POST",
           body: form,
         });
-        if (!response.ok) {
-          const data = (await response.json()) as { error?: string };
-          throw new Error(data.error || `Falha em ${file.name}`);
+        const data = await readApiJson<{ gallery?: WorkGallery; error?: string }>(
+          response,
+          `Não foi possível enviar ${file.name}.`,
+        );
+        if (!response.ok || !data.gallery) {
+          throw new Error(data.error || `Não foi possível enviar ${file.name}.`);
         }
-        const data = (await response.json()) as { gallery: WorkGallery };
         latest = data.gallery;
+        uploaded += 1;
       } catch (error) {
         toast(error instanceof Error ? error.message : `Falha em ${file.name}`);
       }
@@ -308,7 +318,9 @@ export function WorkFilesHub({
     setGallery(latest);
     setBusy(false);
     setUploadProgress(0);
-    toast(`${files.length} arquivo${files.length === 1 ? " enviado" : "s enviados"}`);
+    setUploadStatus("");
+    if (uploaded > 0)
+      toast(`${uploaded} arquivo${uploaded === 1 ? " enviado" : "s enviados"} com sucesso`);
   };
 
   const updatePhotoTrash = async (action: "trash" | "restore", photoIds: string[]) => {
@@ -356,24 +368,6 @@ export function WorkFilesHub({
       toast("Resposta enviada para a cliente");
     } else {
       toast("Não foi possível enviar a resposta");
-    }
-    setBusy(false);
-  };
-
-  const uploadDeliveryZip = async (file: File, kind: "high_zip" | "social_zip") => {
-    if (!gallery) return;
-    setBusy(true);
-    const form = new FormData();
-    form.set("file", file);
-    form.set("assetKind", kind);
-    const response = await fetch(`/api/galleries/${gallery.id}/upload`, {
-      method: "POST",
-      body: form,
-    });
-    if (response.ok) {
-      const data = (await response.json()) as { gallery: WorkGallery };
-      setGallery(data.gallery);
-      toast("Pacote de entrega enviado");
     }
     setBusy(false);
   };
@@ -509,10 +503,9 @@ export function WorkFilesHub({
       </header>
 
       <div className="gallery-storage-strip">
-        <span className={`storage-mode mode-${gallery.storageMode}`}>
-          {gallery.storageMode === "smart" ? "◈ Armazenamento inteligente" : "▣ Backup completo"}
-        </span>
+        <span className="storage-mode mode-smart">◈ Um original por foto</span>
         <span>{formatSize(gallery.stats.totalBytes)} usados</span>
+        <span>Escolhidas usam referência, sem duplicar armazenamento</span>
         {gallery.hasPin && <span>PIN ativo</span>}
         {gallery.expiresAt && (
           <span>
@@ -528,8 +521,10 @@ export function WorkFilesHub({
 
       <div className="gallery-folder-tabs">
         <div className="gallery-folders-heading">
-          <strong>Arquivos do fluxo</strong>
-          <span>Organização da fotógrafa · não muda a etapa do cliente</span>
+          <strong>Fluxo de entrega</strong>
+          <span>
+            Envie arquivos novos em cada etapa; a seleção do cliente nunca duplica a foto.
+          </span>
         </div>
         {folders.map((item) => (
           <button
@@ -592,7 +587,7 @@ export function WorkFilesHub({
         </button>
         {folder !== "selection" && folder !== "trash" && (
           <button type="button" disabled={busy} onClick={() => photoInput.current?.click()}>
-            ＋ Enviar {folder === "originals" ? "originais" : "fotos"}
+            ＋ Enviar fotos
           </button>
         )}
         <input
@@ -600,11 +595,7 @@ export function WorkFilesHub({
           hidden
           multiple
           type="file"
-          accept={
-            folder === "originals"
-              ? "image/*,.zip,.raw,.cr2,.cr3,.nef,.arw,.dng"
-              : "image/jpeg,image/png,image/webp"
-          }
+          accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
           onChange={(event) => {
             void uploadPhotos(Array.from(event.target.files || []));
             event.target.value = "";
@@ -615,52 +606,9 @@ export function WorkFilesHub({
       {busy && uploadProgress > 0 && (
         <div className="gallery-upload-progress">
           <i style={{ width: `${uploadProgress}%` }} />
-          <span>{uploadProgress}%</span>
-        </div>
-      )}
-
-      {folder === "delivered" && (
-        <div className="delivery-package-row">
-          <button type="button" onClick={() => socialPhotoInput.current?.click()}>
-            ＋ Enviar fotos para redes
-          </button>
-          <input
-            ref={socialPhotoInput}
-            hidden
-            multiple
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(event) => {
-              void uploadPhotos(Array.from(event.target.files || []), "social");
-              event.target.value = "";
-            }}
-          />
-          <button type="button" onClick={() => deliveryInput.current?.click()}>
-            ⇩ Enviar ZIP em alta resolução
-          </button>
-          <input
-            ref={deliveryInput}
-            hidden
-            type="file"
-            accept=".zip,application/zip"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void uploadDeliveryZip(file, "high_zip");
-              event.target.value = "";
-            }}
-          />
-          <label>
-            <span>Versão para redes</span>
-            <input
-              type="file"
-              accept=".zip,application/zip"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void uploadDeliveryZip(file, "social_zip");
-                event.target.value = "";
-              }}
-            />
-          </label>
+          <span>
+            {uploadStatus || `${uploadProgress}%`} · {uploadProgress}%
+          </span>
         </div>
       )}
 
@@ -890,17 +838,27 @@ export function WorkFilesHub({
               </section>
             </div>
             <footer className="gallery-conversation-dialog-footer">
-              <button
-                className={activePhoto.deletedAt ? "restore-photo" : "danger-action"}
-                type="button"
-                onClick={() =>
-                  void updatePhotoTrash(activePhoto.deletedAt ? "restore" : "trash", [
-                    activePhoto.id,
-                  ])
-                }
-              >
-                {activePhoto.deletedAt ? "↻ Restaurar foto" : "⌫ Mover para lixeira"}
-              </button>
+              {activePhoto.deletedAt ? (
+                <button
+                  className="restore-photo"
+                  type="button"
+                  onClick={() => void updatePhotoTrash("restore", [activePhoto.id])}
+                >
+                  ↻ Restaurar foto
+                </button>
+              ) : (
+                <button
+                  className="icon-button danger-icon-button gallery-trash-button"
+                  type="button"
+                  title="Mover foto para a lixeira"
+                  aria-label="Mover foto para a lixeira"
+                  onClick={() => void updatePhotoTrash("trash", [activePhoto.id])}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+                  </svg>
+                </button>
+              )}
               <small>
                 {activePhoto.deletedAt
                   ? "A foto volta a aparecer na galeria da cliente ao ser restaurada."
@@ -990,23 +948,12 @@ export function WorkFilesHub({
                 />
               </label>
             </div>
-            <div className="storage-choice">
-              <button
-                className={settings.storageMode === "smart" ? "active" : ""}
-                type="button"
-                onClick={() => setSettings({ ...settings, storageMode: "smart" })}
-              >
-                <span>◈ Inteligente</span>
-                <small>Prévia leve agora, alta depois</small>
-              </button>
-              <button
-                className={settings.storageMode === "backup" ? "active" : ""}
-                type="button"
-                onClick={() => setSettings({ ...settings, storageMode: "backup" })}
-              >
-                <span>▣ Backup completo</span>
-                <small>Guarda também os originais</small>
-              </button>
+            <div className="gallery-storage-policy-note">
+              <span>◈ Armazenamento sem duplicação</span>
+              <small>
+                Fotos enviadas guardam um original e uma prévia protegida. A pasta Escolhidas usa
+                somente a referência da seleção feita pela cliente.
+              </small>
             </div>
             <button
               className="watermark-upload"

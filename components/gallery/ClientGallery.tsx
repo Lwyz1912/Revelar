@@ -36,13 +36,7 @@ type ClientGalleryData = {
   extraCount: number;
   extraAmount: number;
   photos: ClientPhoto[];
-  assets: Array<{
-    id: string;
-    kind: "high_zip" | "social_zip";
-    filename: string;
-    size: number;
-    downloadUrl: string;
-  }>;
+  downloadAllUrl?: string;
 };
 
 function formatMoney(value: number, currency: "BRL" | "EUR") {
@@ -50,11 +44,6 @@ function formatMoney(value: number, currency: "BRL" | "EUR") {
     style: "currency",
     currency,
   }).format(value);
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export function ClientGallery({ slug }: { slug: string }) {
@@ -379,15 +368,13 @@ export function ClientGallery({ slug }: { slug: string }) {
         </div>
       )}
 
-      {gallery.phase === "delivery" && gallery.assets.length > 0 && (
+      {gallery.phase === "delivery" && gallery.downloadAllUrl && (
         <section className="delivery-downloads">
-          {gallery.assets.map((asset) => (
-            <a key={asset.id} href={asset.downloadUrl} download>
-              <span>{asset.kind === "high_zip" ? "ALTA RESOLUÇÃO" : "REDES SOCIAIS"}</span>
-              <strong>{asset.filename}</strong>
-              <small>{formatSize(asset.size)} · baixar tudo</small>
-            </a>
-          ))}
+          <a href={gallery.downloadAllUrl} download>
+            <span>ENTREGA COMPLETA</span>
+            <strong>Baixar todas as fotos</strong>
+            <small>Um único arquivo ZIP em alta resolução</small>
+          </a>
         </section>
       )}
 
@@ -418,9 +405,11 @@ export function ClientGallery({ slug }: { slug: string }) {
                   draggable={false}
                   loading="lazy"
                 />
-                <span className="watermark-shield" aria-hidden="true">
-                  {gallery.watermarkLabel} · PROVA
-                </span>
+                {gallery.phase !== "delivery" && (
+                  <span className="watermark-shield" aria-hidden="true">
+                    {gallery.watermarkLabel} · PROVA
+                  </span>
+                )}
                 <small>{String(index + 1).padStart(3, "0")}</small>
               </button>
               {gallery.phase !== "delivery" && (
@@ -473,9 +462,11 @@ export function ClientGallery({ slug }: { slug: string }) {
           </button>
           <div className="lightbox-photo">
             <img src={activePhoto.imageUrl} alt="Foto ampliada" draggable={false} />
-            <span className="watermark-shield watermark-large" aria-hidden="true">
-              {gallery.watermarkLabel} · {gallery.clientName} · PROVA
-            </span>
+            {gallery.phase !== "delivery" && (
+              <span className="watermark-shield watermark-large" aria-hidden="true">
+                {gallery.watermarkLabel} · {gallery.clientName} · PROVA
+              </span>
+            )}
           </div>
           <aside className="client-gallery-conversation">
             <header className="client-conversation-header">
