@@ -2,6 +2,7 @@ import { getChatGPTUser } from "@/app/chatgpt-auth";
 import {
   addGalleryAsset,
   addGalleryPhoto,
+  attachGalleryPhotoOriginal,
   attachGalleryPhotoVariant,
   galleryById,
   ownerKey,
@@ -9,7 +10,7 @@ import {
   serializeGallery,
   updateGallerySettings,
 } from "@/lib/server/gallery-repository";
-import { objectKey, storeObject } from "@/lib/server/gallery-storage";
+import { galleryBucket, objectKey, storeObject } from "@/lib/server/gallery-storage";
 import type { GalleryFolder } from "@/types/revelar";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,9 @@ async function handleUpload(request: Request, context: RouteContext) {
   const folder = String(form.get("folder") || "preview") as GalleryFolder;
   const assetKind = String(form.get("assetKind") || "");
   const variant = String(form.get("variant") || "high");
+  const photoId = String(form.get("photoId") || "");
+  const requestedFilename = String(form.get("filename") || "").trim();
+  const requestedMimeType = String(form.get("mimeType") || "").trim();
   if (!(file instanceof File) && !(preview instanceof File)) {
     return Response.json({ error: "Selecione um arquivo." }, { status: 400 });
   }
@@ -70,6 +74,38 @@ async function handleUpload(request: Request, context: RouteContext) {
   }
   if (!photoFolders.has(folder)) {
     return Response.json({ error: "Pasta de destino inválida." }, { status: 400 });
+  }
+  if (file instanceof File && photoId && variant === "original") {
+    const key = objectKey({
+      ownerKey: keyOwner,
+      workId: gallery.work_id,
+      galleryId,
+      folder: "originais",
+      filename: requestedFilename || file.name,
+    });
+    await storeObject(key, file);
+    const attached = await attachGalleryPhotoOriginal({
+      galleryId,
+      photoId,
+      filename: (requestedFilename || file.name).slice(0, 240),
+      mimeType: requestedMimeType || file.type || "application/octet-stream",
+      objectKey: key,
+      size: file.size,
+    });
+    if (!attached) {
+      await galleryBucket().delete(key);
+      return Response.json(
+        { error: "A prévia desta foto não foi encontrada. Envie a foto novamente." },
+        { status: 404 },
+      );
+    }
+    await recordGalleryEvent(
+      galleryId,
+      "original_attached",
+      `${file.name} armazenado em alta`,
+      photoId,
+    );
+    return Response.json({ gallery: await serializeGallery((await galleryById(galleryId))!) });
   }
   let previewKey: string | null = null;
   let originalKey: string | null = null;
@@ -128,11 +164,11 @@ async function handleUpload(request: Request, context: RouteContext) {
       return Response.json({ gallery: await serializeGallery(gallery) });
     }
   }
-  await addGalleryPhoto({
+  const createdPhotoId = await addGalleryPhoto({
     galleryId,
     folder,
-    filename: source.name,
-    mimeType: source.type || "application/octet-stream",
+    filename: (requestedFilename || source.name).slice(0, 240),
+    mimeType: requestedMimeType || source.type || "application/octet-stream",
     size: (file instanceof File ? file.size : 0) + (preview instanceof File ? preview.size : 0),
     previewKey,
     originalKey,
@@ -140,7 +176,7 @@ async function handleUpload(request: Request, context: RouteContext) {
     socialKey,
   });
   await recordGalleryEvent(galleryId, "files_uploaded", `${source.name} enviado para ${folder}`);
-  return Response.json({ gallery: await serializeGallery(gallery) });
+  return Response.json({ gallery: await serializeGallery(gallery), photoId: createdPhotoId });
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -148,12 +184,23 @@ export async function POST(request: Request, context: RouteContext) {
     return await handleUpload(request, context);
   } catch (error) {
     console.error("gallery upload failed", error);
+    const detail = error instanceof Error ? error.message : "";
+    const isSizeFailure = /too large|body|payload|limit|exceed/i.test(detail);
+    const isImageFailure = /image|decode|mime|format|content-type/i.test(detail);
     return Response.json(
       {
-        error:
-          "Não foi possível processar este arquivo. Confirme que ele é um JPG, PNG ou WebP válido e tente novamente.",
+        error: isSizeFailure
+          ? "O arquivo ultrapassou o limite aceito pelo servidor. Reduza o tamanho ou envie-o separadamente."
+          : isImageFailure
+            ? "A imagem não pôde ser processada. Exporte uma cópia em JPG, PNG ou WebP e tente novamente."
+            : "O armazenamento não concluiu este arquivo. A foto permanece na fila para você tentar novamente.",
+        code: isSizeFailure
+          ? "GALLERY_FILE_TOO_LARGE"
+          : isImageFailure
+            ? "GALLERY_IMAGE_INVALID"
+            : "GALLERY_STORAGE_FAILED",
       },
-      { status: 500 },
+      { status: isSizeFailure ? 413 : isImageFailure ? 415 : 503 },
     );
   }
 }

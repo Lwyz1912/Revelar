@@ -283,6 +283,38 @@ export async function attachGalleryPhotoVariant(input: {
   return photo.id;
 }
 
+export async function attachGalleryPhotoOriginal(input: {
+  galleryId: string;
+  photoId: string;
+  filename: string;
+  mimeType: string;
+  objectKey: string;
+  size: number;
+}) {
+  const photo = await first<Row & { id: string; size: number }>(
+    "SELECT id, size FROM gallery_photos WHERE id = ? AND gallery_id = ? LIMIT 1",
+    input.photoId,
+    input.galleryId,
+  );
+  if (!photo) return false;
+  await database()
+    .prepare(
+      `UPDATE gallery_photos
+       SET original_key = ?, filename = ?, mime_type = ?, size = ?
+       WHERE id = ? AND gallery_id = ?`,
+    )
+    .bind(
+      input.objectKey,
+      input.filename,
+      input.mimeType,
+      number(photo.size) + input.size,
+      input.photoId,
+      input.galleryId,
+    )
+    .run();
+  return true;
+}
+
 export async function addGalleryAsset(input: {
   galleryId: string;
   kind: "high_zip" | "social_zip" | "watermark";

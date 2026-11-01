@@ -364,6 +364,21 @@ export function RevelarApp() {
   };
   const updateWork = (updated: Work) =>
     setWorks((current) => current.map((work) => (work.id === updated.id ? updated : work)));
+  const updateSelectedWork = useCallback(
+    (update: Work | ((current: Work) => Work)) => {
+      if (selectedWorkId === null) return;
+      setWorks((current) =>
+        current.map((item) =>
+          item.id === selectedWorkId
+            ? typeof update === "function"
+              ? update(item)
+              : update
+            : item,
+        ),
+      );
+    },
+    [selectedWorkId, setWorks],
+  );
   const duplicateWork = (work: Work) => {
     const id = nextNumericId(works);
     const copy = duplicateWorkRecord(work, id);
@@ -558,7 +573,7 @@ export function RevelarApp() {
               clearUrlParams("workTab");
               setSelectedWorkId(null);
             }}
-            onUpdate={updateWork}
+            onUpdate={updateSelectedWork}
             onDuplicate={duplicateWork}
             onArchive={archiveWork}
             onCancel={cancelWork}

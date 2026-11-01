@@ -5,6 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createProtectedPreview } from "@/lib/gallery-preview";
 import { formatMoney } from "@/lib/format";
 import { readApiJson } from "@/lib/api-response.client";
+import {
+  GALLERY_MULTIPART_THRESHOLD,
+  uploadGalleryFileMultipart,
+} from "@/lib/gallery-multipart.client";
+import type { ShowToast } from "@/hooks/use-toast";
 import type {
   Client,
   GalleryEvent,
@@ -15,6 +20,23 @@ import type {
 } from "@/types/revelar";
 
 type ManagerFolder = GalleryFolder | "trash";
+type UploadQueueStatus = "preparing" | "uploading" | "done" | "partial" | "error";
+type UploadQueueItem = {
+  id: string;
+  file: File;
+  folder: GalleryFolder;
+  status: UploadQueueStatus;
+  error?: string;
+  photoId?: string;
+};
+
+const uploadStatusLabel: Record<UploadQueueStatus, string> = {
+  preparing: "Preparando arquivo",
+  uploading: "Enviando com segurança",
+  done: "Envio concluído",
+  partial: "Prévia salva · original pendente",
+  error: "Envio não concluído",
+};
 
 const folders: Array<{
   id: ManagerFolder;
@@ -28,6 +50,44 @@ const folders: Array<{
   { id: "delivered", label: "Entrega final", icon: "⇩", accent: "Alta e redes sociais" },
   { id: "trash", label: "Lixeira", icon: "⌫", accent: "Recuperável por 30 dias" },
 ];
+
+function GalleryFolderIcon({ folder }: { folder: ManagerFolder }) {
+  if (folder === "selection") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20.8 4.8a5.5 5.5 0 0 0-7.8 0L12 5.9l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.4a5.5 5.5 0 0 0 0-7.8Z" />
+      </svg>
+    );
+  }
+  if (folder === "edited") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m12 3 1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Zm6.5 11 .9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1ZM5 13l1.1 2.9L9 17l-2.9 1.1L5 21l-1.1-2.9L1 17l2.9-1.1L5 13Z" />
+      </svg>
+    );
+  }
+  if (folder === "delivered") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3" />
+      </svg>
+    );
+  }
+  if (folder === "trash") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8" cy="9" r="1.5" />
+      <path d="m5 17 4.3-4.3 3.2 3.2 2.2-2.2L19 18" />
+    </svg>
+  );
+}
 
 const phaseLabels: Record<GalleryPhase, string> = {
   selection: "Cliente escolhendo",
@@ -55,6 +115,17 @@ function localDateTime(value?: string) {
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
 }
 
+function friendlyUploadError(error: unknown, filename: string) {
+  const message = error instanceof Error ? error.message : "";
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return `${filename}: a conexão foi interrompida antes de o servidor concluir o envio.`;
+  }
+  if (/quota|storage|armazenamento|r2/i.test(message)) {
+    return `${filename}: o armazenamento recusou o arquivo temporariamente.`;
+  }
+  return message || `${filename}: não foi possível concluir o envio.`;
+}
+
 export function WorkFilesHub({
   work,
   clients,
@@ -68,7 +139,7 @@ export function WorkFilesHub({
   onStats: (photos: Work["photos"]) => void;
   onEvents: (events: GalleryEvent[]) => void;
   onPhotoExtras: (gallery: WorkGallery) => void;
-  toast: (message: string) => void;
+  toast: ShowToast;
 }) {
   const clientName =
     clients
@@ -82,6 +153,7 @@ export function WorkFilesHub({
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState("");
+  const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -263,64 +335,183 @@ export function WorkFilesHub({
     }
   };
 
-  const uploadPhotos = async (files: File[]) => {
-    if (!gallery || files.length === 0 || folder === "trash" || folder === "selection") return;
+  const updateUploadQueueItem = (id: string, changes: Partial<UploadQueueItem>) => {
+    setUploadQueue((current) =>
+      current.map((item) => (item.id === id ? { ...item, ...changes } : item)),
+    );
+  };
+
+  const uploadPhotos = async (
+    files: File[],
+    options?: { retryId?: string; targetFolder?: GalleryFolder; existingPhotoId?: string },
+  ) => {
+    if (!gallery || files.length === 0) return;
+    const targetFolder = options?.targetFolder ?? (folder === "trash" ? "preview" : folder);
+    if (targetFolder === "selection") return;
+    const queueItems = files.map((file, index) => ({
+      id: options?.retryId && index === 0 ? options.retryId : crypto.randomUUID(),
+      file,
+      folder: targetFolder,
+      photoId: options?.existingPhotoId,
+      status: "preparing" as const,
+    }));
+    setUploadQueue((current) => {
+      const retryIds = new Set(queueItems.map((item) => item.id));
+      return [
+        ...queueItems,
+        ...current.filter((item) => !retryIds.has(item.id) && item.status !== "done"),
+      ].slice(0, 20);
+    });
     setBusy(true);
     setUploadProgress(0);
     setUploadStatus("");
     let latest = gallery;
     let uploaded = 0;
-    for (let index = 0; index < files.length; index += 1) {
-      const file = files[index];
-      const form = new FormData();
-      form.set("folder", folder);
+    let failed = 0;
+    for (let index = 0; index < queueItems.length; index += 1) {
+      const item = queueItems[index];
+      const { file } = item;
+      let photoId = item.photoId;
+      const reportFileProgress = (fileProgress: number) => {
+        const normalized = Math.max(0, Math.min(100, fileProgress)) / 100;
+        setUploadProgress(Math.round(((index + normalized) / queueItems.length) * 100));
+      };
       try {
         setUploadStatus(`Preparando ${file.name}`);
+        updateUploadQueueItem(item.id, { status: "preparing", error: undefined });
         if (file.size > 90 * 1024 * 1024) {
-          throw new Error(`${file.name} excede o limite seguro de 90 MB.`);
+          throw new Error(`${file.name}: o limite por arquivo é 90 MB.`);
         }
         const canPreview =
           /^image\/(jpeg|png|webp)$/i.test(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
         if (!canPreview) {
-          throw new Error(`${file.name}: use JPG, PNG ou WebP nesta etapa.`);
-        } else if (folder !== "delivered") {
-          const preview = await createProtectedPreview({
-            file,
-            label: settings.watermarkLabel,
-            clientName,
-            watermarkFile,
-          });
-          form.set("preview", preview);
-          form.set("file", file);
+          throw new Error(`${file.name}: formato não aceito. Use JPG, PNG ou WebP.`);
+        }
+
+        if (targetFolder === "delivered") {
+          updateUploadQueueItem(item.id, { status: "uploading" });
+          if (file.size > GALLERY_MULTIPART_THRESHOLD) {
+            setUploadStatus(`Enviando ${file.name} em partes seguras`);
+            latest = await uploadGalleryFileMultipart({
+              galleryId: gallery.id,
+              file,
+              folder: targetFolder,
+              variant: "high",
+              onProgress: reportFileProgress,
+            });
+          } else {
+            const deliveryForm = new FormData();
+            deliveryForm.set("folder", targetFolder);
+            deliveryForm.set("file", file);
+            deliveryForm.set("variant", "high");
+            setUploadStatus(`Enviando ${file.name}`);
+            const response = await fetch(`/api/galleries/${gallery.id}/upload`, {
+              method: "POST",
+              body: deliveryForm,
+            });
+            const data = await readApiJson<{ gallery?: WorkGallery; error?: string }>(
+              response,
+              `Não foi possível enviar ${file.name}.`,
+            );
+            if (!response.ok || !data.gallery) {
+              throw new Error(data.error || `Não foi possível enviar ${file.name}.`);
+            }
+            latest = data.gallery;
+          }
         } else {
-          form.set("file", file);
-          form.set("variant", "high");
+          if (!photoId) {
+            const preview = await createProtectedPreview({
+              file,
+              label: settings.watermarkLabel,
+              clientName,
+              watermarkFile,
+            });
+            const previewForm = new FormData();
+            previewForm.set("folder", targetFolder);
+            previewForm.set("preview", preview);
+            previewForm.set("filename", file.name);
+            previewForm.set("mimeType", file.type || "image/jpeg");
+            updateUploadQueueItem(item.id, { status: "uploading" });
+            setUploadStatus(`Enviando prévia de ${file.name}`);
+            const previewResponse = await fetch(`/api/galleries/${gallery.id}/upload`, {
+              method: "POST",
+              body: previewForm,
+            });
+            const previewData = await readApiJson<{
+              gallery?: WorkGallery;
+              photoId?: string;
+              error?: string;
+            }>(previewResponse, `Não foi possível enviar a prévia de ${file.name}.`);
+            if (!previewResponse.ok || !previewData.gallery || !previewData.photoId) {
+              throw new Error(
+                previewData.error || `A prévia de ${file.name} não pôde ser armazenada.`,
+              );
+            }
+            latest = previewData.gallery;
+            photoId = previewData.photoId;
+            setGallery(latest);
+            updateUploadQueueItem(item.id, { photoId });
+          }
+
+          setUploadStatus(`Salvando original de ${file.name}`);
+          if (file.size > GALLERY_MULTIPART_THRESHOLD) {
+            latest = await uploadGalleryFileMultipart({
+              galleryId: gallery.id,
+              file,
+              folder: targetFolder,
+              photoId,
+              variant: "original",
+              onProgress: reportFileProgress,
+            });
+          } else {
+            const originalForm = new FormData();
+            originalForm.set("folder", targetFolder);
+            originalForm.set("file", file);
+            originalForm.set("photoId", photoId);
+            originalForm.set("variant", "original");
+            originalForm.set("filename", file.name);
+            originalForm.set("mimeType", file.type || "image/jpeg");
+            const originalResponse = await fetch(`/api/galleries/${gallery.id}/upload`, {
+              method: "POST",
+              body: originalForm,
+            });
+            const originalData = await readApiJson<{ gallery?: WorkGallery; error?: string }>(
+              originalResponse,
+              `A prévia subiu, mas o original de ${file.name} não foi armazenado.`,
+            );
+            if (!originalResponse.ok || !originalData.gallery) {
+              throw new Error(
+                originalData.error ||
+                  `A prévia subiu, mas o original de ${file.name} ficou pendente.`,
+              );
+            }
+            latest = originalData.gallery;
+          }
         }
-        setUploadStatus(`Enviando ${file.name}`);
-        const response = await fetch(`/api/galleries/${gallery.id}/upload`, {
-          method: "POST",
-          body: form,
-        });
-        const data = await readApiJson<{ gallery?: WorkGallery; error?: string }>(
-          response,
-          `Não foi possível enviar ${file.name}.`,
-        );
-        if (!response.ok || !data.gallery) {
-          throw new Error(data.error || `Não foi possível enviar ${file.name}.`);
-        }
-        latest = data.gallery;
+        updateUploadQueueItem(item.id, { status: "done", error: undefined, photoId });
         uploaded += 1;
       } catch (error) {
-        toast(error instanceof Error ? error.message : `Falha em ${file.name}`);
+        failed += 1;
+        updateUploadQueueItem(item.id, {
+          status: photoId ? "partial" : "error",
+          error: friendlyUploadError(error, file.name),
+          photoId,
+        });
       }
-      setUploadProgress(Math.round(((index + 1) / files.length) * 100));
+      reportFileProgress(100);
     }
     setGallery(latest);
     setBusy(false);
     setUploadProgress(0);
     setUploadStatus("");
-    if (uploaded > 0)
-      toast(`${uploaded} arquivo${uploaded === 1 ? " enviado" : "s enviados"} com sucesso`);
+    if (failed > 0) {
+      toast(
+        `${failed} foto${failed === 1 ? " não foi enviada" : "s não foram enviadas"}. Veja o motivo em Envios recentes e tente novamente.`,
+        "error",
+      );
+    } else if (uploaded > 0) {
+      toast(`${uploaded} foto${uploaded === 1 ? " enviada" : "s enviadas"} com sucesso`);
+    }
   };
 
   const updatePhotoTrash = async (action: "trash" | "restore", photoIds: string[]) => {
@@ -344,7 +535,7 @@ export function WorkFilesHub({
       );
     } else {
       const data = (await response.json().catch(() => ({}))) as { error?: string };
-      toast(data.error || "Não foi possível atualizar as fotos");
+      toast(data.error || "Não foi possível atualizar as fotos", "error");
     }
     setBusy(false);
   };
@@ -367,7 +558,7 @@ export function WorkFilesHub({
       setReplyDraft("");
       toast("Resposta enviada para a cliente");
     } else {
-      toast("Não foi possível enviar a resposta");
+      toast("Não foi possível enviar a resposta", "error");
     }
     setBusy(false);
   };
@@ -398,6 +589,18 @@ export function WorkFilesHub({
         : [],
     [activePhoto, clientName],
   );
+  const recentEvents = useMemo(() => {
+    const grouped = new Map<
+      string,
+      { id: string; detail: string; createdAt: string; count: number }
+    >();
+    for (const event of gallery?.events || []) {
+      const current = grouped.get(event.detail);
+      if (current) current.count += 1;
+      else grouped.set(event.detail, { ...event, count: 1 });
+    }
+    return [...grouped.values()].slice(0, 4);
+  }, [gallery?.events]);
 
   useEffect(() => {
     if (!activePhotoId) return;
@@ -475,6 +678,7 @@ export function WorkFilesHub({
                 key={phase}
                 className={gallery.phase === phase ? "active" : ""}
                 type="button"
+                aria-pressed={gallery.phase === phase}
                 disabled={busy}
                 onClick={() => void patchGallery({ phase, selectionLocked: false })}
               >
@@ -496,7 +700,12 @@ export function WorkFilesHub({
           <a href={gallery.url} target="_blank" rel="noreferrer">
             ↗ Abrir
           </a>
-          <button type="button" onClick={() => setSettingsOpen(true)}>
+          <button
+            type="button"
+            title="Configurações da galeria"
+            aria-label="Configurações da galeria"
+            onClick={() => setSettingsOpen(true)}
+          >
             ⚙
           </button>
         </div>
@@ -519,183 +728,303 @@ export function WorkFilesHub({
         )}
       </div>
 
-      <div className="gallery-folder-tabs">
+      <div className="gallery-folder-tabs" role="tablist" aria-label="Etapas dos arquivos">
         <div className="gallery-folders-heading">
-          <strong>Fluxo de entrega</strong>
-          <span>
-            Envie arquivos novos em cada etapa; a seleção do cliente nunca duplica a foto.
-          </span>
+          <div>
+            <span>ORGANIZAÇÃO DOS ARQUIVOS</span>
+            <strong>Fluxo de entrega</strong>
+          </div>
+          <p>As fotos ficam separadas por etapa. A cliente vê somente a etapa liberada.</p>
         </div>
         {folders.map((item) => (
           <button
             key={item.id}
             className={folder === item.id ? "active" : ""}
             type="button"
+            role="tab"
+            aria-selected={folder === item.id}
+            aria-controls="gallery-current-folder"
             onClick={() => {
               setFolder(item.id);
               setSelectionMode(false);
               setSelectedPhotoIds(new Set());
             }}
           >
-            <span>{item.icon}</span>
-            <strong>{item.label}</strong>
-            <small>
-              {folderCount(gallery, item.id)} · {item.accent}
-            </small>
+            <span className="gallery-folder-step">
+              <GalleryFolderIcon folder={item.id} />
+            </span>
+            <span className="gallery-folder-copy">
+              <strong>{item.label}</strong>
+              <small>{item.accent}</small>
+            </span>
+            <b>{folderCount(gallery, item.id)}</b>
           </button>
         ))}
       </div>
 
-      <div className="gallery-file-toolbar">
-        <div>
-          <strong>{folders.find((item) => item.id === folder)?.label}</strong>
-          <span>
-            {photos.length} arquivo{photos.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        {selectionMode ? (
-          <div className="gallery-bulk-actions">
-            <strong>{selectedPhotoIds.size} selecionada(s)</strong>
-            <button
-              type="button"
-              disabled={selectedPhotoIds.size === 0 || busy}
-              onClick={() =>
-                void updatePhotoTrash(folder === "trash" ? "restore" : "trash", [
-                  ...selectedPhotoIds,
-                ])
-              }
-            >
-              {folder === "trash" ? "↻ Restaurar" : "⌫ Mover para lixeira"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectionMode(false);
-                setSelectedPhotoIds(new Set());
-              }}
-            >
-              Cancelar
-            </button>
+      <section className="gallery-folder-workspace">
+        <div className="gallery-file-toolbar">
+          <div className="gallery-toolbar-copy">
+            <span>ETAPA ATUAL</span>
+            <strong>{folders.find((item) => item.id === folder)?.label}</strong>
+            <small>
+              {photos.length} arquivo{photos.length === 1 ? "" : "s"} nesta etapa
+            </small>
           </div>
-        ) : (
-          <button type="button" onClick={() => setSelectionMode(true)} disabled={!photos.length}>
-            ✓ Selecionar fotos
-          </button>
-        )}
-        <button className="gallery-refresh" type="button" onClick={() => void refresh()}>
-          ↻ Atualizar
-        </button>
-        {folder !== "selection" && folder !== "trash" && (
-          <button type="button" disabled={busy} onClick={() => photoInput.current?.click()}>
-            ＋ Enviar fotos
-          </button>
-        )}
-        <input
-          ref={photoInput}
-          hidden
-          multiple
-          type="file"
-          accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-          onChange={(event) => {
-            void uploadPhotos(Array.from(event.target.files || []));
-            event.target.value = "";
-          }}
-        />
-      </div>
-
-      {busy && uploadProgress > 0 && (
-        <div className="gallery-upload-progress">
-          <i style={{ width: `${uploadProgress}%` }} />
-          <span>
-            {uploadStatus || `${uploadProgress}%`} · {uploadProgress}%
-          </span>
-        </div>
-      )}
-
-      <div className="gallery-admin-grid">
-        {photos.map((photo) => (
-          <article
-            key={photo.id}
-            className={`${photo.comments.length || photo.comment ? "has-client-comment" : ""} ${selectedPhotoIds.has(photo.id) ? "is-bulk-selected" : ""}`}
-          >
-            {selectionMode && (
+          <div className="gallery-toolbar-actions">
+            {selectionMode ? (
+              <div className="gallery-bulk-actions">
+                <strong>{selectedPhotoIds.size} selecionada(s)</strong>
+                <button
+                  className={folder === "trash" ? "" : "danger-action"}
+                  type="button"
+                  title={folder === "trash" ? "Restaurar fotos" : "Mover fotos para a lixeira"}
+                  aria-label={folder === "trash" ? "Restaurar fotos" : "Mover fotos para a lixeira"}
+                  disabled={selectedPhotoIds.size === 0 || busy}
+                  onClick={() =>
+                    void updatePhotoTrash(folder === "trash" ? "restore" : "trash", [
+                      ...selectedPhotoIds,
+                    ])
+                  }
+                >
+                  {folder === "trash" ? (
+                    "↻ Restaurar"
+                  ) : (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectionMode(false);
+                    setSelectedPhotoIds(new Set());
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
               <button
-                className="gallery-photo-selector"
+                type="button"
+                onClick={() => setSelectionMode(true)}
+                disabled={!photos.length}
+              >
+                Selecionar fotos
+              </button>
+            )}
+            <button
+              className="gallery-refresh"
+              type="button"
+              onClick={() => void refresh()}
+              title="Atualizar galeria"
+              aria-label="Atualizar galeria"
+            >
+              ↻
+            </button>
+            {folder !== "selection" && folder !== "trash" && (
+              <button
+                className="gallery-upload-primary"
+                type="button"
+                disabled={busy}
+                onClick={() => photoInput.current?.click()}
+              >
+                ＋ Enviar fotos
+              </button>
+            )}
+          </div>
+          <input
+            ref={photoInput}
+            hidden
+            multiple
+            type="file"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            onChange={(event) => {
+              void uploadPhotos(Array.from(event.target.files || []));
+              event.target.value = "";
+            }}
+          />
+        </div>
+
+        {busy && uploadProgress > 0 && (
+          <div className="gallery-upload-progress">
+            <i style={{ width: `${uploadProgress}%` }} />
+            <span>
+              {uploadStatus || `${uploadProgress}%`} · {uploadProgress}%
+            </span>
+          </div>
+        )}
+
+        {uploadQueue.length > 0 && (
+          <section className="gallery-upload-queue" aria-live="polite">
+            <header>
+              <div>
+                <span>ENVIOS RECENTES</span>
+                <strong>Acompanhe cada arquivo</strong>
+              </div>
+              <button
                 type="button"
                 onClick={() =>
-                  setSelectedPhotoIds((current) => {
-                    const next = new Set(current);
-                    if (next.has(photo.id)) next.delete(photo.id);
-                    else next.add(photo.id);
-                    return next;
-                  })
+                  setUploadQueue((current) =>
+                    current.filter((item) => item.status !== "done" && item.status !== "error"),
+                  )
                 }
-                aria-label={selectedPhotoIds.has(photo.id) ? "Desmarcar foto" : "Selecionar foto"}
               >
-                {selectedPhotoIds.has(photo.id) ? "✓" : ""}
+                Limpar concluídos
               </button>
-            )}
-            <button
-              className="gallery-admin-photo-open"
-              type="button"
-              onClick={() => {
-                if (selectionMode) {
-                  setSelectedPhotoIds((current) => {
-                    const next = new Set(current);
-                    if (next.has(photo.id)) next.delete(photo.id);
-                    else next.add(photo.id);
-                    return next;
-                  });
-                } else openPhoto(photo.id);
-              }}
-              aria-label={`Abrir detalhes de ${photo.filename}`}
-            >
-              {photo.hasPreview ? (
-                <img
-                  src={`/api/galleries/${gallery.id}/photos/${photo.id}`}
-                  alt={photo.filename}
-                  loading="lazy"
-                />
-              ) : (
-                <span className="raw-file-icon">
-                  {photo.mimeType.includes("zip") ? "ZIP" : "RAW"}
-                </span>
-              )}
-            </button>
+            </header>
             <div>
-              <strong>{photo.filename}</strong>
-              <small>{formatSize(photo.size)}</small>
+              {uploadQueue.map((item) => (
+                <article className={`status-${item.status}`} key={item.id}>
+                  <span className="gallery-upload-status-icon" aria-hidden="true">
+                    {item.status === "done"
+                      ? "✓"
+                      : item.status === "error" || item.status === "partial"
+                        ? "!"
+                        : "↑"}
+                  </span>
+                  <div>
+                    <strong>{item.file.name}</strong>
+                    <small>{item.error || uploadStatusLabel[item.status]}</small>
+                  </div>
+                  <span>{formatSize(item.file.size)}</span>
+                  {(item.status === "error" || item.status === "partial") && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void uploadPhotos([item.file], {
+                          retryId: item.id,
+                          targetFolder: item.folder,
+                          existingPhotoId: item.photoId,
+                        })
+                      }
+                    >
+                      Tentar novamente
+                    </button>
+                  )}
+                  <button
+                    className="gallery-upload-dismiss"
+                    type="button"
+                    aria-label={`Ocultar status de ${item.file.name}`}
+                    onClick={() =>
+                      setUploadQueue((current) => current.filter((entry) => entry.id !== item.id))
+                    }
+                  >
+                    ×
+                  </button>
+                </article>
+              ))}
             </div>
-            <span className="admin-photo-badges">
-              {photo.selected && <b>♥</b>}
-              {photo.approved && <b>✓</b>}
-              {(photo.comments.length > 0 || photo.comment) && <b>●</b>}
-              {photo.deletedAt && <b>⌫</b>}
-            </span>
-            {(photo.comments.length > 0 || photo.comment) && (
-              <button
-                className="client-comment-preview"
-                type="button"
-                onClick={() => openPhoto(photo.id)}
-              >
-                “{photo.comments.at(-1)?.message || photo.comment.split("\n").at(-1)}”
-              </button>
-            )}
-            {photo.deletedAt && (
-              <small className="trash-expiry-note">
-                Removida em {new Intl.DateTimeFormat("pt-BR").format(new Date(photo.deletedAt))} ·
-                excluída após 30 dias
-              </small>
-            )}
-          </article>
-        ))}
-        {photos.length === 0 && (
-          <div className="gallery-folder-empty">
-            <span>{folders.find((item) => item.id === folder)?.icon}</span>
-            <strong>Pasta vazia</strong>
-          </div>
+          </section>
         )}
-      </div>
+
+        <div className="gallery-admin-grid" id="gallery-current-folder" role="tabpanel">
+          {photos.map((photo) => (
+            <article
+              key={photo.id}
+              className={`${photo.comments.length || photo.comment ? "has-client-comment" : ""} ${selectedPhotoIds.has(photo.id) ? "is-bulk-selected" : ""}`}
+            >
+              {selectionMode && (
+                <button
+                  className="gallery-photo-selector"
+                  type="button"
+                  onClick={() =>
+                    setSelectedPhotoIds((current) => {
+                      const next = new Set(current);
+                      if (next.has(photo.id)) next.delete(photo.id);
+                      else next.add(photo.id);
+                      return next;
+                    })
+                  }
+                  aria-label={selectedPhotoIds.has(photo.id) ? "Desmarcar foto" : "Selecionar foto"}
+                >
+                  {selectedPhotoIds.has(photo.id) ? "✓" : ""}
+                </button>
+              )}
+              <button
+                className="gallery-admin-photo-open"
+                type="button"
+                onClick={() => {
+                  if (selectionMode) {
+                    setSelectedPhotoIds((current) => {
+                      const next = new Set(current);
+                      if (next.has(photo.id)) next.delete(photo.id);
+                      else next.add(photo.id);
+                      return next;
+                    });
+                  } else openPhoto(photo.id);
+                }}
+                aria-label={`Abrir detalhes de ${photo.filename}`}
+              >
+                {photo.hasPreview ? (
+                  <img
+                    src={`/api/galleries/${gallery.id}/photos/${photo.id}`}
+                    alt={photo.filename}
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="raw-file-icon">
+                    {photo.mimeType.includes("zip") ? "ZIP" : "RAW"}
+                  </span>
+                )}
+              </button>
+              <div>
+                <strong>{photo.filename}</strong>
+                <small>{formatSize(photo.size)}</small>
+              </div>
+              <span className="admin-photo-badges">
+                {photo.selected && <b>♥</b>}
+                {photo.approved && <b>✓</b>}
+                {(photo.comments.length > 0 || photo.comment) && <b>●</b>}
+                {photo.deletedAt && <b>⌫</b>}
+              </span>
+              {(photo.comments.length > 0 || photo.comment) && (
+                <button
+                  className="client-comment-preview"
+                  type="button"
+                  onClick={() => openPhoto(photo.id)}
+                >
+                  “{photo.comments.at(-1)?.message || photo.comment.split("\n").at(-1)}”
+                </button>
+              )}
+              {photo.deletedAt && (
+                <small className="trash-expiry-note">
+                  Removida em {new Intl.DateTimeFormat("pt-BR").format(new Date(photo.deletedAt))} ·
+                  excluída após 30 dias
+                </small>
+              )}
+            </article>
+          ))}
+          {photos.length === 0 && (
+            <div className="gallery-folder-empty">
+              <span>
+                <GalleryFolderIcon folder={folder} />
+              </span>
+              <strong>
+                {folder === "selection"
+                  ? "A cliente ainda não escolheu fotos"
+                  : folder === "trash"
+                    ? "A lixeira está vazia"
+                    : "Nenhuma foto nesta etapa"}
+              </strong>
+              <small>
+                {folder === "selection"
+                  ? "As escolhas aparecerão aqui sem duplicar os arquivos."
+                  : folder === "trash"
+                    ? "Fotos removidas ficam disponíveis aqui por 30 dias."
+                    : "Envie uma ou várias fotos para começar."}
+              </small>
+              {folder !== "selection" && folder !== "trash" && (
+                <button type="button" disabled={busy} onClick={() => photoInput.current?.click()}>
+                  ＋ Enviar fotos
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
 
       {gallery.stats.extraCount > 0 && (
         <div className="photo-extra-charge">
@@ -709,14 +1038,29 @@ export function WorkFilesHub({
         </div>
       )}
 
-      <div className="gallery-activity-list">
-        <strong>Atividade recente do cliente</strong>
-        {gallery.events.slice(0, 5).map((event) => (
-          <span key={event.id}>
-            <i /> {event.detail}
-          </span>
-        ))}
-      </div>
+      {recentEvents.length > 0 && (
+        <section className="gallery-activity-list" aria-labelledby="gallery-activity-title">
+          <div>
+            <span>ATIVIDADE</span>
+            <strong id="gallery-activity-title">Retorno recente</strong>
+          </div>
+          {recentEvents.map((event) => (
+            <article key={event.id}>
+              <i aria-hidden="true" />
+              <span>{event.detail}</span>
+              {event.count > 1 && <b>{event.count}×</b>}
+              <time dateTime={event.createdAt}>
+                {new Intl.DateTimeFormat("pt-BR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }).format(new Date(event.createdAt))}
+              </time>
+            </article>
+          ))}
+        </section>
+      )}
 
       {activePhoto && (
         <div className="modal-backdrop" role="presentation" onMouseDown={closePhoto}>

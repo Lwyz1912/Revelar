@@ -57,6 +57,32 @@ function publicRef(row: FileRow): AppFileRef {
   };
 }
 
+export async function listAppFilesForOwner({
+  ownerEmail,
+  scopes,
+  relatedId,
+}: {
+  ownerEmail: string;
+  scopes: string[];
+  relatedId: string;
+}) {
+  await ensureFilesTable();
+  const cleanScopes = [...new Set(scopes.map((scope) => scope.trim()).filter(Boolean))].slice(0, 8);
+  if (!cleanScopes.length) return [];
+  const { DB } = getRuntimeBindings();
+  const placeholders = cleanScopes.map(() => "?").join(", ");
+  const rows = (
+    await DB.prepare(
+      `SELECT * FROM app_files
+       WHERE owner_email = ? AND related_id = ? AND scope IN (${placeholders})
+       ORDER BY created_at DESC`,
+    )
+      .bind(ownerEmail, relatedId, ...cleanScopes)
+      .all<FileRow>()
+  ).results;
+  return rows.map((row) => ({ ...publicRef(row), scope: row.scope }));
+}
+
 export async function saveAppFile({
   ownerEmail,
   file,

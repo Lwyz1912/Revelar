@@ -1,10 +1,12 @@
 import { getChatGPTUser } from "@/app/chatgpt-auth";
-import { saveAppFile } from "@/lib/server/app-file-repository";
+import { listAppFilesForOwner, saveAppFile } from "@/lib/server/app-file-repository";
 
 export const dynamic = "force-dynamic";
 
 const allowedScopes = new Set([
   "contract",
+  "contract-source",
+  "contract-signed",
   "contract-template",
   "work",
   "work-stage",
@@ -14,6 +16,23 @@ const allowedScopes = new Set([
   "brand",
   "watermark",
 ]);
+
+export async function GET(request: Request) {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "Entre para consultar arquivos." }, { status: 401 });
+  const url = new URL(request.url);
+  const relatedId = url.searchParams.get("relatedId")?.trim() || "";
+  const scope = url.searchParams.get("scope")?.trim() || "";
+  if (!relatedId || scope !== "contract") {
+    return Response.json({ error: "Consulta de arquivos inválida." }, { status: 400 });
+  }
+  const files = await listAppFilesForOwner({
+    ownerEmail: user.email,
+    relatedId,
+    scopes: ["contract", "contract-source", "contract-signed"],
+  });
+  return Response.json({ files });
+}
 
 export async function POST(request: Request) {
   const user = await getChatGPTUser();
