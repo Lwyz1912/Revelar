@@ -297,6 +297,7 @@ export type QuoteItem = {
   unitPrice: number;
   productId?: number;
   options?: string[];
+  priceOnRequest?: boolean;
 };
 export type Quote = {
   id: number;

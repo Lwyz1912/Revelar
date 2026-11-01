@@ -183,6 +183,7 @@ export function createQuoteFromProduct(
         quantity: 1,
         unitPrice,
         productId: product.id,
+        priceOnRequest: product.priceType === "consult" || undefined,
       },
     ],
     discount: 0,

@@ -3597,9 +3597,194 @@
   .work-gallery-manager .gallery-folder-workspace .gallery-file-toolbar {
     padding: 14px;
   }
+  .work-gallery-manager .gallery-folder-workspace .gallery-file-toolbar > div {
+    width: 100%;
+    flex: 0 0 auto;
+  }
   .work-gallery-manager .gallery-folder-workspace .gallery-admin-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     padding: 8px;
+  }
+}
+
+/* Delivery stages are isolated from the older gallery tab styles. */
+.work-gallery-manager .gallery-delivery-flow {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.work-gallery-manager .gallery-delivery-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.work-gallery-manager .gallery-delivery-heading span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+}
+
+.work-gallery-manager .gallery-delivery-heading strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font: 500 24px / 1.15 var(--font-display);
+}
+
+.work-gallery-manager .gallery-delivery-heading p {
+  max-width: 480px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.work-gallery-manager .gallery-delivery-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.work-gallery-manager .gallery-delivery-tab {
+  display: flex;
+  min-width: 0;
+  min-height: 88px;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text);
+  background: var(--surface);
+  text-align: left;
+}
+
+.work-gallery-manager .gallery-delivery-tab:last-child {
+  border-right: 0;
+}
+
+.work-gallery-manager .gallery-delivery-tab:hover {
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
+}
+
+.work-gallery-manager .gallery-delivery-tab.active {
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  box-shadow: inset 0 -3px var(--primary);
+}
+
+.work-gallery-manager .gallery-delivery-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--primary);
+  background: var(--surface-2);
+}
+
+.work-gallery-manager .gallery-delivery-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.65;
+}
+
+.work-gallery-manager .gallery-delivery-tab.active .gallery-delivery-icon {
+  border-color: var(--primary);
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
+.work-gallery-manager .gallery-delivery-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.work-gallery-manager .gallery-delivery-copy strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.work-gallery-manager .gallery-delivery-copy small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.work-gallery-manager .gallery-delivery-tab > b {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--primary);
+  background: var(--surface-2);
+  font-size: 10px;
+}
+
+@media (max-width: 1120px) {
+  .work-gallery-manager .gallery-delivery-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .work-gallery-manager .gallery-delivery-tab:nth-child(-n + 3) {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .work-gallery-manager .gallery-delivery-tab:nth-child(3) {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .work-gallery-manager .gallery-delivery-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px;
+  }
+
+  .work-gallery-manager .gallery-delivery-heading p {
+    text-align: left;
+  }
+
+  .work-gallery-manager .gallery-delivery-steps {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .work-gallery-manager .gallery-delivery-tab {
+    flex: 0 0 205px;
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
+  }
+
+  .work-gallery-manager .gallery-delivery-tab:nth-child(-n + 3) {
+    border-bottom: 0;
+  }
+
+  .work-gallery-manager .gallery-delivery-tab:nth-child(3) {
+    border-right: 1px solid var(--border);
   }
 }

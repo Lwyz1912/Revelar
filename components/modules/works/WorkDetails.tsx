@@ -135,11 +135,11 @@ const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> 
   { id: "moodboard", label: "Direção visual", icon: "✦" },
   { id: "timeline", label: "Timeline", icon: "⌁" },
   { id: "finance", label: "Financeiro", icon: "＄" },
-  { id: "contract", label: "Contrato", icon: "▱" },
   { id: "gallery", label: "Galeria", icon: "▧" },
   { id: "files", label: "Documentos", icon: "□" },
 ];
-const workDetailTabIds = workDetailTabs.map((item) => item.id);
+// Preserve old work links while showing the former contract tab in Documents.
+const workDetailTabIds: WorkDetailTab[] = [...workDetailTabs.map((item) => item.id), "contract"];
 
 export function WorkDetails({
   work,
@@ -1063,7 +1063,7 @@ export function WorkDetails({
           <button
             type="button"
             key={item.id}
-            className={tab === item.id ? "active" : ""}
+            className={(tab === "contract" ? "files" : tab) === item.id ? "active" : ""}
             onClick={() => setTab(item.id)}
           >
             <span>{item.icon}</span>
@@ -2403,130 +2403,7 @@ export function WorkDetails({
         />
       )}
 
-      {tab === "contract" && (
-        <section className="work-contract-panel card">
-          <div className="detail-section-heading">
-            <div>
-              <p>CONTRATO DO TRABALHO</p>
-              <h2>{contract.title}</h2>
-            </div>
-            <label className={`work-contract-status status-${contract.status}`}>
-              <span>Situação</span>
-              <select
-                value={contract.status}
-                onChange={(event) =>
-                  updateContract({ status: event.target.value as WorkContractStatus })
-                }
-              >
-                <option value="not_required">Não necessário</option>
-                <option value="pending">Pendente</option>
-                <option value="sent">Enviado</option>
-                <option value="signed">Assinado</option>
-              </select>
-            </label>
-          </div>
-          {contract.status === "not_required" ? (
-            <div className="contract-not-required">
-              <span>✓</span>
-              <div>
-                <strong>Este trabalho foi marcado como sem contrato</strong>
-                <p>
-                  Se a necessidade mudar, crie o contrato sem perder nenhuma informação do trabalho.
-                </p>
-              </div>
-              <button type="button" onClick={() => updateContract({ status: "pending" })}>
-                Criar contrato
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="work-contract-editor">
-                <label>
-                  <span>Nome do documento</span>
-                  <input
-                    value={contract.title}
-                    onChange={(event) => updateContract({ title: event.target.value })}
-                  />
-                </label>
-                <label>
-                  <span>Conteúdo editável</span>
-                  <textarea
-                    rows={16}
-                    value={contract.content}
-                    onChange={(event) => updateContract({ content: event.target.value })}
-                    placeholder="Escreva ou cole aqui o conteúdo do contrato."
-                  />
-                </label>
-              </div>
-              <div className="work-contract-files">
-                <div className="work-contract-files-heading">
-                  <div>
-                    <strong>Arquivos do contrato</strong>
-                    <small>
-                      Mantenha o documento de trabalho e a versão assinada sem substituir um pelo
-                      outro.
-                    </small>
-                  </div>
-                  {preferredContractFile && (
-                    <button
-                      className="primary-button"
-                      type="button"
-                      onClick={() => setPreviewStoredFile(preferredContractFile)}
-                    >
-                      Visualizar contrato
-                    </button>
-                  )}
-                </div>
-                <div className="work-contract-file-list">
-                  {contractFileItem("sourceFile", "Documento de trabalho", sourceContractFile)}
-                  {contractFileItem("signedFile", "PDF assinado", signedContractFile)}
-                  {!preferredContractFile && (
-                    <div className="work-contract-file-empty">
-                      <span>▱</span>
-                      <div>
-                        <strong>Nenhum arquivo anexado</strong>
-                        <small>Adicione um DOCX editável, um PDF assinado ou os dois.</small>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="work-contract-upload-actions">
-                  <button
-                    type="button"
-                    disabled={contractUpload?.status === "uploading"}
-                    onClick={() => contractSourceFileRef.current?.click()}
-                  >
-                    {contractUpload?.status === "uploading" && contractUpload.role === "sourceFile"
-                      ? "Enviando DOCX…"
-                      : `＋ ${sourceContractFile ? "Substituir DOCX" : "Adicionar DOCX"}`}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={contractUpload?.status === "uploading"}
-                    onClick={() => contractSignedFileRef.current?.click()}
-                  >
-                    {contractUpload?.status === "uploading" && contractUpload.role === "signedFile"
-                      ? "Enviando PDF…"
-                      : `＋ ${signedContractFile ? "Substituir PDF" : "Adicionar PDF assinado"}`}
-                  </button>
-                </div>
-                {contractUpload && (
-                  <p
-                    className={`contract-upload-feedback is-${contractUpload.status}`}
-                    role={contractUpload.status === "error" ? "alert" : "status"}
-                  >
-                    {contractUpload.status === "uploading"
-                      ? "O arquivo está sendo salvo e será exibido aqui ao concluir."
-                      : contractUpload.message}
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-        </section>
-      )}
-
-      {tab === "files" && (
+      {(tab === "files" || tab === "contract") && (
         <section className="tab-single card work-documents-hub">
           <div className="detail-section-heading work-documents-heading">
             <div>
@@ -2541,19 +2418,17 @@ export function WorkDetails({
           <section className="work-document-contract-card">
             <header className="work-document-contract-header">
               <div className="work-document-type" aria-hidden="true">
-                ▱
+                <svg viewBox="0 0 24 24">
+                  <path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" />
+                </svg>
               </div>
               <div className="work-document-contract-copy">
                 <span>CONTRATO PRINCIPAL</span>
-                <input
-                  aria-label="Nome do contrato"
-                  value={contract.title}
-                  onChange={(event) => updateContract({ title: event.target.value })}
-                />
+                <h3>{contract.title}</h3>
                 <small>
                   {preferredContractFile
-                    ? `${[sourceContractFile, signedContractFile].filter(Boolean).length} arquivo(s) salvo(s) neste contrato`
-                    : "Adicione o documento de trabalho, a versão assinada ou ambos."}
+                    ? "Os arquivos vinculados a este trabalho estão abaixo."
+                    : "Adicione o documento de trabalho, o PDF assinado ou ambos."}
                 </small>
               </div>
               <label className={`work-contract-status status-${contract.status}`}>
@@ -2571,39 +2446,6 @@ export function WorkDetails({
                 </select>
               </label>
             </header>
-            <div className="work-document-contract-actions">
-              {preferredContractFile && (
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => setPreviewStoredFile(preferredContractFile)}
-                >
-                  Visualizar contrato
-                </button>
-              )}
-              <button
-                type="button"
-                disabled={contractUpload?.status === "uploading"}
-                onClick={() => contractSourceFileRef.current?.click()}
-              >
-                {contractUpload?.status === "uploading" && contractUpload.role === "sourceFile"
-                  ? "Enviando DOCX…"
-                  : sourceContractFile
-                    ? "Substituir DOCX"
-                    : "＋ DOCX de trabalho"}
-              </button>
-              <button
-                type="button"
-                disabled={contractUpload?.status === "uploading"}
-                onClick={() => contractSignedFileRef.current?.click()}
-              >
-                {contractUpload?.status === "uploading" && contractUpload.role === "signedFile"
-                  ? "Enviando PDF…"
-                  : signedContractFile
-                    ? "Substituir PDF"
-                    : "＋ PDF assinado"}
-              </button>
-            </div>
             {contractUpload && (
               <p
                 className={`contract-upload-feedback is-${contractUpload.status}`}
@@ -2626,6 +2468,30 @@ export function WorkDetails({
                   </div>
                 </div>
               )}
+            </div>
+            <div className="work-document-contract-actions">
+              <button
+                type="button"
+                disabled={contractUpload?.status === "uploading"}
+                onClick={() => contractSourceFileRef.current?.click()}
+              >
+                {contractUpload?.status === "uploading" && contractUpload.role === "sourceFile"
+                  ? "Enviando DOCX…"
+                  : sourceContractFile
+                    ? "Substituir DOCX"
+                    : "＋ Adicionar DOCX"}
+              </button>
+              <button
+                type="button"
+                disabled={contractUpload?.status === "uploading"}
+                onClick={() => contractSignedFileRef.current?.click()}
+              >
+                {contractUpload?.status === "uploading" && contractUpload.role === "signedFile"
+                  ? "Enviando PDF…"
+                  : signedContractFile
+                    ? "Substituir PDF"
+                    : "＋ Adicionar PDF assinado"}
+              </button>
             </div>
           </section>
           <div className="work-document-list-heading">

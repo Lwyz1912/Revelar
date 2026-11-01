@@ -4151,3 +4151,71 @@
   cursor: wait;
   opacity: 0.62;
 }
+
+/* A single, readable home for the work's contract files. */
+.work-documents-hub .work-document-contract-card {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+}
+
+.work-documents-hub .work-document-contract-header {
+  min-width: 0;
+}
+
+.work-documents-hub .work-document-type svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.work-documents-hub .work-document-contract-copy h3 {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font: 500 clamp(20px, 2vw, 23px) / 1.2 var(--font-display);
+}
+
+.work-documents-hub .work-document-contract-copy small {
+  display: block;
+  overflow: visible;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.work-documents-hub .work-document-contract-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.work-documents-hub .work-document-contract-actions button {
+  font-size: 12px;
+}
+
+.work-documents-hub .work-document-contract-files {
+  padding-top: 16px;
+}
+
+.work-documents-hub .work-contract-file-item > div {
+  min-width: 0;
+}
+
+.work-documents-hub .work-contract-file-item small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (max-width: 760px) {
+  .work-documents-hub .work-document-contract-actions {
+    flex-direction: row;
+  }
+
+  .work-documents-hub .work-document-contract-actions button {
+    flex: 1 1 150px;
+  }
+}

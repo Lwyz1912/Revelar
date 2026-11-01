@@ -728,39 +728,41 @@ export function WorkFilesHub({
         )}
       </div>
 
-      <div className="gallery-folder-tabs" role="tablist" aria-label="Etapas dos arquivos">
-        <div className="gallery-folders-heading">
+      <section className="gallery-delivery-flow" aria-label="Fluxo de entrega">
+        <div className="gallery-delivery-heading">
           <div>
             <span>ORGANIZAÇÃO DOS ARQUIVOS</span>
             <strong>Fluxo de entrega</strong>
           </div>
           <p>As fotos ficam separadas por etapa. A cliente vê somente a etapa liberada.</p>
         </div>
-        {folders.map((item) => (
-          <button
-            key={item.id}
-            className={folder === item.id ? "active" : ""}
-            type="button"
-            role="tab"
-            aria-selected={folder === item.id}
-            aria-controls="gallery-current-folder"
-            onClick={() => {
-              setFolder(item.id);
-              setSelectionMode(false);
-              setSelectedPhotoIds(new Set());
-            }}
-          >
-            <span className="gallery-folder-step">
-              <GalleryFolderIcon folder={item.id} />
-            </span>
-            <span className="gallery-folder-copy">
-              <strong>{item.label}</strong>
-              <small>{item.accent}</small>
-            </span>
-            <b>{folderCount(gallery, item.id)}</b>
-          </button>
-        ))}
-      </div>
+        <div className="gallery-delivery-steps" role="tablist" aria-label="Etapas dos arquivos">
+          {folders.map((item) => (
+            <button
+              key={item.id}
+              className={`gallery-delivery-tab${folder === item.id ? " active" : ""}`}
+              type="button"
+              role="tab"
+              aria-selected={folder === item.id}
+              aria-controls="gallery-current-folder"
+              onClick={() => {
+                setFolder(item.id);
+                setSelectionMode(false);
+                setSelectedPhotoIds(new Set());
+              }}
+            >
+              <span className="gallery-delivery-icon">
+                <GalleryFolderIcon folder={item.id} />
+              </span>
+              <span className="gallery-delivery-copy">
+                <strong>{item.label}</strong>
+                <small>{item.accent}</small>
+              </span>
+              <b>{folderCount(gallery, item.id)}</b>
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section className="gallery-folder-workspace">
         <div className="gallery-file-toolbar">
@@ -1016,11 +1018,6 @@ export function WorkFilesHub({
                     ? "Fotos removidas ficam disponíveis aqui por 30 dias."
                     : "Envie uma ou várias fotos para começar."}
               </small>
-              {folder !== "selection" && folder !== "trash" && (
-                <button type="button" disabled={busy} onClick={() => photoInput.current?.click()}>
-                  ＋ Enviar fotos
-                </button>
-              )}
             </div>
           )}
         </div>

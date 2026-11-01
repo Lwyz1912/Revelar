@@ -6,29 +6,10 @@ import { quoteTotal } from "@/lib/finance";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Client, Currency, Quote, QuoteItem, QuoteStatus } from "@/types/revelar";
 
-export function QuotesView({
-  quotes,
-  setQuotes,
-  clients,
-  currency,
-  onApprove,
-  toast,
-}: {
-  quotes: Quote[];
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
-  clients: Client[];
-  currency: Currency;
-  onApprove: (quote: Quote, contractNeeded: boolean) => number | undefined;
-  toast: (message: string) => void;
-}) {
-  const [builderOpen, setBuilderOpen] = useState(false);
-  const [pendingApproval, setPendingApproval] = useState<Quote | null>(null);
-  const [contractNeeded, setContractNeeded] = useState(true);
-  const [showTrash, setShowTrash] = useState(false);
-  const [declinedTrashDays, setDeclinedTrashDays] = useState(7);
-  const [draft, setDraft] = useState<Omit<Quote, "id" | "status">>({
+function emptyQuoteDraft(currency: Currency): Omit<Quote, "id" | "status"> {
+  return {
     title: "",
-    clientId: clients[0]?.id,
+    clientId: undefined,
     currency,
     items: [
       {
@@ -42,8 +23,45 @@ export function QuotesView({
     discount: 0,
     validUntil: addDays(todayIso(), 14),
     notes: "Valores e datas ficam reservados até o vencimento deste orçamento.",
-  });
+  };
+}
+
+function hasPriceToDefine(items: QuoteItem[]) {
+  return items.some((item) => item.priceOnRequest && item.unitPrice <= 0);
+}
+
+export function QuotesView({
+  quotes,
+  setQuotes,
+  clients,
+  currency,
+  initialProductQuote,
+  onProductQuoteHandled,
+  onApprove,
+  toast,
+}: {
+  quotes: Quote[];
+  setQuotes: Dispatch<SetStateAction<Quote[]>>;
+  clients: Client[];
+  currency: Currency;
+  initialProductQuote: Quote | null;
+  onProductQuoteHandled: () => void;
+  onApprove: (quote: Quote, contractNeeded: boolean) => number | undefined;
+  toast: (message: string) => void;
+}) {
+  const [builderOpen, setBuilderOpen] = useState(Boolean(initialProductQuote));
+  const [pendingApproval, setPendingApproval] = useState<Quote | null>(null);
+  const [contractNeeded, setContractNeeded] = useState(true);
+  const [showTrash, setShowTrash] = useState(false);
+  const [declinedTrashDays, setDeclinedTrashDays] = useState(7);
+  const [draft, setDraft] = useState<Omit<Quote, "id" | "status">>(
+    () => initialProductQuote ?? emptyQuoteDraft(currency),
+  );
   const draftTotal = quoteTotal(draft);
+  const closeBuilder = () => {
+    setBuilderOpen(false);
+    onProductQuoteHandled();
+  };
   const updateItem = (id: string, changes: Partial<QuoteItem>) =>
     setDraft({
       ...draft,
@@ -56,7 +74,7 @@ export function QuotesView({
       { ...draft, id: Math.max(...current.map((item) => item.id), 0) + 1, status: "draft" },
       ...current,
     ]);
-    setBuilderOpen(false);
+    closeBuilder();
     toast("Orçamento salvo como rascunho");
   };
   useEffect(() => {
@@ -160,7 +178,14 @@ export function QuotesView({
           <h1>Orçamentos</h1>
           <span>Fotografia, fotos avulsas, cursos, PDFs, presets e outros produtos.</span>
         </div>
-        <button className="primary-button" type="button" onClick={() => setBuilderOpen(true)}>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => {
+            setDraft(emptyQuoteDraft(currency));
+            setBuilderOpen(true);
+          }}
+        >
           ＋ Novo orçamento
         </button>
       </section>
@@ -238,7 +263,9 @@ export function QuotesView({
                 ))}
               </div>
               <div className="quote-total">
-                <small>TOTAL</small>
+                <small>
+                  {hasPriceToDefine(quote.items) ? "TOTAL PARCIAL · VALOR A DEFINIR" : "TOTAL"}
+                </small>
                 <strong>{formatMoney(quoteTotal(quote), quote.currency)}</strong>
                 {quote.discount > 0 && (
                   <span>Desconto de {formatMoney(quote.discount, quote.currency)}</span>
@@ -281,11 +308,7 @@ export function QuotesView({
         })}
       </section>
       {builderOpen && (
-        <div
-          className="drawer-backdrop"
-          role="presentation"
-          onMouseDown={() => setBuilderOpen(false)}
-        >
+        <div className="drawer-backdrop" role="presentation" onMouseDown={closeBuilder}>
           <aside
             className="client-drawer quote-drawer"
             role="dialog"
@@ -298,7 +321,7 @@ export function QuotesView({
                 <h2>Montar proposta</h2>
                 <span>Combine serviços, produtos digitais, fotos e extras.</span>
               </div>
-              <button type="button" onClick={() => setBuilderOpen(false)}>
+              <button type="button" onClick={closeBuilder} aria-label="Fechar orçamento">
                 ×
               </button>
             </div>
@@ -424,6 +447,11 @@ export function QuotesView({
                     </div>
                   ))}
                 </div>
+                {hasPriceToDefine(draft.items) && (
+                  <p className="quote-price-pending" role="status">
+                    Este pacote é sob consulta. Preencha o valor do item quando ele for definido.
+                  </p>
+                )}
                 <div className="field-grid">
                   <label className="field">
                     <span>Desconto</span>
@@ -454,16 +482,16 @@ export function QuotesView({
                   </label>
                 </div>
                 <div className="quote-builder-total">
-                  <span>Total do orçamento</span>
+                  <span>
+                    {hasPriceToDefine(draft.items)
+                      ? "Total parcial · valor a definir"
+                      : "Total do orçamento"}
+                  </span>
                   <strong>{formatMoney(draftTotal, draft.currency)}</strong>
                 </div>
               </div>
               <div className="drawer-footer">
-                <button
-                  className="cancel-button"
-                  type="button"
-                  onClick={() => setBuilderOpen(false)}
-                >
+                <button className="cancel-button" type="button" onClick={closeBuilder}>
                   Cancelar
                 </button>
                 <button className="primary-button" type="submit">

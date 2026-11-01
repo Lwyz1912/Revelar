@@ -69,6 +69,21 @@ test("transforma um produto em orçamento reutilizável", () => {
   assert.equal(quote.items[0]?.unitPrice, 108);
 });
 
+test("pacote sob consulta entra no orçamento sem cliente ou preço presumidos", () => {
+  const quote = createQuoteFromProduct(
+    { ...product, kind: "package", name: "Casamento Essencial", priceType: "consult" },
+    0,
+    undefined,
+    "2026-08-03",
+  );
+
+  assert.equal(quote.clientId, undefined);
+  assert.equal(quote.items[0]?.description, "Casamento Essencial");
+  assert.equal(quote.items[0]?.productId, product.id);
+  assert.equal(quote.items[0]?.unitPrice, 0);
+  assert.equal(quote.items[0]?.priceOnRequest, true);
+});
+
 test("transforma uma venda direta em entrada financeira", () => {
   const transaction = createProductSaleTransaction({
     product,
