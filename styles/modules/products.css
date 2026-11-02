@@ -111,7 +111,7 @@
   border: 1px solid var(--primary);
   border-radius: 8px;
   background: var(--surface);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 10px;
   font-weight: 800;
 }
@@ -202,7 +202,7 @@
   min-height: 25px;
   padding: 5px 8px;
   border-radius: 7px;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   background: color-mix(in srgb, var(--primary) 8%, var(--surface));
   font-size: 9px;
   font-weight: 800;
@@ -295,7 +295,7 @@
 }
 .product-card-actions button:hover {
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .product-card-actions button.primary-mini {
   margin-left: auto;
@@ -424,7 +424,7 @@
 }
 .add-option-value {
   margin-top: 9px;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-weight: 800;
 }
 .file-field input {

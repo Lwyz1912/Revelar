@@ -41,7 +41,7 @@
   padding: 4px 7px;
   border-radius: 99px;
   background: color-mix(in srgb, var(--primary) 9%, var(--surface));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 8px;
   font-weight: 800;
   text-transform: uppercase;
@@ -91,7 +91,7 @@
 }
 .client-profile-tabs button.active {
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-weight: 700;
 }
 .client-profile-tabs b {
@@ -165,7 +165,7 @@
 .client-files-list article header button {
   border: 0;
   background: transparent;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 9px;
   font-weight: 700;
 }
@@ -214,7 +214,7 @@
   height: 27px;
   border-radius: 8px;
   background: var(--surface-2);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 14px;
 }
 .client-recent-work {
@@ -495,7 +495,7 @@
 .type-filter button.active,
 .view-switch button.active {
   background: var(--surface);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
   font-weight: 700;
 }
@@ -558,7 +558,7 @@
   place-items: center;
   overflow: hidden;
   background: color-mix(in srgb, var(--primary) 11%, var(--surface));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font: 600 11px var(--font-display);
 }
 .client-avatar.large {
@@ -611,7 +611,7 @@
   font-weight: 600;
 }
 .client-date strong {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .row-arrow {
   color: var(--muted);
@@ -649,7 +649,7 @@
 .client-tag {
   padding: 5px 7px;
   border-radius: 999px;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   background: color-mix(in srgb, var(--primary) 9%, var(--surface));
   font-size: 10px;
   font-weight: 800;
@@ -839,7 +839,7 @@
   place-items: center;
   border-radius: 50%;
   background: var(--surface-2);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .client-type-picker strong {
   font-size: 12px;
@@ -867,7 +867,7 @@
   border: 1px dashed color-mix(in srgb, var(--primary) 45%, var(--border));
   border-radius: 50%;
   background: var(--surface-2);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .photo-picker > span {
   font-size: 18px;
@@ -975,7 +975,7 @@
 .duplicate-alert button {
   border: 0;
   background: transparent;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 10px;
   font-weight: 800;
 }
@@ -1008,7 +1008,7 @@
   font-size: 10px;
 }
 .details-toggle > b {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 20px;
   font-weight: 400;
 }

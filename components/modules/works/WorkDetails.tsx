@@ -1,4 +1,6 @@
 import { FileViewer } from "@/components/shared/FileViewer";
+import { useEffect, useRef } from "react";
+import { RevelarIcon, type RevelarIconName } from "@/components/shared/RevelarIcon";
 import { workStatusLabels } from "@/config/labels";
 import { namesForClients } from "@/lib/works";
 import { WorkFilesHub } from "@/components/modules/works/WorkFilesHub";
@@ -10,8 +12,34 @@ import { WorkTimelineSection } from "./details/WorkTimelineSection";
 import { WorkFinanceSection } from "./details/WorkFinanceSection";
 import { WorkDocumentsSection } from "./details/WorkDocumentsSection";
 
+const sectionIcons: Record<string, RevelarIconName> = {
+  overview: "overview",
+  moodboard: "sparkle",
+  timeline: "agenda",
+  finance: "finance",
+  gallery: "gallery",
+  files: "contracts",
+};
+
 export function WorkDetails(props: Parameters<typeof useWorkDetailsController>[0]) {
   const controller = useWorkDetailsController(props);
+  const navigationRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    if (!navigation) return;
+    const revealActiveSection = () => {
+      const active = navigation.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!active) return;
+      const bounds = navigation.getBoundingClientRect();
+      const item = active.getBoundingClientRect();
+      if (item.left < bounds.left) navigation.scrollLeft += item.left - bounds.left;
+      else if (item.right > bounds.right) navigation.scrollLeft += item.right - bounds.right;
+    };
+    revealActiveSection();
+    const observer = new ResizeObserver(revealActiveSection);
+    observer.observe(navigation);
+    return () => observer.disconnect();
+  }, [controller.tab]);
   const {
     addActivity,
     cancelOpen,
@@ -76,11 +104,13 @@ export function WorkDetails(props: Parameters<typeof useWorkDetailsController>[0
         }}
       />
       <button className="detail-back" type="button" onClick={onBack}>
-        ← Voltar para trabalhos
+        <RevelarIcon name="back" /> Trabalhos
       </button>
       <section className="work-detail-hero">
         <div className="work-detail-title">
-          <span className={`work-category-icon status-${work.status}`}>▱</span>
+          <span className={`work-category-icon status-${work.status}`}>
+            <RevelarIcon name="works" />
+          </span>
           <div>
             <span className={`status-badge status-${work.status}`}>
               {workStatusLabels[work.status]}
@@ -92,20 +122,45 @@ export function WorkDetails(props: Parameters<typeof useWorkDetailsController>[0
           </div>
         </div>
         <div className="work-detail-actions">
-          <a className="whatsapp-button" href={whatsapp} target="_blank" rel="noreferrer">
-            ◉ WhatsApp
+          <a
+            className="whatsapp-button"
+            aria-label="WhatsApp"
+            title="Abrir WhatsApp"
+            href={whatsapp}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <RevelarIcon name="whatsapp" /> <span>WhatsApp</span>
           </a>
           <button type="button" onClick={() => setEditing(!editing)}>
-            ✎ Editar
+            <RevelarIcon name="edit" /> {editing ? "Editando" : "Editar"}
           </button>
-          <button type="button" onClick={() => onDuplicate(work)}>
-            ⧉ Duplicar
+          <button
+            className="work-action-icon"
+            type="button"
+            aria-label="Duplicar trabalho"
+            title="Duplicar trabalho"
+            onClick={() => onDuplicate(work)}
+          >
+            <RevelarIcon name="copy" />
           </button>
-          <button type="button" onClick={() => onArchive(work)}>
-            ⌑ Arquivar
+          <button
+            className="work-action-icon"
+            type="button"
+            aria-label="Arquivar trabalho"
+            title="Arquivar trabalho"
+            onClick={() => onArchive(work)}
+          >
+            <RevelarIcon name="archive" />
           </button>
-          <button className="danger-action" type="button" onClick={() => setCancelOpen(true)}>
-            × Cancelar
+          <button
+            className="work-action-icon danger-action"
+            type="button"
+            aria-label="Cancelar trabalho"
+            title="Cancelar trabalho"
+            onClick={() => setCancelOpen(true)}
+          >
+            <RevelarIcon name="close" />
           </button>
         </div>
       </section>
@@ -180,15 +235,16 @@ export function WorkDetails(props: Parameters<typeof useWorkDetailsController>[0
         </section>
       )}
 
-      <nav className="work-detail-tabs" aria-label="Seções do trabalho">
+      <nav ref={navigationRef} className="work-detail-tabs" aria-label="Seções do trabalho">
         {workDetailTabs.map((item) => (
           <button
             type="button"
             key={item.id}
+            aria-current={(tab === "contract" ? "files" : tab) === item.id ? "page" : undefined}
             className={(tab === "contract" ? "files" : tab) === item.id ? "active" : ""}
             onClick={() => setTab(item.id)}
           >
-            <span>{item.icon}</span>
+            <RevelarIcon name={sectionIcons[item.id] ?? "works"} />
             {item.label}
           </button>
         ))}

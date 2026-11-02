@@ -461,10 +461,10 @@
   }
   .mobile-nav button.active .revelar-icon {
     opacity: 1;
-    color: var(--primary);
+    color: var(--action-ink, var(--primary));
   }
   .mobile-nav button.active {
-    color: var(--primary);
+    color: var(--action-ink, var(--primary));
     font-weight: 700;
   }
   .mobile-more-backdrop {
@@ -816,6 +816,14 @@
     justify-content: flex-start;
     margin-top: 16px;
   }
+  .work-details-page .work-detail-actions .whatsapp-button {
+    width: 44px;
+    padding: 0;
+    flex: 0 0 44px;
+  }
+  .work-detail-actions .whatsapp-button span {
+    display: none;
+  }
   .work-detail-actions button,
   .whatsapp-button {
     flex: 1 1 auto;
@@ -828,7 +836,7 @@
     margin-top: 20px;
   }
   .work-detail-tabs button {
-    min-height: 42px;
+    min-height: 48px;
     padding: 0 12px;
   }
   .detail-content-grid,

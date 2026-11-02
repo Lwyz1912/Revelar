@@ -46,7 +46,7 @@
 }
 .currency-switch button.active {
   background: var(--surface);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.07);
   font-weight: 800;
 }
@@ -320,7 +320,7 @@
 }
 .finance-tabs button.active {
   background: var(--surface);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
   font-weight: 800;
 }
@@ -483,6 +483,6 @@
 .transaction-kind button.active {
   border-color: var(--primary);
   background: color-mix(in srgb, var(--primary) 7%, var(--surface));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-weight: 800;
 }
