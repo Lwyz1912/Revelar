@@ -3,6 +3,7 @@ import { getChatGPTUser } from "@/app/chatgpt-auth";
 export const dynamic = "force-dynamic";
 
 type OpenMeteoResponse = {
+  current?: { temperature_2m?: number; weather_code?: number };
   daily?: {
     time?: string[];
     weather_code?: number[];
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
   const today = new Date();
   today.setUTCHours(12, 0, 0, 0);
   const daysAhead = Math.round((target.getTime() - today.getTime()) / 86_400_000);
-  if (daysAhead > 15) {
+  if (daysAhead > 15 && url.searchParams.get("current") !== "1") {
     return Response.json({
       available: false,
       reason: "A previsão confiável ficará disponível 15 dias antes do ensaio.",
@@ -62,26 +63,42 @@ export async function GET(request: Request) {
     "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
   );
   endpoint.searchParams.set("timezone", "auto");
-  endpoint.searchParams.set("start_date", date);
-  endpoint.searchParams.set("end_date", date);
+  if (url.searchParams.get("current") === "1") {
+    endpoint.searchParams.set("current", "temperature_2m,weather_code");
+  }
+  if (daysAhead <= 15) {
+    endpoint.searchParams.set("start_date", date);
+    endpoint.searchParams.set("end_date", date);
+  }
 
   const response = await fetch(endpoint, { headers: { accept: "application/json" } });
   if (!response.ok) {
     return Response.json({ available: false, reason: "Previsão temporariamente indisponível." });
   }
   const data = (await response.json()) as OpenMeteoResponse;
-  const code = data.daily?.weather_code?.[0];
+  const index = data.daily?.time?.indexOf(date) ?? -1;
+  const code = data.daily?.weather_code?.[index];
+  const current = data.current && {
+    temperature: data.current.temperature_2m,
+    label: weatherLabel(data.current.weather_code ?? -1),
+    code: data.current.weather_code,
+  };
   if (code === undefined) {
-    return Response.json({ available: false, reason: "Previsão ainda não publicada." });
+    return Response.json({
+      available: false,
+      current,
+      reason: "Previsão para a data ainda indisponível.",
+    });
   }
   return Response.json(
     {
       available: true,
       label: weatherLabel(code),
       code,
-      max: data.daily?.temperature_2m_max?.[0],
-      min: data.daily?.temperature_2m_min?.[0],
-      rain: data.daily?.precipitation_probability_max?.[0],
+      current,
+      max: data.daily?.temperature_2m_max?.[index],
+      min: data.daily?.temperature_2m_min?.[index],
+      rain: data.daily?.precipitation_probability_max?.[index],
     },
     { headers: { "cache-control": "private, max-age=1800" } },
   );
