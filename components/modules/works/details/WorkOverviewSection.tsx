@@ -46,6 +46,31 @@ export function WorkOverviewSection({ state }: Props) {
   return (
     <div className="work-overview-layout">
       <section className="work-overview-main">
+        <article className="card overview-progress-card">
+          <div className="overview-card-heading">
+            <div>
+              <span>PRÓXIMA AÇÃO</span>
+              <h2>{nextStage?.label || "Tudo concluído"}</h2>
+              <p>
+                {nextStage
+                  ? `Responsável: ${nextStage.responsible || "A definir"}`
+                  : "Todas as etapas foram finalizadas."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTab("timeline");
+                if (nextStage) setSelectedStageId(nextStage.id);
+              }}
+            >
+              Abrir timeline
+            </button>
+          </div>
+          <div className="progress large">
+            <i style={{ width: `${progress}%` }} />
+          </div>
+        </article>
         <div className="overview-status-strip">
           <article>
             <span>SESSÃO</span>
@@ -204,32 +229,6 @@ export function WorkOverviewSection({ state }: Props) {
             </small>
           </article>
         </section>
-
-        <article className="card overview-progress-card">
-          <div className="overview-card-heading">
-            <div>
-              <span>PRÓXIMA AÇÃO</span>
-              <h2>{nextStage?.label || "Tudo concluído"}</h2>
-              <p>
-                {nextStage
-                  ? `Responsável: ${nextStage.responsible || "A definir"}`
-                  : "Todas as etapas foram finalizadas."}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setTab("timeline");
-                if (nextStage) setSelectedStageId(nextStage.id);
-              }}
-            >
-              Abrir timeline
-            </button>
-          </div>
-          <div className="progress large">
-            <i style={{ width: `${progress}%` }} />
-          </div>
-        </article>
       </section>
 
       <aside className="overview-history card">

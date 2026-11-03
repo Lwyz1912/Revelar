@@ -59,6 +59,8 @@ for (const palette of palettes) {
         ["text", "surface"],
         ["text", "bg"],
         ["muted", "surface"],
+        ["action-ink", "surface"],
+        ["action-ink", "surface-2"],
         ["on-primary", "primary"],
         ["accent", "surface"],
         ["accent", "accent-soft"],

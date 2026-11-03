@@ -104,7 +104,7 @@
   height: 27px;
   border-radius: 50%;
   background: var(--accent-soft);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 10px;
 }
 .quick-start-actions button > span {
@@ -168,7 +168,7 @@
 }
 .metric-icon.green {
   background: color-mix(in srgb, var(--primary) 13%, var(--surface));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .metric-icon.gold {
   background: var(--accent-soft);
@@ -238,7 +238,7 @@
 }
 .outline-button:hover {
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .outline-button b {
   font-size: 14px;
@@ -288,7 +288,7 @@
   font-size: 12px;
 }
 .progress-title strong {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .progress {
   height: 6px;
@@ -315,7 +315,7 @@
   height: 15px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--primary) 12%, var(--surface));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   margin-right: 6px;
 }
 
@@ -506,7 +506,7 @@
   background: var(--accent-soft);
 }
 .date-box.green {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   background: color-mix(in srgb, var(--primary) 12%, var(--surface));
 }
 .date-box.rose {

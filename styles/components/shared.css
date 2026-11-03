@@ -77,7 +77,7 @@
 }
 .segmented button.selected {
   background: var(--surface);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
   font-weight: 700;
 }
@@ -228,7 +228,7 @@
 }
 .settings-sidebar button.active {
   background: color-mix(in srgb, var(--primary) 11%, var(--surface));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   box-shadow: inset 3px 0 0 var(--primary);
 }
 .settings-sidebar button i {
@@ -711,7 +711,7 @@
   cursor: pointer;
 }
 .file-drop strong {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 11px;
 }
 .file-drop span {
@@ -841,7 +841,7 @@
 .mini-segment button.active {
   border-color: var(--primary);
   background: color-mix(in srgb, var(--primary) 9%, var(--surface));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-weight: 800;
 }
 .select-label {
@@ -857,7 +857,7 @@
   justify-content: space-between;
 }
 .range-label b {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .range-label input {
   width: 100%;
@@ -1082,7 +1082,7 @@
 }
 .settings-explainer-card strong {
   display: block;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 10px;
 }
 .settings-explainer-card p {
@@ -1119,7 +1119,7 @@
   place-items: center;
   border-radius: 8px;
   background: color-mix(in srgb, var(--primary) 10%, var(--surface-2));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 8px;
   font-weight: 800;
 }
@@ -1482,7 +1482,7 @@ html[data-high-contrast="true"] {
   background: var(--surface);
 }
 .toast-info span {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   background: var(--surface-2);
 }
 @keyframes toast-in {
@@ -1701,7 +1701,7 @@ html[data-high-contrast="true"] {
   height: 25px;
   border-radius: 50%;
   background: var(--accent-soft);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 10px;
 }
 .help-workflow {
@@ -1764,7 +1764,7 @@ html[data-high-contrast="true"] {
   background: var(--accent-soft);
 }
 .help-tip strong {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 10px;
 }
 .help-tip span {

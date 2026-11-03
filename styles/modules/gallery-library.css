@@ -688,7 +688,7 @@
   font-weight: 750;
 }
 .gallery-mode button.active {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   background: var(--surface);
   box-shadow: 0 3px 10px #00000012;
 }
@@ -755,7 +755,7 @@
   font-size: 17px;
 }
 .gallery-tools > div button.active {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   background: var(--surface-2);
 }
 .gallery-cards {
@@ -871,7 +871,7 @@
 }
 .gallery-cards footer b {
   margin-left: auto;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 17px;
 }
 .gallery-cards.view-list {
@@ -930,7 +930,7 @@
   width: fit-content;
   padding: 6px 9px;
   border-radius: 999px;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   background: var(--accent-soft);
   font-size: 8px;
   font-weight: 850;
@@ -1017,7 +1017,7 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   background: var(--accent-soft);
   font-size: 17px;
   font-style: normal;
@@ -1186,7 +1186,7 @@
   padding: 0 14px;
   border: 1px solid var(--primary);
   border-radius: 9px;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   background: transparent;
   font-size: 10px;
   font-weight: 750;

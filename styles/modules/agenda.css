@@ -72,7 +72,7 @@
   font-size: 11px;
 }
 .agenda-summary .working-hours strong {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font: 700 13px/1.4 inherit;
 }
 .calendar-shell {
@@ -152,7 +152,7 @@
 }
 .calendar-view-switch button.active {
   background: var(--surface);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
   font-weight: 800;
 }
@@ -280,7 +280,7 @@
   border-left: 3px solid currentColor;
   border-radius: 5px;
   background: color-mix(in srgb, currentColor 10%, var(--surface));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   text-align: left;
 }
 .calendar-event > span {
@@ -310,7 +310,7 @@
   color: #7e589b;
 }
 .calendar-event.kind-meeting {
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .calendar-event.kind-personal {
   color: #ad6675;
@@ -411,7 +411,7 @@
 .day-agenda > aside strong {
   display: block;
   font: 500 50px/1 var(--font-display);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .day-agenda > aside span {
   display: block;
@@ -561,7 +561,7 @@
 }
 .list-date strong {
   font: 500 22px var(--font-display);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }
 .list-date span {
   color: var(--muted);
@@ -762,7 +762,7 @@
 .event-weather strong {
   display: block;
   margin-top: 5px;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 11px;
 }
 .event-weather p {
@@ -802,7 +802,7 @@
 }
 .availability-mode button.active {
   background: var(--surface);
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 .timezone-preview {
@@ -820,7 +820,7 @@
 .timezone-preview > strong {
   display: block;
   margin-top: 4px;
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
   font-size: 11px;
 }
 .danger-outline-button {
@@ -864,5 +864,5 @@
 }
 .calendar-conflict.confirmed {
   background: color-mix(in srgb, var(--primary) 8%, var(--surface));
-  color: var(--primary);
+  color: var(--action-ink, var(--primary));
 }

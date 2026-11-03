@@ -1,6 +1,10 @@
 import type { SVGProps } from "react";
 
 export type RevelarIconName =
+  | "edit"
+  | "copy"
+  | "archive"
+  | "close"
   | "overview"
   | "agenda"
   | "clients"
@@ -32,6 +36,29 @@ type RevelarIconProps = SVGProps<SVGSVGElement> & {
 
 function IconDrawing({ name }: { name: RevelarIconName }) {
   switch (name) {
+    case "edit":
+      return (
+        <>
+          <path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14z" />
+          <path d="M4 20h16" />
+        </>
+      );
+    case "copy":
+      return (
+        <>
+          <rect x="8" y="8" width="13" height="13" rx="2" />
+          <path d="M16 8V3H3v13h5" />
+        </>
+      );
+    case "archive":
+      return (
+        <>
+          <rect x="3" y="3" width="18" height="5" rx="1" />
+          <path d="M5 8v13h14V8M9 12h6" />
+        </>
+      );
+    case "close":
+      return <path d="m6 6 12 12M18 6 6 18" />;
     case "overview":
       return (
         <>
