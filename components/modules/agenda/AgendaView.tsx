@@ -540,6 +540,7 @@ export function AgendaView({
                 "calendar-day",
                 date.slice(0, 7) !== currentMonth && "outside",
                 date === today && "today",
+                date === focusDate && "selected-day",
                 unavailable && "unavailable",
               ]
                 .filter(Boolean)
@@ -555,12 +556,22 @@ export function AgendaView({
                     dropEvent(date, event.dataTransfer.getData("text/plain"));
                   }}
                 >
-                  <button type="button" className="day-number" onClick={() => openDay(date)}>
+                  <button
+                    type="button"
+                    className="day-number"
+                    aria-current={date === today ? "date" : undefined}
+                    aria-pressed={date === focusDate}
+                    aria-label={`${agendaDateLabel(date, { weekday: "long", day: "numeric", month: "long" })}, ${dayEvents.length} compromissos`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openDay(date);
+                    }}
+                  >
                     {new Date(`${date}T12:00:00`).getDate()}
                   </button>
                   <div className="day-events">
-                    {dayEvents.slice(0, 3).map((event) => eventButton(event, true))}
-                    {dayEvents.length > 3 && (
+                    {dayEvents.slice(0, 2).map((event) => eventButton(event, true))}
+                    {dayEvents.length > 2 && (
                       <button
                         type="button"
                         className="more-events"
@@ -569,7 +580,7 @@ export function AgendaView({
                           openDay(date);
                         }}
                       >
-                        + {dayEvents.length - 3} outros
+                        + {dayEvents.length - 2} outros
                       </button>
                     )}
                   </div>
@@ -734,14 +745,19 @@ export function AgendaView({
                   {agendaDateLabel(focusDate, { weekday: "long", day: "2-digit", month: "long" })}
                 </h2>
               </div>
-              <button type="button" onClick={() => setDayPanelOpen(false)}>
+              <button
+                type="button"
+                aria-label="Fechar agenda do dia"
+                onClick={() => setDayPanelOpen(false)}
+              >
                 ×
               </button>
             </header>
             <div className="agenda-panel-body">
               {eventsForDay(focusDate).length ? (
                 eventsForDay(focusDate).map((event) => (
-                  <article
+                  <button
+                    type="button"
                     key={event.id}
                     className={`panel-event kind-${event.kind}`}
                     onClick={() => {
@@ -756,7 +772,7 @@ export function AgendaView({
                       <small>{event.location || "Sem local"}</small>
                     </div>
                     <b>›</b>
-                  </article>
+                  </button>
                 ))
               ) : (
                 <div className="agenda-empty">
