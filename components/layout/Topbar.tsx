@@ -4,9 +4,10 @@ import { useState } from "react";
 
 import { NotificationPopover } from "@/components/notifications/NotificationPopover";
 import { RevelarIcon } from "@/components/shared/RevelarIcon";
-import type { AppNotification, Currency, ThemeMode } from "@/types/revelar";
+import type { AppNotification, AppSection, Currency, ThemeMode } from "@/types/revelar";
 
 type TopbarProps = {
+  activeNav: AppSection;
   currency: Currency;
   onCurrencyChange: (currency: Currency) => void;
   resolvedTheme: "light" | "dark";
@@ -17,7 +18,6 @@ type TopbarProps = {
   searchValue: string;
   onSearchChange: (value: string) => void;
   onOpenHelp: () => void;
-  onToast: (message: string) => void;
   notifications: AppNotification[];
   onOpenNotification: (notification: AppNotification) => void;
   onMarkAllNotificationsRead: () => void;
@@ -25,6 +25,7 @@ type TopbarProps = {
 };
 
 export function Topbar({
+  activeNav,
   currency,
   onCurrencyChange,
   resolvedTheme,
@@ -35,7 +36,6 @@ export function Topbar({
   searchValue,
   onSearchChange,
   onOpenHelp,
-  onToast,
   notifications,
   onOpenNotification,
   onMarkAllNotificationsRead,
@@ -53,30 +53,29 @@ export function Topbar({
   return (
     <header className="topbar">
       <img className="mobile-logo" src="/brand/revelar-symbol.svg" alt="Revelar." />
-      <label className={`search ${searchOpen ? "open" : ""}`}>
-        <span className="search-glyph" aria-hidden="true" />
-        <input
-          aria-label="Buscar no Revelar"
-          placeholder={placeholder}
-          value={searchValue}
-          onChange={(event) => onSearchChange(event.target.value)}
-          readOnly={searchContext === "none"}
-          onClick={() => {
-            if (searchContext === "none") {
-              onToast("Abra Clientes ou Trabalhos para usar a busca");
-            }
-          }}
-        />
-      </label>
+      <span className="shell-section">{activeNav}</span>
+      {searchContext !== "none" && (
+        <label className={`search ${searchOpen ? "open" : ""}`}>
+          <span className="search-glyph" aria-hidden="true" />
+          <input
+            aria-label={placeholder}
+            placeholder={placeholder}
+            value={searchValue}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </label>
+      )}
       <div className="top-actions">
-        <button
-          className="icon-button mobile-search"
-          type="button"
-          onClick={onSearchToggle}
-          aria-label="Abrir busca"
-        >
-          <RevelarIcon name="search" />
-        </button>
+        {searchContext !== "none" && (
+          <button
+            className="icon-button mobile-search"
+            type="button"
+            onClick={onSearchToggle}
+            aria-label="Abrir busca"
+          >
+            <RevelarIcon name="search" />
+          </button>
+        )}
         <select
           value={currency}
           onChange={(event) => onCurrencyChange(event.target.value as Currency)}
