@@ -2477,9 +2477,6 @@
   color: var(--muted);
   font-size: 10px;
 }
-.work-contract-panel {
-  padding: 23px;
-}
 .work-contract-status {
   display: grid;
   gap: 5px;
@@ -2498,69 +2495,6 @@
   color: var(--text);
   font-size: 10px;
   font-weight: 800;
-}
-.contract-not-required {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 14px;
-  margin-top: 20px;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--surface-2);
-}
-.contract-not-required > span {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
-  color: var(--primary);
-}
-.contract-not-required strong {
-  font-size: 11px;
-}
-.contract-not-required p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 10px;
-}
-.contract-not-required button {
-  min-height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--primary);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--primary);
-  font-size: 9px;
-  font-weight: 800;
-}
-.work-contract-editor {
-  display: grid;
-  gap: 12px;
-  margin-top: 20px;
-}
-.work-contract-editor label {
-  display: grid;
-  gap: 6px;
-}
-.work-contract-editor label > span {
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 800;
-}
-.work-contract-editor input,
-.work-contract-editor textarea {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 11px 12px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 11px;
-  line-height: 1.55;
 }
 .work-contract-file {
   display: flex;
@@ -2603,12 +2537,6 @@
 @media (max-width: 700px) {
   .reference-library-picker {
     grid-template-columns: 1fr;
-  }
-  .contract-not-required {
-    grid-template-columns: auto 1fr;
-  }
-  .contract-not-required button {
-    grid-column: 1 / -1;
   }
   .work-contract-file {
     align-items: stretch;
@@ -3460,9 +3388,6 @@
 }
 
 /* Documents hub */
-.work-documents-hub {
-  padding: 22px;
-}
 .work-document-contract-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
@@ -3545,37 +3470,6 @@
   grid-column: 2 / -1;
   gap: 7px;
 }
-.work-contract-files {
-  display: grid;
-  gap: 10px;
-  margin-top: 14px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-2);
-}
-.work-contract-files-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.work-contract-files-heading strong,
-.work-contract-files-heading small {
-  display: block;
-}
-.work-contract-files-heading strong {
-  font-size: 11px;
-}
-.work-contract-files-heading small {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 8px;
-}
-.work-contract-file-list {
-  display: grid;
-  gap: 7px;
-}
 .work-contract-file-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
@@ -3616,8 +3510,7 @@
   white-space: nowrap;
 }
 .work-contract-file-item > button:not(.icon-button),
-.work-contract-file-item > a,
-.work-contract-upload-actions button {
+.work-contract-file-item > a {
   min-height: 34px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -3656,11 +3549,6 @@
 .work-contract-file-empty small {
   margin-top: 3px;
   font-size: 8px;
-}
-.work-contract-upload-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
 }
 .work-document-list-heading {
   margin-bottom: 9px;
@@ -3747,10 +3635,6 @@
   .work-document-contract-files {
     grid-column: auto;
   }
-  .work-contract-files-heading {
-    align-items: stretch;
-    flex-direction: column;
-  }
   .work-contract-file-item {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
@@ -3797,9 +3681,9 @@
 
 .work-documents-hub .work-document-contract-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 18px 24px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
   margin: 0 0 26px;
   padding: 20px;
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
@@ -3835,16 +3719,14 @@
   letter-spacing: 0.12em;
 }
 
-.work-documents-hub .work-document-contract-copy input {
-  margin-top: 4px;
-  color: var(--text);
-  font: 500 23px / 1.15 var(--font-display);
-}
-
 .work-documents-hub .work-document-contract-copy small {
+  display: block;
   margin-top: 5px;
+  overflow: visible;
   color: var(--muted);
   font-size: 11px;
+  line-height: 1.45;
+  white-space: normal;
 }
 
 .work-documents-hub .work-contract-status {
@@ -3868,7 +3750,8 @@
 .work-documents-hub .work-document-contract-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   gap: 8px;
 }
 
@@ -3882,6 +3765,10 @@
 
 .work-documents-hub .work-document-contract-actions .primary-button {
   min-width: 156px;
+}
+
+.work-documents-hub .work-document-contract-actions button {
+  font-size: 12px;
 }
 
 .work-documents-hub .work-document-contract-files {
@@ -3918,7 +3805,10 @@
 
 .work-documents-hub .work-contract-file-item small {
   margin-top: 4px;
+  overflow: visible;
+  overflow-wrap: anywhere;
   font-size: 10px;
+  white-space: normal;
 }
 
 .work-documents-hub .work-contract-file-item > button:not(.icon-button),
@@ -4065,15 +3955,6 @@
   stroke-width: 1.7;
 }
 
-@media (max-width: 1100px) {
-  .work-documents-hub .work-document-contract-card {
-    grid-template-columns: 1fr;
-  }
-  .work-documents-hub .work-document-contract-actions {
-    justify-content: flex-start;
-  }
-}
-
 @media (max-width: 760px) {
   .work-document-contract-header {
     grid-template-columns: auto minmax(0, 1fr);
@@ -4083,7 +3964,10 @@
   }
   .work-documents-hub .work-document-contract-actions {
     align-items: stretch;
-    flex-direction: column;
+    flex-direction: row;
+  }
+  .work-documents-hub .work-document-contract-actions button {
+    flex: 1 1 150px;
   }
   .work-documents-hub .work-document-contract-files {
     grid-template-columns: 1fr;
@@ -4146,17 +4030,9 @@
   background: color-mix(in srgb, var(--danger) 6%, var(--surface));
 }
 
-.work-contract-upload-actions button:disabled,
 .work-document-contract-actions button:disabled {
   cursor: wait;
   opacity: 0.62;
-}
-
-/* A single, readable home for the work's contract files. */
-.work-documents-hub .work-document-contract-card {
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-  gap: 16px;
 }
 
 .work-documents-hub .work-document-contract-header {
@@ -4180,42 +4056,36 @@
   font: 500 clamp(20px, 2vw, 23px) / 1.2 var(--font-display);
 }
 
-.work-documents-hub .work-document-contract-copy small {
-  display: block;
-  overflow: visible;
-  line-height: 1.45;
-  white-space: normal;
-}
-
-.work-documents-hub .work-document-contract-actions {
-  flex-wrap: wrap;
-  justify-content: flex-start;
-}
-
-.work-documents-hub .work-document-contract-actions button {
-  font-size: 12px;
-}
-
-.work-documents-hub .work-document-contract-files {
-  padding-top: 16px;
-}
-
 .work-documents-hub .work-contract-file-item > div {
   min-width: 0;
 }
 
-.work-documents-hub .work-contract-file-item small {
-  overflow: visible;
-  overflow-wrap: anywhere;
-  white-space: normal;
+/* Maintain readable controls on the dark surface without changing other themes. */
+.revelar-app.theme-dark .work-detail-tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
 }
 
-@media (max-width: 760px) {
-  .work-documents-hub .work-document-contract-actions {
-    flex-direction: row;
-  }
+.revelar-app.theme-dark .work-detail-actions .whatsapp-button {
+  color: var(--positive);
+}
 
-  .work-documents-hub .work-document-contract-actions button {
-    flex: 1 1 150px;
-  }
+.revelar-app.theme-dark .work-detail-actions .danger-action {
+  color: #ffaaa2;
+}
+
+.revelar-app.theme-dark .work-documents-hub .work-document-type,
+.revelar-app.theme-dark .work-documents-hub .work-contract-file-icon,
+.revelar-app.theme-dark .work-documents-hub .work-file-grid article > span:first-child,
+.revelar-app.theme-dark .work-documents-hub .work-contract-file-item > button:not(.icon-button),
+.revelar-app.theme-dark .work-documents-hub .work-contract-file-item > a,
+.revelar-app.theme-dark .work-documents-hub .work-document-contract-actions button,
+.revelar-app.theme-dark .work-documents-hub .file-actions button:not(.remove-file),
+.revelar-app.theme-dark .work-documents-hub .file-actions a {
+  color: var(--text);
+}
+
+.revelar-app.theme-dark .work-documents-hub .danger-icon-button,
+.revelar-app.theme-dark .work-documents-hub .file-actions .remove-file {
+  color: #fff;
 }
