@@ -100,7 +100,12 @@ export function useWorkFinance({
         .filter((income) => income.status === "received" && income.countsTowardContract)
         .reduce((sum, income) => sum + income.amount, 0),
     );
-    update({ incomeItems: next, entryValue: contractReceived });
+    try {
+      update({ incomeItems: next, entryValue: contractReceived });
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Não foi possível salvar a receita", "error");
+      return;
+    }
     setEditingIncomeId(null);
     setIncomeDraft({
       name: "Pagamento do cliente",
@@ -114,7 +119,7 @@ export function useWorkFinance({
     toast(
       item.category === "Gorjeta"
         ? "Gorjeta registrada como ganho extra"
-        : "Receita registrada e sincronizada com o Financeiro",
+        : "Receita salva neste navegador",
     );
   };
   const removeIncome = (id: string) => {
