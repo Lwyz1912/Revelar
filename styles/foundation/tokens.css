@@ -60,6 +60,7 @@ button:disabled {
   --positive: #24683f;
   --positive-soft: #e0f0e5;
   --on-positive: #ffffff;
+  --danger: #a63b32;
   --chat-bg: #e8ede4;
   --chat-pattern: rgba(19, 43, 19, 0.09);
   --message-in: #fffefa;

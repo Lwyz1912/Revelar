@@ -3770,3 +3770,452 @@
     grid-column: 3;
   }
 }
+
+/* Documents hub v2 — readable hierarchy and aligned file actions */
+.work-documents-hub {
+  padding: clamp(18px, 2.4vw, 30px);
+}
+
+.work-documents-heading {
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.work-documents-heading h2 {
+  margin-top: 4px;
+  font: 500 clamp(25px, 2.2vw, 34px) / 1.08 var(--font-display);
+}
+
+.work-documents-heading small {
+  display: block;
+  max-width: 660px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.work-documents-hub .work-document-contract-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px 24px;
+  margin: 0 0 26px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 42%),
+    var(--surface-2);
+}
+
+.work-document-contract-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.work-documents-hub .work-document-type {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 13px;
+  color: var(--primary);
+  background: var(--surface);
+  font-size: 22px;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.work-documents-hub .work-document-contract-copy > span {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+}
+
+.work-documents-hub .work-document-contract-copy input {
+  margin-top: 4px;
+  color: var(--text);
+  font: 500 23px / 1.15 var(--font-display);
+}
+
+.work-documents-hub .work-document-contract-copy small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.work-documents-hub .work-contract-status {
+  min-width: 154px;
+}
+
+.work-documents-hub .work-contract-status > span {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.work-documents-hub .work-contract-status select {
+  min-height: 42px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.work-documents-hub .work-document-contract-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.work-documents-hub .work-document-contract-actions button,
+.work-documents-hub .work-document-contract-actions a {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.work-documents-hub .work-document-contract-actions .primary-button {
+  min-width: 156px;
+}
+
+.work-documents-hub .work-document-contract-files {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.work-documents-hub .work-contract-file-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  min-height: 66px;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.work-documents-hub .work-contract-file-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  font-size: 9px;
+}
+
+.work-documents-hub .work-contract-file-item strong {
+  font-size: 12px;
+}
+
+.work-documents-hub .work-contract-file-item small {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.work-documents-hub .work-contract-file-item > button:not(.icon-button),
+.work-documents-hub .work-contract-file-item > a {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.work-documents-hub .work-contract-file-item .danger-icon-button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  color: var(--surface);
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.work-documents-hub .work-contract-file-empty {
+  grid-column: 1 / -1;
+  min-height: 66px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.work-documents-hub .work-contract-file-empty strong {
+  font-size: 12px;
+}
+
+.work-documents-hub .work-contract-file-empty small {
+  font-size: 10px;
+}
+
+.work-documents-hub .work-document-list-heading {
+  margin: 0 0 12px;
+  padding-top: 2px;
+}
+
+.work-documents-hub .work-document-list-heading > div {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.work-documents-hub .work-document-list-heading > div > div {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 3px 10px;
+}
+
+.work-documents-hub .work-document-list-heading span {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.work-documents-hub .work-document-list-heading strong {
+  color: var(--text);
+  font: 500 22px / 1.1 var(--font-display);
+}
+
+.work-documents-hub .work-document-list-heading small {
+  font-size: 11px;
+}
+
+.work-documents-hub .work-document-list-heading .outline-button {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.work-documents-hub .work-file-grid {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 10px;
+  margin-top: 0;
+}
+
+.work-documents-hub .work-file-grid article {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  min-height: 72px;
+  gap: 11px;
+  padding: 11px;
+  border-radius: 11px;
+  background: var(--surface-2);
+}
+
+.work-documents-hub .work-file-grid article > span:first-child {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.work-documents-hub .work-file-grid strong {
+  font-size: 12px;
+}
+
+.work-documents-hub .work-file-grid small {
+  font-size: 10px;
+}
+
+.work-documents-hub .file-actions button,
+.work-documents-hub .file-actions a {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--primary);
+  background: var(--surface);
+  font-size: 10px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.work-documents-hub .file-actions .remove-file {
+  display: grid;
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  place-items: center;
+  color: var(--surface);
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.work-documents-hub .file-actions .remove-file svg,
+.work-documents-hub .danger-icon-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+@media (max-width: 1100px) {
+  .work-documents-hub .work-document-contract-card {
+    grid-template-columns: 1fr;
+  }
+  .work-documents-hub .work-document-contract-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .work-document-contract-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .work-documents-hub .work-contract-status {
+    grid-column: 1 / -1;
+  }
+  .work-documents-hub .work-document-contract-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .work-documents-hub .work-document-contract-files {
+    grid-template-columns: 1fr;
+  }
+  .work-documents-hub .work-contract-file-item {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .work-documents-hub .work-contract-file-item > button:not(.icon-button),
+  .work-documents-hub .work-contract-file-item > a,
+  .work-documents-hub .work-contract-file-item .danger-icon-button {
+    grid-row: 2;
+  }
+  .work-documents-hub .work-contract-file-item > button:not(.icon-button) {
+    grid-column: 1;
+  }
+  .work-documents-hub .work-contract-file-item > a {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .work-documents-hub .work-contract-file-item .danger-icon-button {
+    grid-column: 3;
+  }
+  .work-documents-hub .work-document-list-heading > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .work-documents-hub .work-file-grid {
+    grid-template-columns: 1fr;
+  }
+  .work-documents-hub .work-file-grid article {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+  .work-documents-hub .file-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+.contract-upload-feedback {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.contract-upload-feedback.is-uploading {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.contract-upload-feedback.is-error {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+}
+
+.work-contract-upload-actions button:disabled,
+.work-document-contract-actions button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+/* A single, readable home for the work's contract files. */
+.work-documents-hub .work-document-contract-card {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+}
+
+.work-documents-hub .work-document-contract-header {
+  min-width: 0;
+}
+
+.work-documents-hub .work-document-type svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.work-documents-hub .work-document-contract-copy h3 {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font: 500 clamp(20px, 2vw, 23px) / 1.2 var(--font-display);
+}
+
+.work-documents-hub .work-document-contract-copy small {
+  display: block;
+  overflow: visible;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.work-documents-hub .work-document-contract-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.work-documents-hub .work-document-contract-actions button {
+  font-size: 12px;
+}
+
+.work-documents-hub .work-document-contract-files {
+  padding-top: 16px;
+}
+
+.work-documents-hub .work-contract-file-item > div {
+  min-width: 0;
+}
+
+.work-documents-hub .work-contract-file-item small {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (max-width: 760px) {
+  .work-documents-hub .work-document-contract-actions {
+    flex-direction: row;
+  }
+
+  .work-documents-hub .work-document-contract-actions button {
+    flex: 1 1 150px;
+  }
+}

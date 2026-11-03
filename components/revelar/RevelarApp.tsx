@@ -187,6 +187,7 @@ export function RevelarApp() {
   const [newWorkOpen, setNewWorkOpen] = useState(false);
   const [newWorkClientId, setNewWorkClientId] = useState<number | undefined>();
   const [selectedWorkId, setSelectedWorkId] = useUrlNullableNumberState("work");
+  const [productQuoteDraft, setProductQuoteDraft] = useState<Quote | null>(null);
   const [notificationsCenterOpen, setNotificationsCenterOpen] = useUrlBooleanState("notifications");
   const [agendaInitialView, setAgendaInitialView] = useUrlStringState<AgendaViewMode>(
     "agendaView",
@@ -286,6 +287,7 @@ export function RevelarApp() {
 
   const navigate = (label: AppSection) => {
     setSearchOpen(false);
+    setProductQuoteDraft(null);
     const item = navItems.find((navigationItem) => navigationItem.label === label);
     if (item?.available) {
       if (label === "Agenda") {
@@ -364,6 +366,21 @@ export function RevelarApp() {
   };
   const updateWork = (updated: Work) =>
     setWorks((current) => current.map((work) => (work.id === updated.id ? updated : work)));
+  const updateSelectedWork = useCallback(
+    (update: Work | ((current: Work) => Work)) => {
+      if (selectedWorkId === null) return;
+      setWorks((current) =>
+        current.map((item) =>
+          item.id === selectedWorkId
+            ? typeof update === "function"
+              ? update(item)
+              : update
+            : item,
+        ),
+      );
+    },
+    [selectedWorkId, setWorks],
+  );
   const duplicateWork = (work: Work) => {
     const id = nextNumericId(works);
     const copy = duplicateWorkRecord(work, id);
@@ -432,19 +449,9 @@ export function RevelarApp() {
     setToast(`Venda de ${product.name} registrada no Financeiro`);
   };
   const createQuoteFromProduct = (product: Product) => {
-    const quote = createQuoteRecordFromProduct(
-      product,
-      nextNumericId(quotes),
-      clients[0]?.id,
-      today,
-    );
-    setQuotes((current) => [quote, ...current]);
+    const quote = createQuoteRecordFromProduct(product, 0, undefined, today);
+    setProductQuoteDraft(quote);
     setActiveNav("Orçamentos");
-    setToast(
-      product.priceType === "consult"
-        ? "Orçamento criado para definir o valor com o cliente"
-        : "Produto adicionado a um novo orçamento",
-    );
   };
   const registerPhotoExtras = useCallback(
     (work: Work, gallery: WorkGallery) => {
@@ -558,7 +565,7 @@ export function RevelarApp() {
               clearUrlParams("workTab");
               setSelectedWorkId(null);
             }}
-            onUpdate={updateWork}
+            onUpdate={updateSelectedWork}
             onDuplicate={duplicateWork}
             onArchive={archiveWork}
             onCancel={cancelWork}
@@ -697,6 +704,8 @@ export function RevelarApp() {
             setQuotes={setQuotes}
             clients={clients}
             currency={currency}
+            initialProductQuote={productQuoteDraft}
+            onProductQuoteHandled={() => setProductQuoteDraft(null)}
             onApprove={convertQuoteToWork}
             toast={setToast}
           />

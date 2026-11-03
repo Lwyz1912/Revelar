@@ -41,6 +41,7 @@ import type {
 import { WorkFilesHub } from "@/components/modules/works/WorkFilesHub";
 import { OpenMap } from "@/components/modules/locations/OpenMap";
 import { useUrlStringState } from "@/hooks/use-url-state";
+import type { ShowToast } from "@/hooks/use-toast";
 
 type WorkDetailTab =
   | "overview"
@@ -52,6 +53,7 @@ type WorkDetailTab =
   | "files";
 
 type WorkFinanceView = "summary" | "income" | "costs";
+type WorkUpdate = Work | ((current: Work) => Work);
 type WorkCoordinates = { latitude: number; longitude: number };
 type WorkWeather = {
   available: boolean;
@@ -133,11 +135,11 @@ const workDetailTabs: Array<{ id: WorkDetailTab; label: string; icon: string }> 
   { id: "moodboard", label: "Direção visual", icon: "✦" },
   { id: "timeline", label: "Timeline", icon: "⌁" },
   { id: "finance", label: "Financeiro", icon: "＄" },
-  { id: "contract", label: "Contrato", icon: "▱" },
   { id: "gallery", label: "Galeria", icon: "▧" },
   { id: "files", label: "Documentos", icon: "□" },
 ];
-const workDetailTabIds = workDetailTabs.map((item) => item.id);
+// Preserve old work links while showing the former contract tab in Documents.
+const workDetailTabIds: WorkDetailTab[] = [...workDetailTabs.map((item) => item.id), "contract"];
 
 export function WorkDetails({
   work,
@@ -157,7 +159,7 @@ export function WorkDetails({
   work: Work;
   clients: Client[];
   onBack: () => void;
-  onUpdate: (work: Work) => void;
+  onUpdate: (update: WorkUpdate) => void;
   onDuplicate: (work: Work) => void;
   onArchive: (work: Work) => void;
   onCancel: (work: Work) => void;
@@ -166,7 +168,7 @@ export function WorkDetails({
   setReferenceLibrary: Dispatch<SetStateAction<MoodboardReference[]>>;
   checklistTemplates: ChecklistTemplate[];
   setChecklistTemplates: Dispatch<SetStateAction<ChecklistTemplate[]>>;
-  toast: (message: string) => void;
+  toast: ShowToast;
 }) {
   const today = todayIso();
   const soonLimit = addDays(today, 4);
@@ -212,6 +214,22 @@ export function WorkDetails({
   const [overviewWeather, setOverviewWeather] = useState<WorkWeather | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [moodboardDraft, setMoodboardDraft] = useState<WorkMoodboard>(() => moodboardForWork(work));
+  const [contractFiles, setContractFiles] = useState<{
+    sourceFile?: AppFileRef;
+    signedFile?: AppFileRef;
+  }>(() => {
+    const legacy = work.contract?.file;
+    const sourceFile =
+      work.contract?.sourceFile ?? (legacy && /\.docx?$/i.test(legacy.name) ? legacy : undefined);
+    const signedFile =
+      work.contract?.signedFile ?? (legacy && !/\.docx?$/i.test(legacy.name) ? legacy : undefined);
+    return { sourceFile, signedFile };
+  });
+  const [contractUpload, setContractUpload] = useState<{
+    role: "sourceFile" | "signedFile";
+    status: "uploading" | "error";
+    message?: string;
+  } | null>(null);
   const localFiles: Record<string, LocalAttachment> = {};
   const [activities, setActivities] = useState<
     Array<{ id: string | number; icon: string; title: string; meta: string }>
@@ -295,13 +313,17 @@ export function WorkDetails({
   const legacyContractFile = contract.file;
   const legacyIsSource = Boolean(legacyContractFile && /\.docx?$/i.test(legacyContractFile.name));
   const sourceContractFile =
-    contract.sourceFile ?? (legacyIsSource ? legacyContractFile : undefined);
+    contractFiles.sourceFile ??
+    contract.sourceFile ??
+    (legacyIsSource ? legacyContractFile : undefined);
   const signedContractFile =
-    contract.signedFile ?? (!legacyIsSource ? legacyContractFile : undefined);
+    contractFiles.signedFile ??
+    contract.signedFile ??
+    (!legacyIsSource ? legacyContractFile : undefined);
   const preferredContractFile = signedContractFile ?? sourceContractFile;
   const updateMoodboard = (next: WorkMoodboard) => {
     setMoodboardDraft(next);
-    onUpdate({ ...work, moodboard: next });
+    onUpdate((current) => ({ ...current, moodboard: next }));
   };
 
   useEffect(() => {
@@ -428,25 +450,33 @@ export function WorkDetails({
       setPoseImage(null);
       toast(previous ? "Ideia de pose atualizada" : "Ideia de pose adicionada ao trabalho");
     } catch (error) {
-      toast(error instanceof Error ? error.message : "Não foi possível salvar a pose");
+      toast(error instanceof Error ? error.message : "Não foi possível salvar a pose", "error");
     } finally {
       setSavingPose(false);
     }
   };
 
   const updateContract = (changes: Partial<WorkContract>) => {
-    onUpdate({
-      ...work,
-      contract: { ...contract, ...changes, updatedAt: new Date().toISOString() },
+    onUpdate((current) => {
+      const currentContract = current.contract ?? contract;
+      return {
+        ...current,
+        contract: { ...currentContract, ...changes, updatedAt: new Date().toISOString() },
+      };
     });
   };
 
   const uploadContractFile = async (file: File | undefined, role: "sourceFile" | "signedFile") => {
     if (!file) return;
+    setContractUpload({ role, status: "uploading" });
     try {
-      const uploaded = await uploadAppFile(file, "contract", String(work.id));
+      const uploaded = await uploadAppFile(
+        file,
+        role === "sourceFile" ? "contract-source" : "contract-signed",
+        String(work.id),
+      );
       const previous = role === "sourceFile" ? sourceContractFile : signedContractFile;
-      if (previous) await deleteAppFile(previous).catch(() => undefined);
+      setContractFiles((current) => ({ ...current, [role]: uploaded }));
       updateContract({
         sourceFile: sourceContractFile,
         signedFile: signedContractFile,
@@ -454,13 +484,19 @@ export function WorkDetails({
         file: undefined,
         status: contract.status === "not_required" ? "pending" : contract.status,
       });
+      if (previous && previous.id !== uploaded.id) {
+        await deleteAppFile(previous).catch(() => undefined);
+      }
+      setContractUpload(null);
       toast(
         role === "sourceFile"
           ? "Arquivo de trabalho vinculado ao contrato"
           : "Contrato assinado vinculado ao trabalho",
       );
     } catch (error) {
-      toast(error instanceof Error ? error.message : "Não foi possível enviar o contrato");
+      const message = error instanceof Error ? error.message : "Não foi possível enviar o contrato";
+      setContractUpload({ role, status: "error", message });
+      toast(message, "error");
     }
   };
 
@@ -468,6 +504,7 @@ export function WorkDetails({
     const file = role === "sourceFile" ? sourceContractFile : signedContractFile;
     if (!file) return;
     await deleteAppFile(file).catch(() => undefined);
+    setContractFiles((current) => ({ ...current, [role]: undefined }));
     updateContract({
       sourceFile: sourceContractFile,
       signedFile: signedContractFile,
@@ -476,6 +513,64 @@ export function WorkDetails({
     });
     toast("Arquivo do contrato removido");
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/files?scope=contract&relatedId=${encodeURIComponent(String(work.id))}`, {
+      cache: "no-store",
+    })
+      .then(async (response) =>
+        response.ok
+          ? ((await response.json()) as {
+              files?: Array<AppFileRef & { scope?: string }>;
+            })
+          : null,
+      )
+      .then((result) => {
+        if (cancelled || !result?.files?.length) return;
+        const sourceFile = result.files.find(
+          (file) => file.scope === "contract-source" || /\.docx?$/i.test(file.name),
+        );
+        const signedFile = result.files.find(
+          (file) => file.scope === "contract-signed" || /\.pdf$/i.test(file.name),
+        );
+        if (!sourceFile && !signedFile) return;
+        setContractFiles((current) => ({
+          sourceFile: sourceFile ?? current.sourceFile,
+          signedFile: signedFile ?? current.signedFile,
+        }));
+        onUpdate((current) => {
+          const nextSource = sourceFile ?? current.contract?.sourceFile;
+          const nextSigned = signedFile ?? current.contract?.signedFile;
+          if (
+            current.contract?.sourceFile?.id === nextSource?.id &&
+            current.contract?.signedFile?.id === nextSigned?.id &&
+            !current.contract?.file
+          ) {
+            return current;
+          }
+          return {
+            ...current,
+            contract: {
+              ...(current.contract ?? {
+                status: "pending" as const,
+                title: `Contrato · ${current.title}`,
+                content: "",
+                updatedAt: new Date().toISOString(),
+              }),
+              sourceFile: nextSource,
+              signedFile: nextSigned,
+              file: undefined,
+              updatedAt: current.contract?.updatedAt ?? new Date().toISOString(),
+            },
+          };
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [onUpdate, work.id]);
 
   const removePose = async (id: string) => {
     const reference = moodboard.references.find((item) => item.id === id);
@@ -496,7 +591,7 @@ export function WorkDetails({
         photos.delivered === work.photos.delivered
       )
         return;
-      onUpdate({ ...work, photos });
+      onUpdate((current) => ({ ...current, photos }));
     },
     [onUpdate, work],
   );
@@ -525,7 +620,7 @@ export function WorkDetails({
       { id: Date.now(), icon, title, meta: "Maryana · agora" },
       ...current,
     ]);
-  const update = (changes: Partial<Work>) => onUpdate({ ...work, ...changes });
+  const update = (changes: Partial<Work>) => onUpdate((current) => ({ ...current, ...changes }));
   const updateStage = (stageId: string, changes: Partial<WorkStage>) => {
     const stages = work.stages.map((stage) =>
       stage.id === stageId ? { ...stage, ...changes } : stage,
@@ -771,7 +866,10 @@ export function WorkDetails({
       addActivity(`${uploaded.length} arquivo(s) enviado(s) e sincronizado(s)`, "□");
       toast("Arquivos salvos no trabalho");
     } catch (error) {
-      toast(error instanceof Error ? error.message : "Não foi possível enviar os arquivos");
+      toast(
+        error instanceof Error ? error.message : "Não foi possível enviar os arquivos",
+        "error",
+      );
     }
     event.target.value = "";
   };
@@ -789,7 +887,7 @@ export function WorkDetails({
       });
       addActivity(`Arquivo salvo na etapa ${selectedStage.label}`, "□");
     } catch (error) {
-      toast(error instanceof Error ? error.message : "Não foi possível enviar o arquivo");
+      toast(error instanceof Error ? error.message : "Não foi possível enviar o arquivo", "error");
     }
     event.target.value = "";
   };
@@ -965,7 +1063,7 @@ export function WorkDetails({
           <button
             type="button"
             key={item.id}
-            className={tab === item.id ? "active" : ""}
+            className={(tab === "contract" ? "files" : tab) === item.id ? "active" : ""}
             onClick={() => setTab(item.id)}
           >
             <span>{item.icon}</span>
@@ -2305,186 +2403,117 @@ export function WorkDetails({
         />
       )}
 
-      {tab === "contract" && (
-        <section className="work-contract-panel card">
-          <div className="detail-section-heading">
-            <div>
-              <p>CONTRATO DO TRABALHO</p>
-              <h2>{contract.title}</h2>
-            </div>
-            <label className={`work-contract-status status-${contract.status}`}>
-              <span>Situação</span>
-              <select
-                value={contract.status}
-                onChange={(event) =>
-                  updateContract({ status: event.target.value as WorkContractStatus })
-                }
-              >
-                <option value="not_required">Não necessário</option>
-                <option value="pending">Pendente</option>
-                <option value="sent">Enviado</option>
-                <option value="signed">Assinado</option>
-              </select>
-            </label>
-          </div>
-          {contract.status === "not_required" ? (
-            <div className="contract-not-required">
-              <span>✓</span>
-              <div>
-                <strong>Este trabalho foi marcado como sem contrato</strong>
-                <p>
-                  Se a necessidade mudar, crie o contrato sem perder nenhuma informação do trabalho.
-                </p>
-              </div>
-              <button type="button" onClick={() => updateContract({ status: "pending" })}>
-                Criar contrato
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="work-contract-editor">
-                <label>
-                  <span>Nome do documento</span>
-                  <input
-                    value={contract.title}
-                    onChange={(event) => updateContract({ title: event.target.value })}
-                  />
-                </label>
-                <label>
-                  <span>Conteúdo editável</span>
-                  <textarea
-                    rows={16}
-                    value={contract.content}
-                    onChange={(event) => updateContract({ content: event.target.value })}
-                    placeholder="Escreva ou cole aqui o conteúdo do contrato."
-                  />
-                </label>
-              </div>
-              <div className="work-contract-files">
-                <div className="work-contract-files-heading">
-                  <div>
-                    <strong>Arquivos do contrato</strong>
-                    <small>
-                      Mantenha o documento de trabalho e a versão assinada sem substituir um pelo
-                      outro.
-                    </small>
-                  </div>
-                  {preferredContractFile && (
-                    <button
-                      className="primary-button"
-                      type="button"
-                      onClick={() => setPreviewStoredFile(preferredContractFile)}
-                    >
-                      Visualizar contrato
-                    </button>
-                  )}
-                </div>
-                <div className="work-contract-file-list">
-                  {contractFileItem("sourceFile", "Documento de trabalho", sourceContractFile)}
-                  {contractFileItem("signedFile", "PDF assinado", signedContractFile)}
-                  {!preferredContractFile && (
-                    <div className="work-contract-file-empty">
-                      <span>▱</span>
-                      <div>
-                        <strong>Nenhum arquivo anexado</strong>
-                        <small>Adicione um DOCX editável, um PDF assinado ou os dois.</small>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="work-contract-upload-actions">
-                  <button type="button" onClick={() => contractSourceFileRef.current?.click()}>
-                    ＋ {sourceContractFile ? "Substituir DOCX" : "Adicionar DOCX"}
-                  </button>
-                  <button type="button" onClick={() => contractSignedFileRef.current?.click()}>
-                    ＋ {signedContractFile ? "Substituir PDF" : "Adicionar PDF assinado"}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </section>
-      )}
-
-      {tab === "files" && (
+      {(tab === "files" || tab === "contract") && (
         <section className="tab-single card work-documents-hub">
-          <div className="detail-section-heading">
+          <div className="detail-section-heading work-documents-heading">
             <div>
               <p>DOCUMENTOS DO TRABALHO</p>
               <h2>Contratos, comprovantes e materiais</h2>
-            </div>
-            <button
-              className="outline-button"
-              type="button"
-              onClick={() => workFileRef.current?.click()}
-            >
-              ＋ Adicionar arquivo
-            </button>
-          </div>
-          <input ref={workFileRef} type="file" multiple hidden onChange={addWorkFiles} />
-          <article className="work-document-contract-card">
-            <div className="work-document-type">▱</div>
-            <div className="work-document-contract-copy">
-              <span>CONTRATO</span>
-              <input
-                aria-label="Nome do contrato"
-                value={contract.title}
-                onChange={(event) => updateContract({ title: event.target.value })}
-              />
               <small>
-                {preferredContractFile
-                  ? `${[sourceContractFile, signedContractFile].filter(Boolean).length} arquivo(s) vinculado(s)`
-                  : "Adicione o DOCX de trabalho, o PDF assinado ou ambos."}
+                Arquivos organizados, acessíveis e vinculados permanentemente ao trabalho.
               </small>
             </div>
-            <label className={`work-contract-status status-${contract.status}`}>
-              <span>Situação</span>
-              <select
-                value={contract.status}
-                onChange={(event) =>
-                  updateContract({ status: event.target.value as WorkContractStatus })
-                }
-              >
-                <option value="not_required">Não necessário</option>
-                <option value="pending">Pendente</option>
-                <option value="sent">Enviado</option>
-                <option value="signed">Assinado</option>
-              </select>
-            </label>
-            <div className="work-document-contract-actions">
-              {preferredContractFile && (
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => setPreviewStoredFile(preferredContractFile)}
+          </div>
+          <input ref={workFileRef} type="file" multiple hidden onChange={addWorkFiles} />
+          <section className="work-document-contract-card">
+            <header className="work-document-contract-header">
+              <div className="work-document-type" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" />
+                </svg>
+              </div>
+              <div className="work-document-contract-copy">
+                <span>CONTRATO PRINCIPAL</span>
+                <h3>{contract.title}</h3>
+                <small>
+                  {preferredContractFile
+                    ? "Os arquivos vinculados a este trabalho estão abaixo."
+                    : "Adicione o documento de trabalho, o PDF assinado ou ambos."}
+                </small>
+              </div>
+              <label className={`work-contract-status status-${contract.status}`}>
+                <span>Situação</span>
+                <select
+                  value={contract.status}
+                  onChange={(event) =>
+                    updateContract({ status: event.target.value as WorkContractStatus })
+                  }
                 >
-                  Visualizar contrato
-                </button>
+                  <option value="not_required">Não necessário</option>
+                  <option value="pending">Pendente</option>
+                  <option value="sent">Enviado</option>
+                  <option value="signed">Assinado</option>
+                </select>
+              </label>
+            </header>
+            {contractUpload && (
+              <p
+                className={`contract-upload-feedback is-${contractUpload.status}`}
+                role={contractUpload.status === "error" ? "alert" : "status"}
+              >
+                {contractUpload.status === "uploading"
+                  ? "Salvando o arquivo no contrato…"
+                  : contractUpload.message}
+              </p>
+            )}
+            <div className="work-document-contract-files">
+              {contractFileItem("sourceFile", "Documento de trabalho", sourceContractFile)}
+              {contractFileItem("signedFile", "PDF assinado", signedContractFile)}
+              {!sourceContractFile && !signedContractFile && (
+                <div className="work-contract-file-empty">
+                  <span>▱</span>
+                  <div>
+                    <strong>Nenhum contrato anexado</strong>
+                    <small>O arquivo aparecerá aqui assim que o envio terminar.</small>
+                  </div>
+                </div>
               )}
-              <button type="button" onClick={() => contractSourceFileRef.current?.click()}>
-                ＋ DOCX
+            </div>
+            <div className="work-document-contract-actions">
+              <button
+                type="button"
+                disabled={contractUpload?.status === "uploading"}
+                onClick={() => contractSourceFileRef.current?.click()}
+              >
+                {contractUpload?.status === "uploading" && contractUpload.role === "sourceFile"
+                  ? "Enviando DOCX…"
+                  : sourceContractFile
+                    ? "Substituir DOCX"
+                    : "＋ Adicionar DOCX"}
               </button>
-              <button type="button" onClick={() => contractSignedFileRef.current?.click()}>
-                ＋ PDF assinado
+              <button
+                type="button"
+                disabled={contractUpload?.status === "uploading"}
+                onClick={() => contractSignedFileRef.current?.click()}
+              >
+                {contractUpload?.status === "uploading" && contractUpload.role === "signedFile"
+                  ? "Enviando PDF…"
+                  : signedContractFile
+                    ? "Substituir PDF"
+                    : "＋ Adicionar PDF assinado"}
               </button>
             </div>
-            {(sourceContractFile || signedContractFile) && (
-              <div className="work-document-contract-files">
-                {contractFileItem("sourceFile", "Documento de trabalho", sourceContractFile)}
-                {contractFileItem("signedFile", "PDF assinado", signedContractFile)}
-              </div>
-            )}
-          </article>
+          </section>
           <div className="work-document-list-heading">
             <div>
-              <span>OUTROS DOCUMENTOS</span>
-              <small>{work.attachments.length} arquivo(s)</small>
+              <div>
+                <span>OUTROS DOCUMENTOS</span>
+                <strong>Comprovantes e materiais</strong>
+                <small>{work.attachments.length} arquivo(s)</small>
+              </div>
+              <button
+                className="outline-button"
+                type="button"
+                onClick={() => workFileRef.current?.click()}
+              >
+                ＋ Adicionar arquivo
+              </button>
             </div>
           </div>
           <div className="work-file-grid">
             {work.attachments.map((file, index) => (
               <article key={`${isAppFileRef(file) ? file.id : file}-${index}`}>
-                <span>□</span>
+                <span>{attachmentExtension(attachmentName(file)).toUpperCase()}</span>
                 <button
                   className="file-main-action"
                   type="button"
@@ -2518,7 +2547,9 @@ export function WorkDetails({
                       });
                     }}
                   >
-                    ×
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+                    </svg>
                   </button>
                 </span>
               </article>

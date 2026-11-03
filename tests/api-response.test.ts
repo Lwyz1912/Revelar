@@ -17,3 +17,17 @@ test("troca erro bruto de JSON por uma mensagem compreensível", async () => {
     /Falha no envio/,
   );
 });
+
+test("explica quando o servidor recusa uma foto por tamanho", async () => {
+  await assert.rejects(
+    () => readApiJson(new Response("", { status: 413 }), "Falha no envio."),
+    /limite aceito/i,
+  );
+});
+
+test("explica indisponibilidade de armazenamento sem mostrar erro de JSON", async () => {
+  await assert.rejects(
+    () => readApiJson(new Response("", { status: 503 }), "Falha no envio."),
+    /armazenamento/i,
+  );
+});
