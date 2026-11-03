@@ -24,24 +24,28 @@ export function Sidebar({
         <span>Fotografia & gestão</span>
       </div>
       <nav className="side-nav" aria-label="Navegação principal">
-        <p>PRINCIPAL</p>
+        <p>ESTÚDIO</p>
         {navItems.slice(0, 5).map((item) => (
           <button
             key={item.label}
             className={activeNav === item.label ? "active" : ""}
+            aria-label={item.label}
+            title={item.label}
             onClick={() => onNavigate(item.label)}
             type="button"
             aria-current={activeNav === item.label ? "page" : undefined}
           >
             <RevelarIcon name={item.icon} />
-            {item.label}
+            <span>{item.label}</span>
           </button>
         ))}
-        <p className="nav-group">GESTÃO</p>
+        <p className="nav-group">FERRAMENTAS</p>
         {navItems.slice(5).map((item) => (
           <button
             key={item.label}
             className={`${activeNav === item.label ? "active" : ""} ${!item.available ? "planned" : ""}`}
+            aria-label={item.label}
+            title={item.label}
             onClick={() => onNavigate(item.label)}
             type="button"
             aria-current={activeNav === item.label ? "page" : undefined}
@@ -53,17 +57,28 @@ export function Sidebar({
         ))}
       </nav>
       <div className="sidebar-bottom">
-        <button type="button" onClick={onOpenHelp}>
+        <button type="button" onClick={onOpenHelp} aria-label="Ajuda" title="Ajuda">
           <span className="help-glyph" aria-hidden="true">
             ?
           </span>
-          Como usar o Revelar.
+          <span>Ajuda</span>
         </button>
-        <button type="button" onClick={onOpenSettings}>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          aria-label="Configurações"
+          title="Configurações"
+        >
           <RevelarIcon name="settings" />
-          Configurações
+          <span>Configurações</span>
         </button>
-        <button className="profile" type="button" onClick={() => onToast("Perfil da Maryana")}>
+        <button
+          className="profile"
+          aria-label="Perfil da Maryana"
+          title="Maryana"
+          type="button"
+          onClick={() => onToast("Perfil da Maryana")}
+        >
           <span className="avatar">M</span>
           <span>
             <strong>Maryana</strong>

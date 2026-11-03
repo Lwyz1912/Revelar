@@ -1452,3 +1452,51 @@
     grid-template-columns: 1fr;
   }
 }
+
+.shell-section {
+  color: var(--text);
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar .search {
+  margin-inline-start: auto;
+}
+.sidebar {
+  padding-block-start: 22px;
+}
+.sidebar .brand {
+  padding-bottom: 16px;
+}
+.dashboard-focus {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (721px <= width <= 1050px) {
+  .sidebar {
+    width: 76px;
+    padding-inline: 10px;
+  }
+  .main-content {
+    margin-left: 76px;
+  }
+  .sidebar .brand {
+    padding-inline: 0;
+  }
+  .sidebar .brand-logo {
+    width: 100%;
+  }
+  .sidebar .brand span,
+  .side-nav p,
+  .side-nav button > span:not(.revelar-icon),
+  .sidebar-bottom button > span:not(.revelar-icon, .help-glyph, .avatar),
+  .sidebar-bottom .profile b {
+    display: none;
+  }
+  .side-nav button,
+  .sidebar-bottom > button {
+    justify-content: center;
+    min-height: 44px;
+  }
+}

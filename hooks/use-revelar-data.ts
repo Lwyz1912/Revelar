@@ -30,6 +30,10 @@ import type {
   ChecklistTemplate,
 } from "@/types/revelar";
 
+const initialUnlocks: AchievementUnlock[] = [];
+const initialReferences: MoodboardReference[] = [];
+const initialTemplates: ChecklistTemplate[] = [];
+
 const initialStoreSettings: StoreSettings = {
   enabled: true,
   title: "Loja Mary Fotografia",
@@ -67,32 +71,41 @@ export function useRevelarData() {
   );
   const [achievementUnlocks, setAchievementUnlocks] = useStoredJsonState<AchievementUnlock[]>(
     storageKeys.achievementUnlocks,
-    [],
+    initialUnlocks,
   );
   const [referenceLibrary, setReferenceLibrary] = useStoredJsonState<MoodboardReference[]>(
     "revelar-reference-library",
-    [],
+    initialReferences,
   );
   const [checklistTemplates, setChecklistTemplates] = useStoredJsonState<ChecklistTemplate[]>(
     "revelar-checklist-templates",
-    [],
+    initialTemplates,
   );
   const [storeSettings, setStoreSettings] = useStoredJsonState<StoreSettings>(
     "revelar-store-settings",
     initialStoreSettings,
   );
   const [cloudReady, setCloudReady] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"loading" | "local" | "saved" | "pending" | "error">(
+    "loading",
+  );
+  const cloudEnabled = useRef(false);
+  const saveQueue = useRef(Promise.resolve());
+  const saveRevision = useRef(0);
   const locatingWorks = useRef(new Set<number>());
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/app-data")
+    fetch("/api/app-data", { signal: AbortSignal.timeout(8000) })
       .then(
         async (response): Promise<{ data?: unknown } | null> =>
-          response.ok ? ((await response.json()) as { data?: unknown }) : null,
+          response.ok ? (((await response.json()) as { data?: unknown }) ?? {}) : null,
       )
       .then((result) => {
-        if (cancelled || !result?.data) return;
+        if (cancelled) return;
+        cloudEnabled.current = result !== null;
+        setSyncStatus(result ? "saved" : "local");
+        if (!result?.data) return;
         const data = result.data as Partial<{
           clients: Client[];
           works: Work[];
@@ -123,7 +136,9 @@ export function useRevelarData() {
         if (data.storeSettings && typeof data.storeSettings === "object")
           setStoreSettings({ ...initialStoreSettings, ...data.storeSettings });
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!cancelled) setSyncStatus("local");
+      })
       .finally(() => {
         if (!cancelled) setCloudReady(true);
       });
@@ -147,29 +162,39 @@ export function useRevelarData() {
   ]);
 
   useEffect(() => {
-    if (!cloudReady) return;
-    const timer = window.setTimeout(() => {
-      fetch("/api/app-data", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          clients,
-          works,
-          agendaEvents,
-          transactions,
-          products,
-          quotes,
-          contracts,
-          locations,
-          diaryEntries,
-          achievementUnlocks,
-          referenceLibrary,
-          checklistTemplates,
-          storeSettings,
-        }),
-      }).catch(() => undefined);
-    }, 900);
-    return () => window.clearTimeout(timer);
+    if (!cloudReady || !cloudEnabled.current) return;
+    const revision = ++saveRevision.current;
+    const body = JSON.stringify({
+      clients,
+      works,
+      agendaEvents,
+      transactions,
+      products,
+      quotes,
+      contracts,
+      locations,
+      diaryEntries,
+      achievementUnlocks,
+      referenceLibrary,
+      checklistTemplates,
+      storeSettings,
+    });
+    setSyncStatus("pending");
+    saveQueue.current = saveQueue.current.then(async () => {
+      if (revision !== saveRevision.current) return;
+      try {
+        const response = await fetch("/api/app-data", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body,
+          keepalive: new TextEncoder().encode(body).length < 60_000,
+        });
+        if (!response.ok) throw new Error("Falha ao sincronizar");
+        if (revision === saveRevision.current) setSyncStatus("saved");
+      } catch {
+        if (revision === saveRevision.current) setSyncStatus("error");
+      }
+    });
   }, [
     cloudReady,
     clients,
@@ -310,5 +335,6 @@ export function useRevelarData() {
     storeSettings,
     setStoreSettings,
     cloudReady,
+    syncStatus,
   };
 }

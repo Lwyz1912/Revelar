@@ -86,6 +86,9 @@ export function FinancialView({
       },
       ...current,
     ]);
+    setCurrency(draft.currency);
+    setScope("all");
+    setKind("all");
     setNewOpen(false);
     setDraft({
       type: "expense",
@@ -101,7 +104,7 @@ export function FinancialView({
       status: "paid",
       origin: "Lançamento avulso",
     });
-    toast("Lançamento adicionado ao financeiro");
+    toast("Lançamento salvo neste navegador");
   };
 
   return (

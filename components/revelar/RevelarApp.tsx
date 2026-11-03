@@ -11,7 +11,7 @@ import { useRevelarPreferences } from "@/hooks/use-revelar-preferences";
 import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/hooks/use-notifications";
 import { buildDashboardOverview } from "@/lib/dashboard";
-import { todayIso } from "@/lib/dates";
+import { addDays, todayIso } from "@/lib/dates";
 import { visibleNotifications } from "@/lib/notifications";
 import {
   createClientRecord,
@@ -138,6 +138,7 @@ export function RevelarApp() {
     storeSettings,
     setStoreSettings,
     cloudReady,
+    syncStatus,
   } = useRevelarData();
   const {
     notifications,
@@ -368,16 +369,18 @@ export function RevelarApp() {
     setWorks((current) => current.map((work) => (work.id === updated.id ? updated : work)));
   const updateSelectedWork = useCallback(
     (update: Work | ((current: Work) => Work)) => {
-      if (selectedWorkId === null) return;
+      let found = false;
       setWorks((current) =>
-        current.map((item) =>
-          item.id === selectedWorkId
-            ? typeof update === "function"
-              ? update(item)
-              : update
-            : item,
-        ),
+        current.map((item) => {
+          if (item.id !== selectedWorkId) return item;
+          found = true;
+          return typeof update === "function" ? update(item) : update;
+        }),
       );
+      if (!found)
+        throw new Error(
+          "O trabalho não está mais disponível. Reabra o trabalho e tente novamente.",
+        );
     },
     [selectedWorkId, setWorks],
   );
@@ -519,6 +522,8 @@ export function RevelarApp() {
     }
   };
 
+  if (!cloudReady) return <p role="status">Carregando dados do Revelar…</p>;
+
   return (
     <div className={`revelar-app theme-${resolvedTheme} palette-${palette}`}>
       <Sidebar
@@ -531,6 +536,7 @@ export function RevelarApp() {
 
       <main className="main-content">
         <Topbar
+          activeNav={activeNav}
           currency={currency}
           onCurrencyChange={setCurrency}
           resolvedTheme={resolvedTheme}
@@ -543,7 +549,6 @@ export function RevelarApp() {
             isClients ? setClientSearch(value) : isWorks ? setWorkSearch(value) : undefined
           }
           onOpenHelp={() => setHelpOpen(true)}
-          onToast={setToast}
           notifications={activeNotifications}
           onOpenNotification={openNotification}
           onMarkAllNotificationsRead={() =>
@@ -555,6 +560,13 @@ export function RevelarApp() {
             setNotificationsCenterOpen(true);
           }}
         />
+
+        <div role="status" style={{ paddingInline: "1rem" }}>
+          {syncStatus === "pending" && "Salvando alterações na nuvem…"}
+          {syncStatus === "error" &&
+            "Alterações salvas neste navegador. Falha ao sincronizar com a nuvem."}
+          {syncStatus === "local" && "Modo local. Alterações salvas neste navegador."}
+        </div>
 
         {selectedWork ? (
           <WorkDetails
@@ -736,6 +748,43 @@ export function RevelarApp() {
             onOpenWork={openWork}
             onNewWork={() => setNewWorkOpen(true)}
             onNewClient={() => setNewClientOpen(true)}
+            onCreateDemoWork={() => {
+              setWorks((current) => {
+                if (
+                  current.some(
+                    (work) =>
+                      work.title === "[TESTE] Ensaio em Caruaru" &&
+                      work.date === today &&
+                      work.status === "scheduled",
+                  )
+                )
+                  return current;
+                const work = createWorkRecord(
+                  {
+                    title: "[TESTE] Ensaio em Caruaru",
+                    category: "Ensaio pessoal",
+                    clientIds: [],
+                    date: today,
+                    time: "16:00",
+                    duration: "1h",
+                    location: "Marco Zero de Caruaru, Caruaru, PE, Brasil",
+                    team: ["Maryana"],
+                    deliveryDate: addDays(today, 7),
+                    packageName: "Demonstração",
+                    currency,
+                    totalValue: 0,
+                    entryValue: 0,
+                    installments: 1,
+                    costs: 0,
+                    photos: { captured: 0, selected: 0, edited: 0, delivered: 0 },
+                    stages: [],
+                    attachments: [],
+                  },
+                  nextNumericId(current),
+                );
+                return [work, ...current];
+              });
+            }}
           />
         )}
       </main>

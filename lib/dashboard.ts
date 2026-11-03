@@ -11,6 +11,7 @@ export type DashboardOverview = {
   pendingIncome: number;
   pendingIncomeCount: number;
   receivedThisMonth: number;
+  spentThisMonth: number;
   nextWork?: Work;
   urgentDeliveries: Work[];
 };
@@ -86,6 +87,12 @@ export function buildDashboardOverview({
           transaction.date.startsWith(currentMonth),
       )
       .reduce((sum, transaction) => sum + transaction.amount, 0),
+    spentThisMonth: visibleTransactions
+      .filter(
+        (item) =>
+          item.type === "expense" && item.status === "paid" && item.date.startsWith(currentMonth),
+      )
+      .reduce((sum, item) => sum + item.amount, 0),
     nextWork: scheduledWorks[0],
     urgentDeliveries,
   };

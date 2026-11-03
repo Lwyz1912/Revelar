@@ -320,6 +320,7 @@
 }
 
 .weather-top {
+  margin-bottom: 12px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -545,4 +546,121 @@
   min-width: 6px;
   background: color-mix(in srgb, var(--primary) 55%, var(--surface));
   border-radius: 3px 3px 0 0;
+}
+
+.dashboard-next-map {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-block: 16px;
+}
+.dashboard-next-map iframe {
+  width: 100%;
+  height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.first-grid > .next-job {
+  align-self: start;
+}
+
+.dashboard-main-stack {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+}
+.finance-summary {
+  padding: clamp(14px, 2.4vw, 24px);
+}
+.finance-summary-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.finance-ring {
+  position: relative;
+  width: 160px;
+}
+.finance-ring svg {
+  display: block;
+  width: 100%;
+}
+.finance-ring circle[class] {
+  cursor: pointer;
+}
+.finance-ring-label {
+  position: absolute;
+  inset: 24%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.finance-legend {
+  flex: 1 1 215px;
+  min-width: 0;
+}
+.finance-legend button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.finance-legend button[data-active="true"] {
+  background: var(--surface-2);
+}
+.finance-legend strong {
+  margin-inline-start: auto;
+}
+.finance-income {
+  color: #32704e;
+}
+.finance-expense {
+  color: #862c51;
+}
+.finance-pending {
+  color: #996400;
+}
+.theme-dark .finance-income {
+  color: #79c99b;
+}
+.theme-dark .finance-expense {
+  color: #e283a7;
+}
+.theme-dark .finance-pending {
+  color: #efbd58;
+}
+
+@media (min-width: 1051px) {
+  .first-grid > .dashboard-main-stack {
+    align-self: stretch;
+    grid-template-rows: auto 1fr;
+  }
+
+  .finance-summary {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .finance-summary-body {
+    flex: 1;
+    align-content: center;
+  }
+
+  .finance-ring {
+    width: clamp(180px, 16vw, 228px);
+  }
 }

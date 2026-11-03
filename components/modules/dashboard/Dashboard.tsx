@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { greetingForHour, hourInTimeZone, type DashboardOverview } from "@/lib/dashboard";
 import { agendaDateLabel, todayIso } from "@/lib/dates";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -14,13 +15,13 @@ type ScheduleItem = {
   work: Work;
 };
 
-function scheduleItems(works: Work[], today: string): ScheduleItem[] {
+function scheduleItems(works: Work[], today: string, featuredId?: number): ScheduleItem[] {
   return works
     .filter((work) => !inactiveStatuses.has(work.status))
     .flatMap((work): ScheduleItem[] => {
       const items: ScheduleItem[] = [];
 
-      if (work.date >= today) {
+      if (work.id !== featuredId && work.date >= today) {
         items.push({
           id: `session-${work.id}`,
           date: work.date,
@@ -59,6 +60,210 @@ function dateParts(value: string) {
   };
 }
 
+type SessionWeather = {
+  current?: { temperature?: number; label: string; code?: number };
+  label?: string;
+  rain?: number;
+  reason?: string;
+};
+
+function SessionForecast({ location, date }: { location?: string; date?: string }) {
+  const [weather, setWeather] = useState<SessionWeather>();
+
+  useEffect(() => {
+    if (!location || location === "A definir" || !date) return;
+    const sessionDate = date;
+    const sessionLocation = location;
+    const controller = new AbortController();
+    const options = { signal: controller.signal };
+    async function load() {
+      const response = await fetch(
+        `/api/geocode?q=${encodeURIComponent(sessionLocation)}`,
+        options,
+      );
+      if (!response.ok) throw new Error();
+      const { results } = (await response.json()) as {
+        results?: { latitude: number; longitude: number }[];
+      };
+      const place = results?.[0];
+      if (!place) {
+        setWeather({ reason: "Local não encontrado para consultar o clima." });
+        return;
+      }
+      const query = new URLSearchParams({
+        latitude: String(place.latitude),
+        longitude: String(place.longitude),
+        date: sessionDate,
+        current: "1",
+      });
+      const forecast = await fetch(`/api/weather?${query}`, options);
+      if (!forecast.ok) throw new Error();
+      const data = (await forecast.json()) as SessionWeather;
+      if (!controller.signal.aborted) setWeather(data);
+    }
+    void load().catch(() => {
+      if (!controller.signal.aborted) setWeather({ reason: "Clima indisponível no momento." });
+    });
+    return () => controller.abort();
+  }, [location, date]);
+
+  const code = weather?.current?.code;
+  let symbol = "—";
+  if (code === 0) symbol = "☀";
+  if (code === 1 || code === 2) symbol = "⛅︎";
+  if (code === 3 || code === 45 || code === 48) symbol = "☁";
+  if (code !== undefined && [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code))
+    symbol = "🌧︎";
+  if (code !== undefined && [71, 73, 75, 77, 85, 86].includes(code)) symbol = "🌨︎";
+  if (code !== undefined && [95, 96, 99].includes(code)) symbol = "⛈︎";
+
+  return (
+    <>
+      <div className="weather-top">
+        <div>
+          <p>PLANEJAMENTO EXTERNO</p>
+          <h2>Antes de sair</h2>
+        </div>
+        <span aria-hidden="true">{symbol}</span>
+      </div>
+      <div className="weather-facts">
+        <div>
+          <p>
+            Local<strong>{location || "A definir"}</strong>
+          </p>
+        </div>
+        {location && location !== "A definir" && date ? (
+          <div>
+            <p>
+              Tempo agora
+              <strong>
+                {typeof weather?.current?.temperature === "number"
+                  ? `${Math.round(weather.current.temperature)} °C · ${weather.current.label}`
+                  : weather
+                    ? "Indisponível"
+                    : "Consultando…"}
+              </strong>
+            </p>
+            <p>
+              Na data da sessão
+              <strong>
+                {typeof weather?.rain === "number"
+                  ? `${weather.rain}% de chance de chuva`
+                  : weather?.label || weather?.reason || "Consultando…"}
+              </strong>
+            </p>
+          </div>
+        ) : (
+          <div>
+            <p>
+              Previsão<strong>Local a definir</strong>
+            </p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function FinanceSummary({
+  overview,
+  currency,
+  open,
+}: {
+  overview: DashboardOverview;
+  currency: Currency;
+  open: () => void;
+}) {
+  const [selected, select] = useState<string>();
+  const [hovered, hover] = useState<string>();
+  const active = hovered ?? selected;
+  const items = [
+    { id: "income", label: "Recebido no mês", value: overview.receivedThisMonth },
+    { id: "expense", label: "Gastos pagos no mês", value: overview.spentThisMonth },
+    { id: "pending", label: "A receber · total", value: overview.pendingIncome },
+  ];
+  const total = items.reduce((sum, item) => sum + Math.max(0, item.value), 0);
+  const highlighted = items.find((item) => item.id === active);
+  let offset = 0;
+
+  return (
+    <section className="card finance-summary" aria-label="Resumo financeiro">
+      <div className="card-heading compact">
+        <h2>Resumo financeiro</h2>
+        <button className="text-button" type="button" onClick={open}>
+          Ver financeiro ›
+        </button>
+      </div>
+      <div className="finance-summary-body">
+        <div className="finance-ring">
+          <svg viewBox="0 0 160 160" aria-hidden="true">
+            <circle cx="80" cy="80" r="66" fill="none" stroke="var(--border)" strokeWidth="16" />
+            {items
+              .filter((item) => item.value > 0)
+              .map((item) => {
+                const length = (item.value / total) * 100;
+                const start = offset;
+                offset += length;
+                return (
+                  <circle
+                    key={item.id}
+                    className={`finance-${item.id}`}
+                    cx="80"
+                    cy="80"
+                    r="66"
+                    pathLength="100"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={active === item.id ? 21 : 16}
+                    strokeDasharray={`${length} ${100 - length}`}
+                    strokeDashoffset={-start}
+                    transform="rotate(-90 80 80)"
+                    opacity={active && active !== item.id ? 0.35 : 1}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType === "mouse") hover(item.id);
+                    }}
+                    onPointerLeave={() => hover(undefined)}
+                    onClick={() => select(selected === item.id ? undefined : item.id)}
+                  />
+                );
+              })}
+          </svg>
+          <div className="finance-ring-label" aria-live="polite">
+            <small>{highlighted?.label ?? "Saldo do mês"}</small>
+            <strong>
+              {formatMoney(
+                highlighted?.value ?? overview.receivedThisMonth - overview.spentThisMonth,
+                currency,
+              )}
+            </strong>
+          </div>
+        </div>
+        <div className="finance-legend">
+          {items.map((item) => (
+            <button
+              type="button"
+              key={item.id}
+              aria-pressed={selected === item.id}
+              data-active={active === item.id}
+              onMouseEnter={() => hover(item.id)}
+              onMouseLeave={() => hover(undefined)}
+              onFocus={() => hover(item.id)}
+              onBlur={() => hover(undefined)}
+              onClick={() => select(selected === item.id ? undefined : item.id)}
+            >
+              <span className={`finance-${item.id}`} aria-hidden="true">
+                ●
+              </span>
+              <span>{item.label}</span>
+              <strong>{formatMoney(item.value, currency)}</strong>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function Dashboard({
   overview,
   currency,
@@ -67,6 +272,7 @@ export function Dashboard({
   onOpenWork,
   onNewWork,
   onNewClient,
+  onCreateDemoWork,
 }: {
   overview: DashboardOverview;
   currency: Currency;
@@ -75,6 +281,7 @@ export function Dashboard({
   onOpenWork: (work: Work) => void;
   onNewWork: () => void;
   onNewClient: () => void;
+  onCreateDemoWork: () => void;
 }) {
   const today = todayIso();
   const todayLabel = agendaDateLabel(today, {
@@ -88,21 +295,37 @@ export function Dashboard({
     )
     .sort((first, second) => first.deliveryDate.localeCompare(second.deliveryDate))
     .slice(0, 3);
-  const upcoming = scheduleItems(works, today);
   const nextWork = overview.nextWork;
+  const upcoming = scheduleItems(works, today, nextWork?.id);
+  const nextLocation = nextWork?.location.trim();
+  const mapLocation = nextLocation;
+  const mapQuery = mapLocation ? encodeURIComponent(mapLocation) : "";
   const completedStages = nextWork?.stages.filter((stage) => stage.done).length || 0;
   const stageProgress = nextWork?.stages.length
     ? Math.round((completedStages / nextWork.stages.length) * 100)
     : 0;
-  const paymentProgress = nextWork?.totalValue
-    ? Math.min(100, Math.round((nextWork.entryValue / nextWork.totalValue) * 100))
-    : 0;
-  const externalWorks = works.filter(
-    (work) =>
-      !inactiveStatuses.has(work.status) &&
-      Boolean(work.location) &&
-      !/studio|estúdio|online|video/i.test(work.location),
-  ).length;
+
+  const priorities = works
+    .filter((work) => !inactiveStatuses.has(work.status))
+    .flatMap((work) => {
+      const items = [];
+      if (work.deliveryDate && work.deliveryDate <= today) {
+        items.push({
+          work,
+          label: work.deliveryDate < today ? "Entrega atrasada" : "Entrega hoje",
+        });
+      }
+      if (work.contract?.status === "sent") {
+        items.push({ work, label: "Aguardando assinatura" });
+      }
+      return items;
+    })
+    .sort(
+      (first, second) =>
+        Number(second.label !== "Aguardando assinatura") -
+        Number(first.label !== "Aguardando assinatura"),
+    )
+    .slice(0, 3);
 
   return (
     <div className="dashboard">
@@ -148,169 +371,124 @@ export function Dashboard({
         </div>
       </section>
 
-      <section className="metrics" aria-label="Resumo do estúdio">
-        <article className="metric-card">
-          <span className="metric-icon green">
-            <img src="/brand/revelar-icons-svg-monocromatico/04-agenda.svg" alt="" />
-          </span>
+      <section className="card deadline-alerts" aria-labelledby="dashboard-priorities-title">
+        <div className="card-heading compact">
           <div>
-            <p>ENSAIOS HOJE</p>
-            <strong>{overview.todayJobs}</strong>
-            <small>
-              {nextWork
-                ? `Próximo: ${formatDate(nextWork.date)}${nextWork.time ? ` às ${nextWork.time}` : ""}`
-                : "Nenhum trabalho futuro"}
-            </small>
+            <p>PRAZOS E CONTRATOS</p>
+            <h2 id="dashboard-priorities-title">Precisa de atenção</h2>
           </div>
-        </article>
-        <article className="metric-card">
-          <span className="metric-icon gold">
-            <img src="/brand/revelar-icons-svg-monocromatico/10-fotografias.svg" alt="" />
-          </span>
-          <div>
-            <p>FOTOS PARA EDITAR</p>
-            <strong>{overview.photosToEdit.toLocaleString("pt-BR")}</strong>
-            <small>
-              Em {editingWorks.length} {editingWorks.length === 1 ? "trabalho" : "trabalhos"}
-            </small>
-          </div>
-        </article>
-        <article className="metric-card">
-          <span className="metric-icon rose">
-            <img src="/brand/revelar-icons-svg-monocromatico/11-entrega.svg" alt="" />
-          </span>
-          <div>
-            <p>ENTREGAS PENDENTES</p>
-            <strong>{overview.pendingDeliveries}</strong>
-            <small>{overview.urgentDeliveries.length} exigem atenção</small>
-          </div>
-        </article>
-        <article className="metric-card">
-          <span className="metric-icon green">
-            <img src="/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg" alt="" />
-          </span>
-          <div>
-            <p>A RECEBER</p>
-            <strong>{formatMoney(overview.pendingIncome, currency)}</strong>
-            <small>
-              {overview.pendingIncomeCount}{" "}
-              {overview.pendingIncomeCount === 1 ? "valor" : "valores"}
-            </small>
-          </div>
-        </article>
+          <button className="text-button" type="button" onClick={() => navigate("Trabalhos")}>
+            Ver trabalhos ›
+          </button>
+        </div>
+        <div className="deadline-alert-list">
+          {priorities.length ? (
+            priorities.map(({ work, label }) => (
+              <button key={`${work.id}-${label}`} type="button" onClick={() => onOpenWork(work)}>
+                <span
+                  className={`deadline-dot ${label === "Entrega atrasada" ? "late" : "soon"}`}
+                />
+                <span>
+                  <strong>{work.title}</strong>
+                  <small>{label}</small>
+                </span>
+                <b aria-hidden="true">›</b>
+              </button>
+            ))
+          ) : (
+            <p className="empty-copy">Nenhuma entrega urgente ou assinatura pendente.</p>
+          )}
+        </div>
       </section>
 
       <section className="dashboard-grid first-grid">
-        <article className="card next-job">
-          {nextWork ? (
-            <>
-              <div className="card-heading">
-                <div>
-                  <p>PRÓXIMO TRABALHO</p>
-                  <h2>{nextWork.title}</h2>
-                  <span>
-                    {formatDate(nextWork.date)}
-                    {nextWork.time ? `, ${nextWork.time}` : ""} ·{" "}
-                    {nextWork.location || "Local a definir"}
-                  </span>
+        <div className="dashboard-main-stack">
+          <article className="card next-job">
+            {nextWork ? (
+              <>
+                <div className="card-heading">
+                  <div>
+                    <p>PRÓXIMO TRABALHO</p>
+                    <h2>{nextWork.title}</h2>
+                    <span>
+                      {formatDate(nextWork.date)}
+                      {nextWork.time ? `, ${nextWork.time}` : ""} ·{" "}
+                      {nextWork.location || "Local a definir"}
+                    </span>
+                  </div>
+                  <button
+                    className="outline-button"
+                    type="button"
+                    onClick={() => onOpenWork(nextWork)}
+                  >
+                    Ver detalhes <b>›</b>
+                  </button>
                 </div>
-                <button
-                  className="outline-button"
-                  type="button"
-                  onClick={() => onOpenWork(nextWork)}
-                >
-                  Ver detalhes <b>›</b>
+                {nextWork.stages.length > 0 && (
+                  <>
+                    <div className="progress-title">
+                      <span>
+                        Preparação · {completedStages}/{nextWork.stages.length} etapas
+                      </span>
+                      <strong>{stageProgress}%</strong>
+                    </div>
+                    <div className="progress">
+                      <i style={{ width: `${stageProgress}%` }} />
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="dashboard-empty">
+                <p>PRÓXIMO TRABALHO</p>
+                <h2>Sua agenda futura está livre</h2>
+                <span>Crie um trabalho ou converta um orçamento aprovado.</span>
+                <button className="outline-button" type="button" onClick={onNewWork}>
+                  Criar trabalho
+                </button>
+                <button className="text-button" type="button" onClick={onCreateDemoWork}>
+                  Criar ensaio de teste em Caruaru
                 </button>
               </div>
-              <div className="job-facts">
-                <div>
-                  <span>
-                    <img src="/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg" alt="" />
-                  </span>
-                  <p>
-                    Pagamento<strong>{paymentProgress}% recebido</strong>
-                  </p>
-                </div>
-                <div>
-                  <span>
-                    <img src="/brand/revelar-icons-svg-monocromatico/04-agenda.svg" alt="" />
-                  </span>
-                  <p>
-                    Cronograma
-                    <strong>
-                      {completedStages}/{nextWork.stages.length} etapas
-                    </strong>
-                  </p>
-                </div>
-                <div>
-                  <span>
-                    <img src="/brand/revelar-icons-svg-monocromatico/09-arquivos.svg" alt="" />
-                  </span>
-                  <p>
-                    Arquivos
-                    <strong>
-                      {nextWork.attachments.length}{" "}
-                      {nextWork.attachments.length === 1 ? "anexo" : "anexos"}
-                    </strong>
-                  </p>
-                </div>
-              </div>
-              <div className="progress-title">
-                <span>Preparação do trabalho</span>
-                <strong>{stageProgress}%</strong>
-              </div>
-              <div className="progress">
-                <i style={{ width: `${stageProgress}%` }} />
-              </div>
-              <p className="ready-note">
-                <span>✓</span>{" "}
-                {stageProgress >= 75
-                  ? "Quase tudo pronto para o trabalho!"
-                  : "Confira as próximas etapas antes da sessão."}
-              </p>
-            </>
-          ) : (
-            <div className="dashboard-empty">
-              <p>PRÓXIMO TRABALHO</p>
-              <h2>Sua agenda futura está livre</h2>
-              <span>Crie um trabalho ou converta um orçamento aprovado.</span>
-              <button className="outline-button" type="button" onClick={onNewWork}>
-                Criar trabalho
-              </button>
+            )}
+          </article>
+          <FinanceSummary
+            overview={overview}
+            currency={currency}
+            open={() => navigate("Financeiro")}
+          />
+        </div>
+        <article className="card weather">
+          <SessionForecast
+            key={`${nextLocation}-${nextWork?.date}`}
+            location={nextLocation}
+            date={nextWork?.date}
+          />
+          {mapQuery && (
+            <div className="dashboard-next-map">
+              <iframe
+                title={`Mapa do próximo trabalho`}
+                src={`https://maps.google.com/maps?q=${mapQuery}&output=embed`}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+              />
+              <a
+                className="outline-button"
+                href={`https://www.google.com/maps/dir/?api=1&destination=${mapQuery}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abrir rota ↗
+              </a>
             </div>
           )}
-        </article>
-
-        <article className="card weather">
-          <div className="weather-top">
-            <div>
-              <p>PLANEJAMENTO EXTERNO</p>
-              <h2>Antes de sair</h2>
-            </div>
-            <span>☀</span>
-          </div>
-          <div className="temperature">
-            <strong>{externalWorks}</strong>
-            <span>
-              {externalWorks === 1 ? "trabalho externo ativo" : "trabalhos externos ativos"}
-              <small>Clima ainda não conectado</small>
-            </span>
-          </div>
-          <div className="weather-facts">
-            <div>
-              <span>✓</span>
-              <p>
-                Local<strong>Confirmar acesso</strong>
-              </p>
-            </div>
-            <div>
-              <span>☂</span>
-              <p>
-                Previsão<strong>Conferir antes</strong>
-              </p>
-            </div>
-          </div>
-          <p className="weather-note">O Revelar não mostra clima em tempo real nesta versão.</p>
+          {!mapQuery && (
+            <p className="weather-note">
+              {nextWork
+                ? "Informe o local do trabalho para abrir o mapa."
+                : "O mapa aparece quando houver uma sessão agendada com local."}
+            </p>
+          )}
         </article>
       </section>
 
@@ -386,64 +564,62 @@ export function Dashboard({
                 );
               })
             ) : (
-              <p className="empty-copy">Nenhum compromisso futuro cadastrado.</p>
+              <p className="empty-copy">Sem próximos compromissos.</p>
             )}
           </div>
         </article>
       </section>
 
-      <section className="card deadline-alerts">
-        <div className="card-heading compact">
+      <section className="metrics" aria-label="Resumo do estúdio">
+        <article className="metric-card">
+          <span className="metric-icon green">
+            <img src="/brand/revelar-icons-svg-monocromatico/04-agenda.svg" alt="" />
+          </span>
           <div>
-            <p>PRAZOS IMPORTANTES</p>
-            <h2>Entregas no calendário</h2>
+            <p>ENSAIOS HOJE</p>
+            <strong>{overview.todayJobs}</strong>
+            <small>
+              {nextWork
+                ? `Próximo: ${formatDate(nextWork.date)}${nextWork.time ? ` às ${nextWork.time}` : ""}`
+                : "Nenhum trabalho futuro"}
+            </small>
           </div>
-          <button className="text-button" type="button" onClick={() => navigate("Agenda")}>
-            Abrir calendário ›
-          </button>
-        </div>
-        <div className="deadline-alert-list">
-          {overview.urgentDeliveries.length ? (
-            overview.urgentDeliveries.slice(0, 3).map((work) => (
-              <button type="button" key={work.id} onClick={() => onOpenWork(work)}>
-                <span className={`deadline-dot ${work.deliveryDate < today ? "late" : "soon"}`} />
-                <span>
-                  <strong>{work.title}</strong>
-                  <small>
-                    {work.deliveryDate < today
-                      ? "Prazo atrasado"
-                      : work.deliveryDate === today
-                        ? "Entrega hoje"
-                        : `Entrega em ${formatDate(work.deliveryDate)}`}
-                  </small>
-                </span>
-                <b>›</b>
-              </button>
-            ))
-          ) : (
-            <p className="empty-copy">Nenhum prazo urgente nos próximos dias.</p>
-          )}
-        </div>
-      </section>
-
-      <section className="card financial-strip">
-        <div>
-          <p>RECEBIDO NESTE MÊS</p>
-          <strong>{formatMoney(overview.receivedThisMonth, currency)}</strong>
-          <small>Valores confirmados no Financeiro</small>
-        </div>
-        <div className="mini-bars" aria-hidden="true">
-          <i style={{ height: "32%" }} />
-          <i style={{ height: "48%" }} />
-          <i style={{ height: "39%" }} />
-          <i style={{ height: "64%" }} />
-          <i style={{ height: "58%" }} />
-          <i style={{ height: "82%" }} />
-          <i style={{ height: "100%" }} />
-        </div>
-        <button className="outline-button" type="button" onClick={() => navigate("Financeiro")}>
-          Ver financeiro ›
-        </button>
+        </article>
+        <article className="metric-card">
+          <span className="metric-icon gold">
+            <img src="/brand/revelar-icons-svg-monocromatico/10-fotografias.svg" alt="" />
+          </span>
+          <div>
+            <p>FOTOS PARA EDITAR</p>
+            <strong>{overview.photosToEdit.toLocaleString("pt-BR")}</strong>
+            <small>
+              Em {editingWorks.length} {editingWorks.length === 1 ? "trabalho" : "trabalhos"}
+            </small>
+          </div>
+        </article>
+        <article className="metric-card">
+          <span className="metric-icon rose">
+            <img src="/brand/revelar-icons-svg-monocromatico/11-entrega.svg" alt="" />
+          </span>
+          <div>
+            <p>ENTREGAS PENDENTES</p>
+            <strong>{overview.pendingDeliveries}</strong>
+            <small>{overview.urgentDeliveries.length} exigem atenção</small>
+          </div>
+        </article>
+        <article className="metric-card">
+          <span className="metric-icon green">
+            <img src="/brand/revelar-icons-svg-monocromatico/06-pagamentos.svg" alt="" />
+          </span>
+          <div>
+            <p>A RECEBER</p>
+            <strong>{formatMoney(overview.pendingIncome, currency)}</strong>
+            <small>
+              {overview.pendingIncomeCount}{" "}
+              {overview.pendingIncomeCount === 1 ? "valor" : "valores"}
+            </small>
+          </div>
+        </article>
       </section>
     </div>
   );
