@@ -1,5 +1,6 @@
 "use client";
 
+import { RevelarIcon } from "@/components/shared/RevelarIcon";
 import { useMemo, useState } from "react";
 
 import { todayIso } from "@/lib/dates";
@@ -135,11 +136,27 @@ export function ClientDetails({
           </div>
         </div>
         <div className="client-primary-actions">
-          <a className="whatsapp-button" href={whatsappUrl} target="_blank" rel="noreferrer">
-            WhatsApp
-          </a>
-          <button className="outline-button" type="button" onClick={onEdit}>
-            Editar
+          {/\d/.test(client.whatsapp) && (
+            <a
+              className="whatsapp-button"
+              href={whatsappUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Abrir WhatsApp de ${client.name}`}
+              title="WhatsApp"
+            >
+              <RevelarIcon name="whatsapp" />
+            </a>
+          )}
+          <button
+            className="outline-button"
+            type="button"
+            onClick={onEdit}
+            aria-label="Editar cliente"
+            title="Editar cliente"
+            data-edit-icon
+          >
+            <RevelarIcon name="edit" />
           </button>
           <button className="primary-button" type="button" onClick={onNewWork}>
             ＋ Novo trabalho
@@ -219,8 +236,14 @@ export function ClientDetails({
           <section className="client-contact-card">
             <header>
               <h2>Contato</h2>
-              <button type="button" onClick={onEdit}>
-                Editar
+              <button
+                type="button"
+                onClick={onEdit}
+                aria-label="Editar cliente"
+                title="Editar cliente"
+                data-edit-icon
+              >
+                <RevelarIcon name="edit" />
               </button>
             </header>
             <dl>
