@@ -350,6 +350,7 @@ export type Client = {
   weddingDate?: string;
   otherDateLabel?: string;
   otherDate?: string;
+  additionalDates?: { label: string; date: string }[];
   notes?: string;
   archived?: boolean;
   createdAt?: string;
@@ -365,6 +366,7 @@ export type NewClientData = {
   weddingDate: string;
   otherDateLabel: string;
   otherDate: string;
+  additionalDates?: { label: string; date: string }[];
   notes: string;
   avatar?: string;
 };
