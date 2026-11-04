@@ -1624,3 +1624,48 @@
 .album-body .album-title-link:hover {
   text-decoration: underline;
 }
+
+.internal-photo-stage {
+  position: relative;
+}
+.internal-photo-stage .photo-review-navigation {
+  position: absolute;
+  inset-inline: 8px;
+  bottom: 12px;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  margin: auto;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+.photo-review-navigation small {
+  order: -1;
+  padding: 0 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.internal-photo-modal aside .save-details {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+.internal-photo-modal .photo-edit-actions {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .internal-photo-stage img {
+    animation: photo-review-enter 180ms ease-out;
+  }
+}
+@keyframes photo-review-enter {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
