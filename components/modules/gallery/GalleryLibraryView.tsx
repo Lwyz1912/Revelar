@@ -1,11 +1,16 @@
 "use client";
 
+import { RevelarIcon } from "@/components/shared/RevelarIcon";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatSize } from "@/lib/format";
 import { readApiJson } from "@/lib/api-response.client";
 import type { Work, WorkGallery } from "@/types/revelar";
+import { useStoredJsonState } from "@/hooks/use-persisted-state";
 import { useUrlStringState } from "@/hooks/use-url-state";
+
+const initialAlbumCovers: Record<string, string> = {};
 
 type Props = {
   works: Work[];
@@ -14,9 +19,9 @@ type Props = {
   toast: (message: string) => void;
 };
 
-type LibraryFilter = "all" | "linked" | "independent" | "recent";
+type LibraryFilter = "all" | "linked" | "independent";
 type PhotoFilter = "all" | "originals" | "edited" | "favorites" | "trash";
-const libraryFilters = ["all", "linked", "independent", "recent"] as const;
+const libraryFilters = ["all", "linked", "independent"] as const;
 const photoFilters = ["all", "originals", "edited", "favorites", "trash"] as const;
 
 function today() {
@@ -62,7 +67,12 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
   const [caption, setCaption] = useState("");
   const [tags, setTags] = useState("");
   const [rating, setRating] = useState(0);
-  const [recentCutoff] = useState(() => Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [albumOrder, setAlbumOrder] = useState("recent");
+  const [albumCovers, setAlbumCovers] = useStoredJsonState(
+    "revelar-album-covers",
+    initialAlbumCovers,
+  );
+  const pickerAlbumId = useRef("");
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -109,21 +119,25 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
 
   const visibleGalleries = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("pt-BR");
-    return galleries.filter((gallery) => {
-      const matchesQuery =
-        !query ||
-        [gallery.name, gallery.clientName, gallery.workTitle].some((value) =>
-          value.toLocaleLowerCase("pt-BR").includes(query),
-        );
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "linked" && gallery.workId !== undefined) ||
-        (filter === "independent" && gallery.workId === undefined) ||
-        (filter === "recent" &&
-          Boolean(gallery.albumDate && new Date(gallery.albumDate).getTime() >= recentCutoff));
-      return matchesQuery && matchesFilter;
-    });
-  }, [filter, galleries, recentCutoff, search]);
+    return galleries
+      .filter((gallery) => {
+        const matchesQuery =
+          !query ||
+          [gallery.name, gallery.clientName, gallery.workTitle].some((value) =>
+            value.toLocaleLowerCase("pt-BR").includes(query),
+          );
+        const matchesFilter =
+          filter === "all" ||
+          (filter === "linked" && gallery.workId !== undefined) ||
+          (filter === "independent" && gallery.workId === undefined);
+        return matchesQuery && matchesFilter;
+      })
+      .sort((a, b) =>
+        albumOrder === "name"
+          ? a.name.localeCompare(b.name, "pt-BR")
+          : (b.albumDate ?? "").localeCompare(a.albumDate ?? ""),
+      );
+  }, [albumOrder, filter, galleries, search]);
 
   const visiblePhotos = selectedGallery
     ? selectedGallery.photos.filter((photo) => {
@@ -136,6 +150,8 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
         return true;
       })
     : [];
+
+  const focusedIndex = visiblePhotos.findIndex((photo) => photo.id === focusedId);
 
   const openPhotoDetails = (photoId: string) => {
     const photo = selectedGallery?.photos.find((item) => item.id === photoId);
@@ -203,8 +219,8 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
     }
   };
 
-  const uploadPhotos = async (files: FileList | File[]) => {
-    if (!selectedGallery || !files.length) return;
+  const uploadPhotos = async (files: FileList | File[], albumId = selectedGallery?.id) => {
+    if (!albumId || !files.length || busy) return;
     setBusy(true);
     let sent = 0;
     for (const file of Array.from(files)) {
@@ -214,7 +230,7 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
         form.append("file", file);
         form.append("preview", file);
         form.append("folder", "originals");
-        const response = await fetch(`/api/galleries/${selectedGallery.id}/upload`, {
+        const response = await fetch(`/api/galleries/${albumId}/upload`, {
           method: "POST",
           body: form,
         });
@@ -331,7 +347,7 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
         </button>
         <span>ORGANIZAÇÃO INTERNA</span>
         <h2>{editingAlbum ? "Editar álbum" : "Criar novo álbum"}</h2>
-        <p>O vínculo com trabalho é opcional e serve apenas como atalho interno.</p>
+        <p>Álbum interno. Você pode vinculá-lo a um trabalho para abrir a ficha pelo acervo.</p>
         <label>
           <span>Nome do álbum</span>
           <input
@@ -339,14 +355,6 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder={`Envio de fotos ${new Intl.DateTimeFormat("pt-BR").format(new Date())}`}
-          />
-        </label>
-        <label>
-          <span>Descrição</span>
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Sobre este ensaio ou conjunto de imagens…"
           />
         </label>
         <div className="album-dialog-row">
@@ -363,7 +371,13 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
             <select
               value={workId}
               disabled={Boolean(editingAlbum)}
-              onChange={(event) => setWorkId(event.target.value)}
+              onChange={(event) => {
+                const linkedWork = works.find((work) => String(work.id) === event.target.value);
+                setWorkId(event.target.value);
+                if (!name.trim() && linkedWork) setName(linkedWork.title);
+                if (linkedWork?.date && (!albumDate || albumDate === today()))
+                  setAlbumDate(linkedWork.date);
+              }}
             >
               <option value="">Nenhum trabalho</option>
               {works.map((work) => (
@@ -374,6 +388,14 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
             </select>
           </label>
         </div>
+        <label>
+          <span>Descrição (opcional)</span>
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Sobre este ensaio ou conjunto de imagens…"
+          />
+        </label>
         <div className="album-dialog-actions">
           <button
             type="button"
@@ -418,8 +440,14 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
             </p>
           </div>
           <div className="internal-gallery-actions">
-            <button type="button" onClick={() => openEditAlbum(selectedGallery)}>
-              Editar informações
+            <button
+              type="button"
+              onClick={() => openEditAlbum(selectedGallery)}
+              aria-label="Editar álbum"
+              title="Editar álbum"
+              data-edit-icon
+            >
+              <RevelarIcon name="edit" />
             </button>
             {linkedWork && (
               <button type="button" onClick={() => onOpenWork(linkedWork)}>
@@ -463,52 +491,56 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
             <span>armazenamento</span>
           </div>
         </div>
-        <nav className="internal-gallery-tabs" aria-label="Pastas do álbum">
-          {(
-            [
-              ["all", "Todas"],
-              ["originals", "Originais"],
-              ["edited", "Em edição"],
-              ["favorites", "Favoritas"],
-              ["trash", "Lixeira"],
-            ] as [PhotoFilter, string][]
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              className={photoFilter === value ? "active" : ""}
-              type="button"
-              onClick={() => {
-                setPhotoFilter(value);
-                setSelectedPhotos([]);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-        <div className="internal-gallery-photo-tools">
-          <p>{visiblePhotos.length} foto(s) · selecione para ações em lote</p>
-          {selectedPhotos.length > 0 && (
-            <div>
-              <strong>{selectedPhotos.length} selecionada(s)</strong>
-              {photoFilter === "trash" ? (
-                <button type="button" onClick={() => void restoreSelected()}>
-                  Restaurar no álbum
-                </button>
-              ) : (
-                <>
-                  <button type="button" onClick={() => void sendToEditor(selectedPhotos, "studio")}>
-                    Editar em lote
+        <div className="album-photo-toolbar">
+          <nav className="internal-gallery-tabs" aria-label="Pastas do álbum">
+            {(
+              [
+                ["all", "Todas"],
+                ["originals", "Originais"],
+                ["edited", "Em edição"],
+                ["favorites", "Favoritas"],
+                ["trash", "Lixeira"],
+              ] as [PhotoFilter, string][]
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                className={photoFilter === value ? "active" : ""}
+                type="button"
+                onClick={() => {
+                  setPhotoFilter(value);
+                  setSelectedPhotos([]);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="internal-gallery-photo-tools">
+            <p>{visiblePhotos.length} foto(s) · selecione para ações em lote</p>
+            {selectedPhotos.length > 0 && (
+              <div>
+                <strong>{selectedPhotos.length} selecionada(s)</strong>
+                {photoFilter === "trash" ? (
+                  <button type="button" onClick={() => void restoreSelected()}>
+                    Restaurar no álbum
                   </button>
-                  <button className="danger" type="button" onClick={() => void trashSelected()}>
-                    Mover para lixeira
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void sendToEditor(selectedPhotos, "studio")}
+                    >
+                      Editar em lote
+                    </button>
+                    <button className="danger" type="button" onClick={() => void trashSelected()}>
+                      Mover para lixeira
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-
         {visiblePhotos.length ? (
           <div className="internal-photo-grid">
             {visiblePhotos.map((photo) => (
@@ -573,8 +605,19 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
             role="dialog"
             aria-modal="true"
             aria-label={`Detalhes de ${focused.filename}`}
+            onKeyDown={(event) => {
+              if (
+                (event.target as HTMLElement).closest("input, textarea, select, [contenteditable]")
+              )
+                return;
+              if (focusedIndex < 0 || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+              const adjacent = visiblePhotos[focusedIndex + (event.key === "ArrowLeft" ? -1 : 1)];
+              event.preventDefault();
+              if (adjacent) openPhotoDetails(adjacent.id);
+            }}
           >
             <button
+              autoFocus
               className="modal-close"
               type="button"
               onClick={() => setFocusedId(null)}
@@ -594,6 +637,43 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
                 <h2>{focused.filename}</h2>
                 <p>Somente você vê estas informações.</p>
               </div>
+              {visiblePhotos.some((photo) => photo.id === focused.id) && (
+                <nav className="photo-review-navigation" aria-label="Navegar pelas fotos">
+                  {[-1, 1].map((direction) => {
+                    const index = visiblePhotos.findIndex((photo) => photo.id === focused.id);
+                    const adjacent = visiblePhotos[index + direction];
+                    return (
+                      <button
+                        key={direction}
+                        type="button"
+                        className="outline-button"
+                        disabled={!adjacent}
+                        onClick={() => adjacent && openPhotoDetails(adjacent.id)}
+                      >
+                        {direction < 0 ? "‹ Anterior" : "Próxima ›"}
+                      </button>
+                    );
+                  })}
+                  <small>
+                    {visiblePhotos.findIndex((photo) => photo.id === focused.id) + 1} de{" "}
+                    {visiblePhotos.length}
+                  </small>
+                </nav>
+              )}
+              {focused.hasPreview && (
+                <button
+                  className="outline-button"
+                  type="button"
+                  disabled={albumCovers[selectedGallery.id] === focused.id}
+                  onClick={() =>
+                    setAlbumCovers((current) => ({ ...current, [selectedGallery.id]: focused.id }))
+                  }
+                >
+                  {albumCovers[selectedGallery.id] === focused.id
+                    ? "Capa do álbum"
+                    : "Definir como capa"}
+                </button>
+              )}
               <div className="photo-rating" aria-label="Avaliação da foto">
                 {[1, 2, 3, 4, 5].map((value) => (
                   <button
@@ -669,6 +749,18 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
   const totalBytes = galleries.reduce((sum, gallery) => sum + gallery.stats.totalBytes, 0);
   return (
     <section className="gallery-library internal-gallery">
+      <input
+        hidden
+        ref={fileInput}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(event) => {
+          const files = Array.from(event.currentTarget.files ?? []);
+          event.currentTarget.value = "";
+          if (files.length) void uploadPhotos(files, pickerAlbumId.current);
+        }}
+      />
       <header className="internal-gallery-home-head">
         <div>
           <span>ACERVO FOTOGRÁFICO</span>
@@ -730,7 +822,6 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
               ["all", "Todos"],
               ["linked", "Com trabalho"],
               ["independent", "Independentes"],
-              ["recent", "Recentes"],
             ] as [LibraryFilter, string][]
           ).map(([value, label]) => (
             <button
@@ -743,6 +834,15 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
             </button>
           ))}
         </div>
+        <select
+          className="gallery-album-order"
+          aria-label="Ordenar álbuns"
+          value={albumOrder}
+          onChange={(event) => setAlbumOrder(event.target.value)}
+        >
+          <option value="recent">Mais recentes</option>
+          <option value="name">Nome (A–Z)</option>
+        </select>
       </div>
       {loading ? (
         <div className="gallery-library-empty">
@@ -752,22 +852,32 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
       ) : visibleGalleries.length ? (
         <div className="internal-album-grid">
           {visibleGalleries.map((gallery) => {
-            const cover = gallery.photos.find((photo) => !photo.deletedAt && photo.hasPreview);
+            const previews = gallery.photos.filter((photo) => !photo.deletedAt && photo.hasPreview);
+            const cover =
+              previews.find((photo) => photo.id === albumCovers[gallery.id]) ?? previews[0];
+            const empty = !gallery.photos.some((photo) => !photo.deletedAt);
+            const openAlbum = () => {
+              setSelectedId(gallery.id);
+              setPhotoFilter("all");
+            };
             return (
               <article key={gallery.id}>
                 <button
                   className="album-cover"
                   type="button"
+                  disabled={empty && busy}
+                  aria-label={empty ? `Adicionar fotos a ${gallery.name}` : `Abrir ${gallery.name}`}
                   onClick={() => {
-                    setSelectedId(gallery.id);
-                    setPhotoFilter("all");
+                    if (!empty) return openAlbum();
+                    pickerAlbumId.current = gallery.id;
+                    fileInput.current?.click();
                   }}
                 >
                   {cover ? (
                     <img src={imageUrl(gallery.id, cover.id)} alt="" />
                   ) : (
                     <span>
-                      ＋<small>Adicionar fotos</small>
+                      ＋<small>{empty ? "Adicionar fotos" : "Abrir álbum"}</small>
                     </span>
                   )}
                   <b>{gallery.workId === undefined ? "INDEPENDENTE" : "TRABALHO"}</b>
@@ -775,18 +885,26 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
                 <div className="album-body">
                   <div>
                     <span>{gallery.clientName || "Acervo pessoal"}</span>
-                    <h2>{gallery.name}</h2>
+                    <h2>
+                      <button className="album-title-link" type="button" onClick={openAlbum}>
+                        {gallery.name}
+                      </button>
+                    </h2>
                     <p>{gallery.description || displayDate(gallery.albumDate)}</p>
                   </div>
                   <footer>
                     <span>{gallery.photos.filter((photo) => !photo.deletedAt).length} fotos</span>
-                    <span>{formatSize(gallery.stats.totalBytes)}</span>
+                    {gallery.stats.totalBytes > 0 && (
+                      <span>{formatSize(gallery.stats.totalBytes)}</span>
+                    )}
                     <button
                       type="button"
                       onClick={() => openEditAlbum(gallery)}
                       aria-label={`Editar ${gallery.name}`}
+                      title="Editar álbum"
+                      data-edit-icon
                     >
-                      •••
+                      <RevelarIcon name="edit" />
                     </button>
                   </footer>
                 </div>
