@@ -45,7 +45,7 @@
 .internal-gallery-title h1 {
   margin: 8px 0 6px;
   font-family: var(--font-display);
-  font-size: clamp(38px, 5vw, 64px);
+  font-size: 31px;
   font-weight: 500;
   line-height: 0.95;
 }
@@ -247,7 +247,7 @@
   flex: 1;
 }
 .internal-gallery-title h1 {
-  font-size: clamp(34px, 4vw, 52px);
+  font-size: 31px;
 }
 .internal-gallery-actions {
   display: flex;
@@ -1415,5 +1415,257 @@
   .demo-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding: 12px 12px 30px;
+  }
+}
+
+.internal-gallery .internal-gallery-overview,
+.internal-gallery .internal-gallery-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 10px 0;
+}
+.internal-gallery .internal-gallery-overview > div,
+.internal-gallery .internal-gallery-stats > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+}
+.internal-gallery .internal-gallery-overview strong,
+.internal-gallery .internal-gallery-stats strong {
+  font: inherit;
+  font-weight: 700;
+}
+.internal-gallery .internal-gallery-overview small {
+  display: none;
+}
+.internal-gallery .primary,
+.album-dialog .primary {
+  background: var(--primary);
+  color: var(--on-primary, white);
+}
+.album-dialog-card :is(input, textarea, select),
+.internal-photo-modal aside :is(input, textarea),
+.gallery-album-order {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+}
+.gallery-album-order {
+  min-height: 44px;
+  padding: 0 12px;
+}
+.photo-review-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.photo-modal-heading h2 {
+  overflow-wrap: anywhere;
+}
+
+.internal-gallery .internal-gallery-home-head h1,
+.internal-gallery .internal-gallery-title h1 {
+  font: 500 31px/1.2 var(--font-display);
+}
+.internal-gallery .internal-gallery-home-head p,
+.internal-gallery .internal-gallery-title p,
+.internal-gallery .gallery-search input,
+.internal-gallery .gallery-album-order,
+.internal-gallery .gallery-back {
+  font-size: 13px;
+}
+.internal-gallery .internal-gallery-home-head p,
+.internal-gallery .internal-gallery-title p {
+  color: var(--muted);
+}
+.internal-gallery .internal-gallery-home-head > button,
+.internal-gallery .internal-gallery-actions > button,
+.album-dialog .album-dialog-actions > button {
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+@media (pointer: coarse) {
+  .internal-gallery .internal-gallery-home-head > button,
+  .internal-gallery .internal-gallery-actions > button,
+  .album-dialog .album-dialog-actions > button {
+    min-height: 44px;
+  }
+}
+
+.internal-gallery .gallery-search {
+  max-width: 420px;
+  min-height: 39px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+.internal-gallery .gallery-search:focus-within {
+  border-color: var(--primary);
+  background: var(--surface);
+}
+.internal-gallery .gallery-search input {
+  font-size: 12px;
+}
+.internal-gallery :is(.gallery-filter-pills, .internal-gallery-tabs) {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+.internal-gallery :is(.gallery-filter-pills, .internal-gallery-tabs) button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.internal-gallery :is(.gallery-filter-pills, .internal-gallery-tabs) button.active {
+  background: var(--surface);
+  color: var(--action-ink, var(--primary));
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+}
+.internal-gallery .gallery-album-order {
+  min-height: 39px;
+  font-size: 12px;
+}
+.internal-gallery .internal-gallery-photo-tools > div {
+  font-size: 12px;
+}
+.internal-gallery .internal-gallery-photo-tools button {
+  min-height: 39px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+@media (pointer: coarse) {
+  .internal-gallery :is(.gallery-filter-pills, .internal-gallery-tabs) button,
+  .internal-gallery .internal-gallery-photo-tools button {
+    min-height: 44px;
+  }
+}
+
+.internal-gallery .internal-gallery-toolbar,
+.internal-gallery .album-photo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.internal-gallery .gallery-search {
+  flex: 1 1 260px;
+  min-width: 0;
+  margin-inline-end: auto;
+}
+.internal-gallery .internal-gallery-actions > button:not(.primary) {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+.internal-gallery .internal-gallery-actions > button[data-edit-icon] {
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+.internal-gallery .internal-gallery-photo-tools {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  min-height: 0;
+}
+.internal-gallery .internal-gallery-photo-tools > div {
+  flex-wrap: wrap;
+}
+.internal-gallery .internal-gallery-photo-tools p {
+  margin: 0;
+}
+.album-photo-toolbar {
+  margin-bottom: 12px;
+}
+@media (max-width: 720px) {
+  .internal-gallery .gallery-search {
+    max-width: none;
+  }
+  .internal-gallery .internal-gallery-photo-tools {
+    justify-content: flex-start;
+  }
+}
+
+.album-body .album-title-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.album-body .album-title-link:hover {
+  text-decoration: underline;
+}
+
+.internal-photo-stage {
+  position: relative;
+}
+.internal-photo-stage .photo-review-navigation {
+  position: absolute;
+  inset-inline: 8px;
+  bottom: 12px;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  margin: auto;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+.photo-review-navigation small {
+  order: -1;
+  padding: 0 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.internal-photo-modal aside .save-details {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+.internal-photo-modal .photo-edit-actions {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .internal-photo-stage img {
+    animation: photo-review-enter 180ms ease-out;
+  }
+}
+@keyframes photo-review-enter {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
   }
 }

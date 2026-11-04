@@ -1,3 +1,4 @@
+import { RevelarIcon } from "@/components/shared/RevelarIcon";
 import { type Dispatch, type FormEvent, type SetStateAction, useMemo, useState } from "react";
 
 import { agendaKindLabels } from "@/config/labels";
@@ -937,8 +938,15 @@ export function AgendaView({
                       className="primary-button"
                       type="button"
                       onClick={() => openEditEvent(selectedEvent)}
+                      aria-label={
+                        selectedEvent.recurrence === "none" ? "Editar compromisso" : "Editar série"
+                      }
+                      title={
+                        selectedEvent.recurrence === "none" ? "Editar compromisso" : "Editar série"
+                      }
+                      data-edit-icon
                     >
-                      {selectedEvent.recurrence === "none" ? "Editar" : "Editar série"}
+                      <RevelarIcon name="edit" />
                     </button>
                   </>
                 )}

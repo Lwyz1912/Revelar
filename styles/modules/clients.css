@@ -1249,3 +1249,16 @@
     grid-template-columns: 1fr;
   }
 }
+
+.client-primary-actions .whatsapp-button {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+.client-primary-actions .whatsapp-button svg {
+  width: 20px;
+  height: 20px;
+}
