@@ -44,7 +44,7 @@ export function NewClientDrawer({
     );
   }, [clientId, clients, form.email, form.whatsapp]);
 
-  const update = (field: keyof NewClientData, value: string) =>
+  const update = <K extends keyof NewClientData>(field: K, value: NewClientData[K]) =>
     setForm((current) => ({ ...current, [field]: value }));
 
   const onPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -261,6 +261,73 @@ export function NewClientDrawer({
                         onChange={(event) => update("otherDate", event.target.value)}
                       />
                     </label>
+                    {(form.additionalDates ?? []).map((item, index) => (
+                      <div className="field full field-grid" key={index}>
+                        <label className="field">
+                          <span>Nome da data personalizada {index + 2}</span>
+                          <input
+                            value={item.label}
+                            onChange={(event) =>
+                              update(
+                                "additionalDates",
+                                (form.additionalDates ?? []).map((entry, position) =>
+                                  position === index
+                                    ? { ...entry, label: event.target.value }
+                                    : entry,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Data personalizada {index + 2}</span>
+                          <input
+                            type="date"
+                            value={item.date}
+                            onChange={(event) =>
+                              update(
+                                "additionalDates",
+                                (form.additionalDates ?? []).map((entry, position) =>
+                                  position === index
+                                    ? { ...entry, date: event.target.value }
+                                    : entry,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        <div>
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() =>
+                              update(
+                                "additionalDates",
+                                (form.additionalDates ?? []).filter(
+                                  (_, position) => position !== index,
+                                ),
+                              )
+                            }
+                          >
+                            Remover data {index + 2}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="field full">
+                      <button
+                        className="outline-button"
+                        type="button"
+                        onClick={() =>
+                          update("additionalDates", [
+                            ...(form.additionalDates ?? []),
+                            { label: "", date: "" },
+                          ])
+                        }
+                      >
+                        ＋ Adicionar outra data
+                      </button>
+                    </div>
                     <label className="field full">
                       <span>Observações</span>
                       <textarea

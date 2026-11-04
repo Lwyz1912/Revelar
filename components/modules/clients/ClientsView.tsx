@@ -56,28 +56,12 @@ export function ClientsView({
         </button>
       </section>
 
-      <section className="client-metrics" aria-label="Resumo de clientes">
-        <article>
-          <span>CLIENTES ATIVOS</span>
-          <strong>{clients.length}</strong>
-          <small>4 retornaram este ano</small>
-        </article>
-        <article>
-          <span>PESSOAS</span>
-          <strong>{clients.length - companies}</strong>
-          <small>Ensaios e eventos</small>
-        </article>
-        <article>
-          <span>EMPRESAS E LOJAS</span>
-          <strong>{companies}</strong>
-          <small>Conteúdo recorrente</small>
-        </article>
-        <article>
-          <span>PRÓXIMAS DATAS</span>
-          <strong>{upcomingDates}</strong>
-          <small>Oportunidades de contato</small>
-        </article>
-      </section>
+      <p className="clients-counts">
+        <strong>{clients.length} clientes</strong>
+        <span>{clients.length - companies} pessoas</span>
+        <span>{companies} empresas</span>
+        <span>{upcomingDates} com data importante</span>
+      </p>
 
       <section className="clients-panel">
         <header className="clients-toolbar">
@@ -166,44 +150,73 @@ export function ClientsView({
               <span />
             </div>
             {filteredClients.map((client) => (
-              <button
-                type="button"
-                className="client-row"
-                key={client.id}
-                onClick={() => onOpenClient(client)}
-              >
-                <span className="client-main">
-                  <span className="client-avatar">
-                    {client.avatar ? <img src={client.avatar} alt="" /> : initials(client.name)}
+              <div className="client-list-item" key={client.id}>
+                <button type="button" className="client-row" onClick={() => onOpenClient(client)}>
+                  <span className="client-main">
+                    <span className="client-avatar">
+                      {client.avatar ? <img src={client.avatar} alt="" /> : initials(client.name)}
+                    </span>
+                    <span>
+                      <strong>{client.name}</strong>
+                      <small>
+                        {client.type === "company" ? "Empresa / loja" : client.tag} ·{" "}
+                        {client.workCount} {client.workCount === 1 ? "trabalho" : "trabalhos"}
+                      </small>
+                      {(client.whatsapp || client.instagram) && (
+                        <small className="client-mobile-contact">
+                          {client.whatsapp || client.instagram}
+                        </small>
+                      )}
+                      {client.workCount > 0 && client.lastWork && (
+                        <small className="client-mobile-contact">
+                          Último trabalho · {client.lastWork.split(" · ")[0]}
+                        </small>
+                      )}
+                    </span>
                   </span>
-                  <span>
-                    <strong>{client.name}</strong>
-                    <small>
-                      {client.type === "company" ? "Empresa / loja" : client.tag} ·{" "}
-                      {client.workCount} {client.workCount === 1 ? "trabalho" : "trabalhos"}
-                    </small>
+                  <span className="client-contact">
+                    <strong>{client.whatsapp}</strong>
+                    <small>{client.instagram}</small>
                   </span>
-                </span>
-                <span className="client-contact">
-                  <strong>{client.whatsapp}</strong>
-                  <small>{client.instagram}</small>
-                </span>
-                <span className="client-last">
-                  <strong>{client.lastWork.split(" · ")[0]}</strong>
-                  <small>{client.lastWork.split(" · ")[1] || "—"}</small>
-                </span>
-                <span className="client-date">
-                  {client.nextDate ? (
-                    <>
-                      <strong>{client.nextDate}</strong>
-                      <small>{client.nextDateLabel}</small>
-                    </>
-                  ) : (
-                    <small>Nenhuma data</small>
-                  )}
-                </span>
-                <span className="row-arrow">›</span>
-              </button>
+                  <span className="client-last">
+                    <strong>{client.lastWork.split(" · ")[0]}</strong>
+                    <small>{client.lastWork.split(" · ")[1] || "—"}</small>
+                  </span>
+                  <span className="client-date">
+                    {client.nextDate ? (
+                      <>
+                        <strong>{client.nextDate}</strong>
+                        <small>{client.nextDateLabel}</small>
+                      </>
+                    ) : (
+                      <small>Nenhuma data</small>
+                    )}
+                  </span>
+                  <span className="row-arrow">›</span>
+                </button>
+                {/\d/.test(client.whatsapp) && (
+                  <a
+                    className="client-mobile-whatsapp"
+                    href={`https://wa.me/${client.whatsapp.replace(/\D/g, "")}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Abrir WhatsApp de ${client.name}`}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="20"
+                      height="20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      aria-hidden="true"
+                    >
+                      <path d="M20 11.5a8 8 0 0 1-12 7l-4 1 1-4a8 8 0 1 1 15-4Z" />
+                      <path d="M9 8c0 4 3 7 7 7m-7-7 2 2m3 3 2 2" />
+                    </svg>
+                  </a>
+                )}
+              </div>
             ))}
           </div>
         ) : (
