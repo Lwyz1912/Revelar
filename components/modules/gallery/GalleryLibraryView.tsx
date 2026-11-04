@@ -627,21 +627,14 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
             </button>
             <div className="internal-photo-stage">
               <img
+                key={focused.id}
                 src={imageUrl(selectedGallery.id, focused.id, "original")}
                 alt={focused.caption || focused.filename}
               />
-            </div>
-            <aside>
-              <div className="photo-modal-heading">
-                <span>FICHA INTERNA DA FOTO</span>
-                <h2>{focused.filename}</h2>
-                <p>Somente você vê estas informações.</p>
-              </div>
-              {visiblePhotos.some((photo) => photo.id === focused.id) && (
+              {focusedIndex >= 0 && (
                 <nav className="photo-review-navigation" aria-label="Navegar pelas fotos">
                   {[-1, 1].map((direction) => {
-                    const index = visiblePhotos.findIndex((photo) => photo.id === focused.id);
-                    const adjacent = visiblePhotos[index + direction];
+                    const adjacent = visiblePhotos[focusedIndex + direction];
                     return (
                       <button
                         key={direction}
@@ -654,12 +647,18 @@ export function GalleryLibraryView({ works, onOpenWork, onOpenEditor, toast }: P
                       </button>
                     );
                   })}
-                  <small>
-                    {visiblePhotos.findIndex((photo) => photo.id === focused.id) + 1} de{" "}
-                    {visiblePhotos.length}
+                  <small role="status" aria-atomic="true">
+                    {focusedIndex + 1} de {visiblePhotos.length}
                   </small>
                 </nav>
               )}
+            </div>
+            <aside>
+              <div className="photo-modal-heading">
+                <span>FICHA INTERNA DA FOTO</span>
+                <h2>{focused.filename}</h2>
+                <p>Somente você vê estas informações.</p>
+              </div>
               {focused.hasPreview && (
                 <button
                   className="outline-button"
