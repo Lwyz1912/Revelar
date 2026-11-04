@@ -543,11 +543,9 @@ export function RevelarApp() {
           onThemeChange={setThemeMode}
           searchOpen={searchOpen}
           onSearchToggle={() => setSearchOpen(!searchOpen)}
-          searchContext={isClients ? "clients" : isWorks ? "works" : "none"}
-          searchValue={isClients ? clientSearch : isWorks ? workSearch : ""}
-          onSearchChange={(value) =>
-            isClients ? setClientSearch(value) : isWorks ? setWorkSearch(value) : undefined
-          }
+          searchContext={isWorks ? "works" : "none"}
+          searchValue={isWorks ? workSearch : ""}
+          onSearchChange={(value) => (isWorks ? setWorkSearch(value) : undefined)}
           onOpenHelp={() => setHelpOpen(true)}
           notifications={activeNotifications}
           onOpenNotification={openNotification}
