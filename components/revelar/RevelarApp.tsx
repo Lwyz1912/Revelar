@@ -858,6 +858,7 @@ export function RevelarApp() {
                   weddingDate: editingClient.weddingDate || "",
                   otherDateLabel: editingClient.otherDateLabel || "",
                   otherDate: editingClient.otherDate || "",
+                  additionalDates: editingClient.additionalDates,
                   notes: editingClient.notes || "",
                   avatar: editingClient.avatar,
                 }
