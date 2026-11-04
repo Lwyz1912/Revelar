@@ -22,14 +22,15 @@ export function nextNumericId(records: Array<{ id: number }>) {
 }
 
 export function createClientRecord(data: NewClientData, id: number): Client {
-  const date = data.birthday || data.weddingDate || data.otherDate;
+  const extraDate = data.additionalDates?.find((item) => item.date);
+  const date = data.birthday || data.weddingDate || data.otherDate || extraDate?.date;
   const dateLabel = data.birthday
     ? data.type === "company"
       ? "Aniversário da marca"
       : "Aniversário"
     : data.weddingDate
       ? "Aniversário de casamento"
-      : data.otherDateLabel || "Data importante";
+      : (data.otherDate ? data.otherDateLabel : extraDate?.label) || "Data importante";
 
   return {
     id,
@@ -52,6 +53,7 @@ export function createClientRecord(data: NewClientData, id: number): Client {
     weddingDate: data.weddingDate || undefined,
     otherDateLabel: data.otherDateLabel || undefined,
     otherDate: data.otherDate || undefined,
+    additionalDates: data.additionalDates?.filter((item) => item.date || item.label.trim()),
     notes: data.notes || undefined,
     archived: false,
     createdAt: new Date().toISOString(),
