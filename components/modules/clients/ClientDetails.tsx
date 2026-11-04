@@ -2,8 +2,11 @@
 
 import { useMemo, useState } from "react";
 
-import { formatMoney, initials } from "@/lib/format";
-import { isAppFileRef } from "@/lib/app-files.client";
+import { todayIso } from "@/lib/dates";
+import { quoteStatusLabels, workStatusLabels } from "@/config/labels";
+import { formatDate, formatMoney, initials } from "@/lib/format";
+import { workTransactions } from "@/lib/finance";
+import { fileDownloadUrl, isAppFileRef } from "@/lib/app-files.client";
 import type { Client, Contract, Currency, FinanceTransaction, Quote, Work } from "@/types/revelar";
 import { useUrlStringState } from "@/hooks/use-url-state";
 
@@ -57,11 +60,12 @@ export function ClientDetails({
     [client.id, works],
   );
   const workIds = useMemo(() => new Set(clientWorks.map((work) => work.id)), [clientWorks]);
-  const clientTransactions = transactions.filter(
+  const clientTransactions = [...transactions, ...workTransactions(clientWorks)].filter(
     (transaction) =>
       (transaction.workId && workIds.has(transaction.workId)) ||
       transaction.origin.toLowerCase().includes(client.name.toLowerCase()),
   );
+  const visibleTransactions = clientTransactions.filter((item) => item.currency === currency);
   const clientQuotes = quotes.filter((quote) => quote.clientId === client.id);
   const clientContracts = contracts.filter((contract) => contract.clientId === client.id);
   const sameCurrencyWorks = clientWorks.filter((work) => work.currency === currency);
@@ -77,6 +81,14 @@ export function ClientDetails({
   const pending = Math.max(0, revenue - received);
   const sortedWorks = [...clientWorks].sort((a, b) => b.date.localeCompare(a.date));
   const lastWork = sortedWorks[0];
+  const today = todayIso();
+  const nextSession = clientWorks
+    .filter(
+      (work) => work.date >= today && !["completed", "archived", "cancelled"].includes(work.status),
+    )
+    .sort((a, b) =>
+      `${a.date}T${a.time || "23:59"}`.localeCompare(`${b.date}T${b.time || "23:59"}`),
+    )[0];
   const files = clientWorks.flatMap((work) =>
     work.attachments.map((file) => ({ filename: isAppFileRef(file) ? file.name : file, work })),
   );
@@ -86,13 +98,13 @@ export function ClientDetails({
       id: `work-${work.id}`,
       date: work.date || "",
       title: work.title,
-      detail: `${work.category} · ${work.status === "completed" ? "Concluído" : "Em andamento"}`,
+      detail: `${work.category} · ${workStatusLabels[work.status]}`,
     })),
     ...clientQuotes.map((quote) => ({
       id: `quote-${quote.id}`,
       date: quote.validUntil,
       title: `Orçamento · ${quote.title}`,
-      detail: `Status: ${quote.status}`,
+      detail: `${quoteStatusLabels[quote.status]}`,
     })),
     ...clientContracts.map((contract) => ({
       id: `contract-${contract.id}`,
@@ -132,6 +144,12 @@ export function ClientDetails({
           <button className="primary-button" type="button" onClick={onNewWork}>
             ＋ Novo trabalho
           </button>
+          <details className="client-profile-menu">
+            <summary aria-label="Mais opções da ficha">⋯</summary>
+            <button className="outline-button" type="button" onClick={onArchive}>
+              {client.archived ? "Restaurar cliente" : "Arquivar cliente"}
+            </button>
+          </details>
         </div>
       </header>
 
@@ -152,6 +170,25 @@ export function ClientDetails({
 
       {tab === "summary" && (
         <div className="client-summary-layout">
+          {nextSession && (
+            <section className="client-next-session" aria-label="Próxima sessão">
+              <div>
+                <small>PRÓXIMA SESSÃO</small>
+                <h2>{nextSession.title}</h2>
+                <p>
+                  {formatDate(nextSession.date)} · {nextSession.time || "Horário a definir"} ·{" "}
+                  {nextSession.location || "Local a definir"}
+                </p>
+              </div>
+              <button
+                className="outline-button"
+                type="button"
+                onClick={() => onOpenWork(nextSession)}
+              >
+                Abrir trabalho ›
+              </button>
+            </section>
+          )}
           <section className="client-profile-metrics">
             <article>
               <span>FATURAMENTO</span>
@@ -205,9 +242,6 @@ export function ClientDetails({
           <section className="client-quick-actions">
             <h2>Ações rápidas</h2>
             <div>
-              <button type="button" onClick={onNewWork}>
-                <span>＋</span>Novo trabalho
-              </button>
               <button type="button" onClick={() => onNavigate("Orçamentos")}>
                 <span>▤</span>Orçamento
               </button>
@@ -232,7 +266,7 @@ export function ClientDetails({
                 <span>
                   <strong>{work.title}</strong>
                   <small>
-                    {work.category} · {work.date || "Sem data"}
+                    {work.category} · {work.date ? formatDate(work.date) : "Sem data"}
                   </small>
                 </span>
                 <b>{formatMoney(work.totalValue, work.currency)}</b>
@@ -263,8 +297,8 @@ export function ClientDetails({
                 </small>
               </span>
               <span>
-                <strong>{work.date || "Sem data"}</strong>
-                <small>{work.packageName}</small>
+                <strong>{work.date ? formatDate(work.date) : "Sem data"}</strong>
+                <small>{workStatusLabels[work.status]}</small>
               </span>
               <b>{formatMoney(work.totalValue, work.currency)}</b>
               <i>›</i>
@@ -279,29 +313,36 @@ export function ClientDetails({
           <header>
             <div>
               <p>FINANCEIRO</p>
-              <h2>Movimentações vinculadas</h2>
+              <h2>Movimentações vinculadas · {currency}</h2>
             </div>
             <button
               className="primary-button"
               type="button"
               onClick={() => onNavigate("Financeiro")}
             >
-              Registrar pagamento
+              Abrir Financeiro
             </button>
           </header>
-          {clientTransactions.map((transaction) => (
+          {visibleTransactions.map((transaction) => (
             <article key={transaction.id}>
               <span>
                 <strong>{transaction.description}</strong>
                 <small>
-                  {transaction.date} · {transaction.status}
+                  {formatDate(transaction.date)} ·{" "}
+                  {
+                    { received: "Recebido", paid: "Pago", pending: "Pendente", late: "Em atraso" }[
+                      transaction.status
+                    ]
+                  }
                 </small>
               </span>
               <b>{formatMoney(transaction.amount, transaction.currency)}</b>
             </article>
           ))}
-          {!clientTransactions.length && (
-            <div className="empty-state">Nenhuma movimentação vinculada.</div>
+          {!visibleTransactions.length && (
+            <div className="empty-state">
+              Nenhum lançamento nesta moeda. Valores a receber podem existir antes de um lançamento.
+            </div>
           )}
         </section>
       )}
@@ -325,10 +366,18 @@ export function ClientDetails({
               <div>
                 {work.attachments.map((file, index) => (
                   <span key={`${isAppFileRef(file) ? file.id : file}-${index}`}>
-                    ▱ {isAppFileRef(file) ? file.name : file}
+                    {isAppFileRef(file) ? (
+                      <a href={fileDownloadUrl(file)} download={file.name}>
+                        {file.name}
+                      </a>
+                    ) : (
+                      file
+                    )}
                   </span>
                 ))}
-                <span>▦ Galeria · {work.photos.selected} selecionadas</span>
+                {work.photos.selected > 0 && (
+                  <span>▦ Galeria · {work.photos.selected} selecionadas</span>
+                )}
               </div>
             </article>
           ))}
@@ -346,7 +395,7 @@ export function ClientDetails({
           {timeline.map((item) => (
             <article key={item.id}>
               <i />
-              <span>{item.date || "Registro"}</span>
+              <span>{item.date ? formatDate(item.date) : "Registro"}</span>
               <div>
                 <strong>{item.title}</strong>
                 <p>{item.detail}</p>
@@ -364,15 +413,23 @@ export function ClientDetails({
               <h2>Preferências e informações úteis</h2>
             </div>
           </header>
-          <textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="Ex.: prefere fotos espontâneas, gosta de tons quentes..."
-          />
+          <div className="client-notes-layout">
+            <textarea
+              aria-label="Anotação do cliente"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Ex.: prefere fotos espontâneas, gosta de tons quentes..."
+            />
+            <aside>
+              <strong>O que vale anotar</strong>
+              <ul>
+                <li>Estilo de fotos</li>
+                <li>Preferências de edição</li>
+                <li>Cuidados para o ensaio</li>
+              </ul>
+            </aside>
+          </div>
           <footer>
-            <button className="outline-button" type="button" onClick={onArchive}>
-              {client.archived ? "Restaurar cliente" : "Arquivar cliente"}
-            </button>
             <button
               className="primary-button"
               type="button"
